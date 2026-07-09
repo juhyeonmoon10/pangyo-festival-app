@@ -393,10 +393,10 @@ function mapView() {
         <div class="search-row ${state.search ? "has-clear" : ""}">
           <input id="search" class="input" placeholder="부스 검색" value="${state.search}" />
           ${state.search ? `<button id="clearSearch" type="button" class="clear-search-btn" aria-label="검색어 지우기">×</button>` : ""}
-          <select id="sort" class="select">
-            <option value="name" ${state.sort === "name" ? "selected" : ""}>이름순</option>
-            <option value="rating" ${state.sort === "rating" ? "selected" : ""}>별점순</option>
-          </select>
+          <div class="sort-toggle" aria-label="부스 정렬">
+            <button type="button" class="sort-option ${state.sort === "name" ? "active" : ""}" data-sort-option="name">이름</button>
+            <button type="button" class="sort-option ${state.sort === "rating" ? "active" : ""}" data-sort-option="rating">별점</button>
+          </div>
         </div>
         <div class="sheet-filter-row">
           ${[
@@ -833,10 +833,10 @@ function bindEvents() {
     setSheetLevel("full");
     render();
   });
-  document.querySelector("#sort")?.addEventListener("change", (event) => {
-    state.sort = event.target.value;
+  document.querySelectorAll("[data-sort-option]").forEach((button) => button.addEventListener("click", () => {
+    state.sort = button.dataset.sortOption;
     render();
-  });
+  }));
   document.querySelectorAll("[data-booth-filter]").forEach((button) => button.addEventListener("click", () => {
     state.boothFilter = button.dataset.boothFilter;
     setSheetLevel("mid");
