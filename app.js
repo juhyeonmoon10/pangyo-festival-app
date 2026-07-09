@@ -955,14 +955,30 @@ function bindMapDrag() {
   let baseZoom = state.mapZoom;
   let pinchStart = 0;
   let dragging = false;
+  let moved = false;
+  let lastTap = { time: 0, x: 0, y: 0 };
+  let lastTouchZoomAt = 0;
 
   const clamp = (value, max) => Math.min(max, Math.max(-max, value));
   const distance = ([first, second]) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  const zoomAt = (clientX, clientY) => {
+    const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
+    const rect = card.getBoundingClientRect();
+    const maxX = 72 * nextZoom;
+    const maxY = 92 * nextZoom;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    state.mapZoom = nextZoom;
+    state.mapOffsetX = clamp(state.mapOffsetX + (centerX - clientX) * 0.18, maxX);
+    state.mapOffsetY = clamp(state.mapOffsetY + (centerY - clientY) * 0.18, maxY);
+    render();
+  };
 
   card.addEventListener("pointerdown", (event) => {
     if (event.target.closest("button, input, select, textarea")) return;
     pointers.set(event.pointerId, event);
     dragging = true;
+    moved = false;
     startX = event.clientX;
     startY = event.clientY;
     baseX = state.mapOffsetX;
@@ -976,7 +992,9 @@ function bindMapDrag() {
   card.addEventListener("pointermove", (event) => {
     if (!dragging) return;
     if (pointers.has(event.pointerId)) pointers.set(event.pointerId, event);
+    if (Math.abs(event.clientX - startX) > 7 || Math.abs(event.clientY - startY) > 7) moved = true;
     if (pointers.size >= 2 && pinchStart) {
+      moved = true;
       const nextZoom = Number(Math.min(1.6, Math.max(0.9, baseZoom * (distance([...pointers.values()].slice(0, 2)) / pinchStart))).toFixed(2));
       state.mapZoom = nextZoom;
       const maxX = 72 * nextZoom;
@@ -1012,9 +1030,18 @@ function bindMapDrag() {
     const maxY = 92 * state.mapZoom;
     state.mapOffsetX = clamp(baseX + event.clientX - startX, maxX);
     state.mapOffsetY = clamp(baseY + event.clientY - startY, maxY);
+    const now = Date.now();
+    const tapDistance = Math.hypot(event.clientX - lastTap.x, event.clientY - lastTap.y);
     dragging = false;
     pinchStart = 0;
     card.classList.remove("dragging");
+    if (!moved && now - lastTap.time < 320 && tapDistance < 36) {
+      lastTap = { time: 0, x: 0, y: 0 };
+      lastTouchZoomAt = now;
+      zoomAt(event.clientX, event.clientY);
+      return;
+    }
+    if (!moved) lastTap = { time: now, x: event.clientX, y: event.clientY };
     render();
   };
 
@@ -1023,16 +1050,8 @@ function bindMapDrag() {
   card.addEventListener("dblclick", (event) => {
     if (event.target.closest("button, input, select, textarea")) return;
     event.preventDefault();
-    const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
-    const rect = card.getBoundingClientRect();
-    const maxX = 72 * nextZoom;
-    const maxY = 92 * nextZoom;
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    state.mapZoom = nextZoom;
-    state.mapOffsetX = clamp(state.mapOffsetX + (centerX - event.clientX) * 0.18, maxX);
-    state.mapOffsetY = clamp(state.mapOffsetY + (centerY - event.clientY) * 0.18, maxY);
-    render();
+    if (Date.now() - lastTouchZoomAt < 360) return;
+    zoomAt(event.clientX, event.clientY);
   });
 }
 
