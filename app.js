@@ -385,6 +385,7 @@ function mapView() {
             <span><i class="legend-pin facility"></i>시설</span>
             <span><i class="legend-pin visited"></i>방문</span>
           </div>
+          <div class="map-scale" aria-hidden="true"><i></i><span>교실 1칸</span></div>
           ${selectedBooth && state.routeGuideId === selectedBooth.id ? routeBanner(selectedBooth) : ""}
           ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
         </div>

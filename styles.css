@@ -2086,6 +2086,34 @@ button {
   background: var(--secondary);
 }
 
+.map-scale {
+  position: absolute;
+  left: 48px;
+  bottom: 184px;
+  z-index: 3;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--soft-shadow);
+  font-size: 10px;
+  font-weight: 900;
+  backdrop-filter: blur(12px);
+}
+
+.map-scale i {
+  width: 34px;
+  height: 8px;
+  border-left: 2px solid var(--text);
+  border-right: 2px solid var(--text);
+  border-bottom: 2px solid var(--text);
+}
+
 .zoom-control {
   position: absolute;
   right: 48px;
@@ -2603,8 +2631,16 @@ button {
   bottom: 286px;
 }
 
+.map-card:has(.map-preview-card) .map-scale {
+  bottom: 330px;
+}
+
 .map-card:has(.route-banner) .map-control-stack {
   bottom: 342px;
+}
+
+.map-card:has(.route-banner) .map-scale {
+  bottom: 386px;
 }
 
 .marker.selected::before {
@@ -2631,6 +2667,10 @@ button {
   .map-empty-card {
     left: 36px;
     right: 36px;
+  }
+
+  .map-scale {
+    left: 36px;
   }
 
   .booth-item {
