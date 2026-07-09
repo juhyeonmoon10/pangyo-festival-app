@@ -463,6 +463,7 @@ function routeBanner(booth) {
       <b>→</b>
       <strong>${booth.name}</strong>
       <em>도보 1분</em>
+      <button type="button" data-clear-guide aria-label="길안내 종료">×</button>
     </div>
   `;
 }
@@ -797,6 +798,10 @@ function bindEvents() {
   document.querySelectorAll("[data-guide]").forEach((button) => button.addEventListener("click", () => {
     toggleRouteGuide(button.dataset.guide);
   }));
+  document.querySelector("[data-clear-guide]")?.addEventListener("click", () => {
+    state.routeGuideId = null;
+    render();
+  });
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => goDetail(button.dataset.detail)));
   document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => nfcAdapter.scan(button.dataset.nfc)));
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {
