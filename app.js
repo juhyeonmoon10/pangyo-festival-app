@@ -29,6 +29,7 @@ const state = {
   mapOffsetY: 0,
   selectedBoothId: null,
   sheetOpen: false,
+  sheetLevel: "peek",
   search: "",
   sort: "name",
   boothFilter: "all",
@@ -324,7 +325,7 @@ function mapView() {
           <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
         </div>
       </section>
-      <section class="sheet ${state.sheetOpen ? "open" : ""}" id="sheet">
+      <section class="sheet ${sheetClass()}" id="sheet">
         <button class="sheet-handle" id="sheetToggle" aria-label="부스 목록 열기"></button>
         <div class="sheet-head">
           <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small></span>
@@ -359,6 +360,12 @@ function markerLabel(booth) {
 
 function markerName(booth) {
   return booth.name.length > 6 ? `${booth.name.slice(0, 6)}…` : booth.name;
+}
+
+function sheetClass() {
+  if (state.sheetLevel === "full") return "full";
+  if (state.sheetLevel === "mid" || state.sheetOpen) return "open";
+  return "";
 }
 
 function boothItem(booth) {
@@ -571,6 +578,7 @@ function bindEvents() {
   document.querySelectorAll("[data-floor]").forEach((button) => button.addEventListener("click", () => {
     state.floor = Number(button.dataset.floor);
     state.sheetOpen = false;
+    state.sheetLevel = "peek";
     state.mapZoom = 1;
     state.mapOffsetX = 0;
     state.mapOffsetY = 0;
@@ -578,15 +586,21 @@ function bindEvents() {
     render();
   }));
   document.querySelector("#sheetToggle")?.addEventListener("click", () => {
-    state.sheetOpen = !state.sheetOpen;
+    if (state.sheetLevel === "peek") {
+      setSheetLevel("mid");
+    } else if (state.sheetLevel === "mid") {
+      setSheetLevel("full");
+    } else {
+      setSheetLevel("peek");
+    }
     render();
   });
   document.querySelector("#sheetOpenBtn")?.addEventListener("click", () => {
-    state.sheetOpen = true;
+    setSheetLevel("mid");
     render();
   });
   document.querySelector("#sheetOpenBtn2")?.addEventListener("click", () => {
-    state.sheetOpen = true;
+    setSheetLevel("full");
     render();
   });
   document.querySelector("#mapSearchBtn")?.addEventListener("click", openSearchSheet);
@@ -600,6 +614,7 @@ function bindEvents() {
     state.mapOffsetX = 0;
     state.mapOffsetY = 0;
     state.sheetOpen = false;
+    state.sheetLevel = "peek";
     render();
   });
   bindMapDrag();
@@ -614,7 +629,7 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-booth-filter]").forEach((button) => button.addEventListener("click", () => {
     state.boothFilter = button.dataset.boothFilter;
-    state.sheetOpen = true;
+    setSheetLevel("mid");
     render();
   }));
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => goDetail(button.dataset.detail)));
@@ -637,9 +652,14 @@ function bindEvents() {
 }
 
 function openSearchSheet() {
-  state.sheetOpen = true;
+  setSheetLevel("full");
   render();
   requestAnimationFrame(() => document.querySelector("#search")?.focus());
+}
+
+function setSheetLevel(level) {
+  state.sheetLevel = level;
+  state.sheetOpen = level !== "peek";
 }
 
 function bindSheetDrag() {
@@ -651,8 +671,14 @@ function bindSheetDrag() {
   const finish = (clientY) => {
     if (!dragging) return;
     const delta = clientY - startY;
-    if (delta < -22) state.sheetOpen = true;
-    if (delta > 22) state.sheetOpen = false;
+    if (delta < -22) {
+      if (state.sheetLevel === "peek") setSheetLevel("mid");
+      else setSheetLevel("full");
+    }
+    if (delta > 22) {
+      if (state.sheetLevel === "full") setSheetLevel("mid");
+      else setSheetLevel("peek");
+    }
     dragging = false;
     render();
   };
@@ -830,6 +856,7 @@ function goDetail(id) {
   state.selectedBoothId = id;
   state.route = "detail";
   state.sheetOpen = false;
+  state.sheetLevel = "peek";
   render();
 }
 

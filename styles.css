@@ -1347,11 +1347,21 @@ button {
 }
 
 .sheet {
-  height: 67vh;
-  transform: translateY(calc(100% - 142px));
+  height: 76vh;
+  transform: translateY(calc(100% - 132px));
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -16px 42px rgba(23, 32, 51, 0.16);
   grid-template-rows: auto auto auto 1fr;
+  will-change: transform;
+}
+
+.sheet.open {
+  transform: translateY(34vh);
+}
+
+.sheet.full {
+  transform: translateY(0);
+  border-radius: 22px 22px 0 0;
 }
 
 .sheet-handle {
@@ -1418,6 +1428,10 @@ button {
 .booth-item {
   border-radius: 15px;
   padding: 12px;
+}
+
+.sheet.full .booth-list {
+  padding-bottom: 92px;
 }
 
 .empty-list {
