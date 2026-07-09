@@ -1579,6 +1579,45 @@ button {
   transition: none;
 }
 
+.map-empty-card {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 47%;
+  z-index: 4;
+  display: grid;
+  gap: 7px;
+  justify-items: start;
+  padding: 14px;
+  border-radius: 18px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(223, 229, 239, 0.92);
+  box-shadow: 0 16px 34px rgba(23, 32, 51, 0.14);
+  backdrop-filter: blur(14px);
+  animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.map-empty-card strong {
+  font-size: 14px;
+}
+
+.map-empty-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.map-empty-card button {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 13px;
+  color: #fff;
+  background: var(--primary);
+  font-size: 12px;
+  font-weight: 1000;
+}
+
 .map-grid {
   position: absolute;
   inset: 0;
@@ -2589,6 +2628,11 @@ button {
 }
 
 @media (max-width: 380px) {
+  .map-empty-card {
+    left: 36px;
+    right: 36px;
+  }
+
   .booth-item {
     gap: 7px;
     grid-template-columns: minmax(0, 1fr) auto auto;

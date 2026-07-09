@@ -366,6 +366,7 @@ function mapView() {
             ${rooms.map(([label, x, y, w, h], index) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--stagger:${index * 24}ms">${label}</div>`).join("")}
             ${booths.map((booth, index) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
+          ${booths.length ? "" : mapEmptyCard()}
           <div class="map-control-stack" aria-label="지도 조작">
             <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
             <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
@@ -420,6 +421,16 @@ function mapView() {
       </section>
       ${bottomNav("map")}
     </main>
+  `;
+}
+
+function mapEmptyCard() {
+  return `
+    <div class="map-empty-card">
+      <strong>조건에 맞는 부스가 없어요</strong>
+      <span>검색어나 필터를 바꿔보세요.</span>
+      <button type="button" data-map-filter="all">전체 보기</button>
+    </div>
   `;
 }
 
