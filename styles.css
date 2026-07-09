@@ -1855,6 +1855,48 @@ button {
   animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.route-banner {
+  position: absolute;
+  left: 48px;
+  right: 112px;
+  bottom: 292px;
+  z-index: 4;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border-radius: 15px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(223, 229, 239, 0.9);
+  box-shadow: 0 14px 30px rgba(23, 32, 51, 0.13);
+  backdrop-filter: blur(14px);
+  animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.route-banner span,
+.route-banner em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.route-banner b {
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.route-banner strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .map-preview-card strong {
   display: block;
   overflow: hidden;
@@ -2165,6 +2207,10 @@ button {
   bottom: 286px;
 }
 
+.map-card:has(.route-banner) .map-control-stack {
+  bottom: 342px;
+}
+
 .marker.selected::before {
   content: "";
   position: absolute;
@@ -2197,6 +2243,11 @@ button {
   .map-preview-card {
     left: 36px;
     right: 36px;
+  }
+
+  .route-banner {
+    left: 36px;
+    right: 92px;
   }
 }
 

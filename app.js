@@ -354,6 +354,7 @@ function mapView() {
             <span><i class="legend-pin facility"></i>시설</span>
             <span><i class="legend-pin visited"></i>방문</span>
           </div>
+          ${selectedBooth && state.routeGuideId === selectedBooth.id ? routeBanner(selectedBooth) : ""}
           ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
         </div>
       </section>
@@ -452,6 +453,17 @@ function mapRouteGuide(booth) {
       <circle cx="50" cy="52" r="1.7" />
       <circle class="route-end" cx="${booth.x}" cy="${booth.y}" r="2.2" />
     </svg>
+  `;
+}
+
+function routeBanner(booth) {
+  return `
+    <div class="route-banner">
+      <span>현재 위치</span>
+      <b>→</b>
+      <strong>${booth.name}</strong>
+      <em>도보 1분</em>
+    </div>
   `;
 }
 
