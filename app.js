@@ -33,6 +33,7 @@ const state = {
   authStep: "google",
   pendingGoogle: null,
   authIntent: "student",
+  loginBusy: false,
   loginError: "",
   adminMessage: "",
   pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
@@ -215,8 +216,8 @@ function googleForm() {
       <p class="subtitle">현재는 구글 계정 인증 UI 틀만 적용되어 있습니다. 버튼을 누르면 인증 완료로 처리되고 학생 정보 등록으로 넘어갑니다.</p>
       ${state.pendingNfcTag ? `<p class="success-text">NFC 태그 인식됨: ${state.pendingNfcTag}</p>` : ""}
       ${state.loginError ? `<p class="error-text">${state.loginError}</p>` : ""}
-      <button id="googleLogin" class="primary-btn google-btn">G 구글 계정으로 계속</button>
-      <button id="adminLogin" class="ghost-btn">관리자 모드로 계속</button>
+      <button id="googleLogin" type="button" class="primary-btn google-btn">G 구글 계정으로 계속</button>
+      <button id="adminLogin" type="button" class="ghost-btn">관리자 모드로 계속</button>
     </div>
   `;
 }
@@ -233,8 +234,8 @@ function profileForm() {
         <label class="field">이름<input id="name" class="input" value="${google.displayName}" /></label>
         <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" /></label>
         <label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>
-        <button id="profileSubmit" class="primary-btn">등록하고 시작</button>
-        <button id="backToGoogle" class="ghost-btn">구글 계정 다시 선택</button>
+        <button id="profileSubmit" type="button" class="primary-btn">등록하고 시작</button>
+        <button id="backToGoogle" type="button" class="ghost-btn">구글 계정 다시 선택</button>
       </div>
     </div>
   `;
@@ -579,15 +580,19 @@ function resetLogin() {
 }
 
 async function startGoogleLogin(intent = "student") {
+  if (state.loginBusy) return;
+  state.loginBusy = true;
   state.authIntent = intent;
   state.loginError = "";
   try {
     state.pendingGoogle = await authProvider.signInWithGoogle();
   } catch (error) {
     state.loginError = error.message;
+    state.loginBusy = false;
     render();
     return;
   }
+  state.loginBusy = false;
   if (intent === "admin") {
     finishAdminGoogleLogin(state.pendingGoogle);
     return;
@@ -597,6 +602,8 @@ async function startGoogleLogin(intent = "student") {
     state.user = existing;
     state.route = "map";
     state.loginError = "";
+    consumePendingNfc();
+    return;
   } else {
     state.authStep = "profile";
     state.loginError = "";
