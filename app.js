@@ -255,6 +255,8 @@ function visibleBooths() {
   }
   if (state.boothFilter === "visited") booths = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id));
   if (state.boothFilter === "favorite") booths = booths.filter((booth) => booth.favorite);
+  if (state.boothFilter === "class") booths = booths.filter((booth) => booth.category === "class");
+  if (state.boothFilter === "facility") booths = booths.filter((booth) => booth.category === "facility");
   return booths.sort((a, b) => {
     if (state.sort === "rating") return repo.avgRating(b.id) - repo.avgRating(a.id);
     return a.name.localeCompare(b.name, "ko");
@@ -299,7 +301,8 @@ function mapView() {
         </div>
         <div class="map-toolbar">
           <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체</button>
-          <button class="map-chip ${state.boothFilter === "favorite" ? "active" : ""}" type="button" data-map-filter="favorite">추천</button>
+          <button class="map-chip ${state.boothFilter === "class" ? "active" : ""}" type="button" data-map-filter="class">부스</button>
+          <button class="map-chip ${state.boothFilter === "facility" ? "active" : ""}" type="button" data-map-filter="facility">시설</button>
           <button class="map-chip" id="sheetOpenBtn">목록</button>
         </div>
         <button class="map-search-pill" id="mapSearchBtn" type="button">
@@ -347,6 +350,8 @@ function mapView() {
         <div class="sheet-filter-row">
           ${[
             ["all", "전체"],
+            ["class", "부스"],
+            ["facility", "시설"],
             ["visited", "방문완료"],
             ["favorite", "즐겨찾기"],
           ].map(([filter, label]) => `<button type="button" class="sheet-filter ${state.boothFilter === filter ? "active" : ""}" data-booth-filter="${filter}">${label}</button>`).join("")}
