@@ -334,6 +334,7 @@ function mapView() {
           <strong>${floorInfo.label} 탐색 중</strong>
           <small>스탬프 ${stampedCount}/${booths.length}</small>
           <em>${filterLabel}</em>
+          <span class="map-status-progress" style="--status-progress:${floorProgress}%"></span>
         </div>
         <div class="map-toolbar">
           <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체</button>
