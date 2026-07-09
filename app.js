@@ -920,18 +920,25 @@ function startGoogleLogin(intent = "student") {
     finishAdminGoogleLogin(state.pendingGoogle);
     return;
   }
-  const existing = state.db.users.find((user) => user.googleUid === state.pendingGoogle.uid);
-  if (existing && existing.studentNumber && existing.schoolId) {
-    state.user = existing;
-    state.route = "map";
-    state.loginError = "";
-    consumePendingNfc();
-    return;
-  } else {
-    state.authStep = "profile";
-    state.loginError = "";
+  let user = state.db.users.find((item) => item.googleUid === state.pendingGoogle.uid);
+  if (!user) {
+    user = { id: makeId(), role: "user", exchangedAt: null };
+    state.db.users.push(user);
   }
-  render();
+  Object.assign(user, {
+    googleUid: state.pendingGoogle.uid,
+    googleEmail: state.pendingGoogle.email,
+    studentNumber: user.studentNumber || "demo-student",
+    schoolId: user.schoolId || "google-demo-user",
+    name: user.name || state.pendingGoogle.displayName || "판교고 학생",
+    role: user.role || "user",
+  });
+  saveDb();
+  state.user = user;
+  state.authStep = "google";
+  state.route = "map";
+  state.loginError = "";
+  consumePendingNfc();
 }
 
 function completeProfile() {
