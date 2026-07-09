@@ -326,6 +326,7 @@ function mapView() {
             <div class="map-grid"></div>
             <div class="map-floor-badge">${floorInfo.label}</div>
             <div class="map-entry-label">입구</div>
+            <div class="map-compass" aria-hidden="true"><b>N</b><span></span></div>
             <div class="school-label">PANGYO HIGH</div>
             <div class="map-river"></div>
             <div class="map-path main"></div>

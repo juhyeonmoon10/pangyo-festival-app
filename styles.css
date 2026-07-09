@@ -1424,6 +1424,37 @@ button {
   border-color: rgba(23, 32, 51, 0.18);
 }
 
+.map-compass {
+  position: absolute;
+  left: 17%;
+  top: 31%;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(203, 214, 226, 0.78);
+  box-shadow: 0 8px 18px rgba(23, 32, 51, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.map-compass b {
+  position: absolute;
+  top: 5px;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 1000;
+}
+
+.map-compass span {
+  width: 3px;
+  height: 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--primary) 0 50%, #9aa6b8 50% 100%);
+}
+
 .map-route-guide {
   position: absolute;
   inset: 0;
