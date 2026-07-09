@@ -1239,12 +1239,35 @@ button {
   border-radius: 15px;
   border: 0;
   background: transparent;
+  transition: transform 0.16s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  touch-action: manipulation;
 }
 
 .map-screen .pill-btn.active {
+  position: relative;
   background: var(--primary);
   color: #fff;
   box-shadow: 0 8px 18px rgba(255, 79, 100, 0.25);
+}
+
+.map-screen .pill-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 5px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.map-screen .pill-btn:active,
+.map-chip:active,
+.map-search-pill:active,
+.quick-dock-btn:active,
+.sheet-filter:active,
+.sort-option:active {
+  transform: scale(0.97);
 }
 
 .map-stage {
@@ -1436,11 +1459,24 @@ button {
 }
 
 .quick-dock-btn.active {
+  position: relative;
   color: #fff;
   background: var(--primary);
   border-color: rgba(255, 79, 100, 0.12);
   box-shadow: 0 15px 30px rgba(255, 79, 100, 0.24);
   transform: translateY(-1px);
+  padding-bottom: 12px;
+}
+
+.quick-dock-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 7px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .quick-dock-btn.active i {
