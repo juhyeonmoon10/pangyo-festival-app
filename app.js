@@ -415,7 +415,7 @@ function boothItem(booth) {
   const avg = repo.avgRating(booth.id).toFixed(1);
   const visits = repo.boothVisits(booth.id);
   return `
-    <button class="booth-item ${selected ? "selected" : ""}" data-detail="${booth.id}">
+    <button class="booth-item ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       <span class="booth-main">
         <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
         <span class="meta">${booth.location}</span>
@@ -769,6 +769,9 @@ function bindEvents() {
   }));
   document.querySelectorAll("[data-map-select]").forEach((button) => button.addEventListener("click", () => {
     selectMapBooth(button.dataset.mapSelect);
+  }));
+  document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
+    selectMapBooth(button.dataset.listSelect);
   }));
   document.querySelectorAll("[data-guide]").forEach((button) => button.addEventListener("click", () => {
     toggleRouteGuide(button.dataset.guide);

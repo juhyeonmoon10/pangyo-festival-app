@@ -2061,6 +2061,11 @@ button {
   transform: translateY(-1px);
 }
 
+.booth-item.selected .booth-stats i:first-child {
+  color: #fff;
+  background: var(--primary);
+}
+
 .sheet.full .booth-list {
   padding-bottom: 92px;
 }
