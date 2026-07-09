@@ -1072,15 +1072,25 @@ button {
     radial-gradient(circle at 50% 78%, rgba(255, 209, 102, 0.18) 0 14%, transparent 15%),
     linear-gradient(145deg, #e8f0f4, #dfeaf0 52%, #edf1f5);
   box-shadow: none;
+  touch-action: none;
+  cursor: grab;
+}
+
+.map-card.dragging {
+  cursor: grabbing;
 }
 
 .map-canvas {
   position: absolute;
   inset: 0;
-  transform: scale(var(--map-zoom, 1));
+  transform: translate(var(--map-x, 0), var(--map-y, 0)) scale(var(--map-zoom, 1));
   transform-origin: 50% 54%;
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+}
+
+.map-card.dragging .map-canvas {
+  transition: none;
 }
 
 .map-grid {

@@ -25,6 +25,8 @@ const state = {
   route: "login",
   floor: 1,
   mapZoom: 1,
+  mapOffsetX: 0,
+  mapOffsetY: 0,
   selectedBoothId: null,
   sheetOpen: false,
   search: "",
@@ -297,7 +299,7 @@ function mapView() {
           <button class="map-chip active">${floorInfo.caption}</button>
           <button class="map-chip" id="sheetOpenBtn">목록</button>
         </div>
-        <div class="map-card" style="--map-zoom:${state.mapZoom}">
+        <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
             <div class="school-label">PANGYO HIGH</div>
@@ -557,6 +559,8 @@ function bindEvents() {
     state.floor = Number(button.dataset.floor);
     state.sheetOpen = false;
     state.mapZoom = 1;
+    state.mapOffsetX = 0;
+    state.mapOffsetY = 0;
     state.boothFilter = "all";
     render();
   }));
@@ -579,9 +583,12 @@ function bindEvents() {
   }));
   document.querySelector("#locateBtn")?.addEventListener("click", () => {
     state.mapZoom = 1;
+    state.mapOffsetX = 0;
+    state.mapOffsetY = 0;
     state.sheetOpen = false;
     render();
   });
+  bindMapDrag();
   bindSheetDrag();
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
@@ -637,6 +644,54 @@ function bindSheetDrag() {
   });
   handle.addEventListener("pointerup", (event) => finish(event.clientY));
   handle.addEventListener("pointercancel", (event) => finish(event.clientY || startY));
+}
+
+function bindMapDrag() {
+  const card = document.querySelector("#mapCard");
+  const canvas = card?.querySelector(".map-canvas");
+  if (!card || !canvas) return;
+
+  let startX = 0;
+  let startY = 0;
+  let baseX = state.mapOffsetX;
+  let baseY = state.mapOffsetY;
+  let dragging = false;
+
+  const clamp = (value, max) => Math.min(max, Math.max(-max, value));
+
+  card.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("button, input, select, textarea")) return;
+    dragging = true;
+    startX = event.clientX;
+    startY = event.clientY;
+    baseX = state.mapOffsetX;
+    baseY = state.mapOffsetY;
+    card.classList.add("dragging");
+    card.setPointerCapture?.(event.pointerId);
+  });
+
+  card.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    const maxX = 72 * state.mapZoom;
+    const maxY = 92 * state.mapZoom;
+    const nextX = clamp(baseX + event.clientX - startX, maxX);
+    const nextY = clamp(baseY + event.clientY - startY, maxY);
+    canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`;
+  });
+
+  const finish = (event) => {
+    if (!dragging) return;
+    const maxX = 72 * state.mapZoom;
+    const maxY = 92 * state.mapZoom;
+    state.mapOffsetX = clamp(baseX + event.clientX - startX, maxX);
+    state.mapOffsetY = clamp(baseY + event.clientY - startY, maxY);
+    dragging = false;
+    card.classList.remove("dragging");
+    render();
+  };
+
+  card.addEventListener("pointerup", finish);
+  card.addEventListener("pointercancel", finish);
 }
 
 function resetLogin() {
