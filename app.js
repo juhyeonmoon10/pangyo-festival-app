@@ -296,8 +296,8 @@ function mapView() {
           <small>스탬프 ${stampedCount}/${booths.length}</small>
         </div>
         <div class="map-toolbar">
-          <button class="map-chip">추천</button>
-          <button class="map-chip active">${floorInfo.caption}</button>
+          <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체</button>
+          <button class="map-chip ${state.boothFilter === "favorite" ? "active" : ""}" type="button" data-map-filter="favorite">추천</button>
           <button class="map-chip" id="sheetOpenBtn">목록</button>
         </div>
         <button class="map-search-pill" id="mapSearchBtn" type="button">
@@ -604,6 +604,11 @@ function bindEvents() {
     render();
   });
   document.querySelector("#mapSearchBtn")?.addEventListener("click", openSearchSheet);
+  document.querySelectorAll("[data-map-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.boothFilter = button.dataset.mapFilter;
+    setSheetLevel("mid");
+    render();
+  }));
   document.querySelectorAll("[data-zoom]").forEach((button) => button.addEventListener("click", () => {
     const delta = button.dataset.zoom === "in" ? 0.16 : -0.16;
     state.mapZoom = Math.min(1.48, Math.max(0.92, Number((state.mapZoom + delta).toFixed(2))));

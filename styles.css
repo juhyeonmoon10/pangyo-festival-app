@@ -1062,6 +1062,17 @@ button {
   backdrop-filter: blur(12px);
 }
 
+.map-chip.active {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 10px 18px rgba(255, 79, 100, 0.25);
+}
+
+.map-chip#sheetOpenBtn {
+  color: #fff;
+  background: rgba(23, 32, 51, 0.92);
+}
+
 .map-search-pill {
   position: absolute;
   left: 14px;
