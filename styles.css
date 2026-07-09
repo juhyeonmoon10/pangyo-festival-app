@@ -1423,6 +1423,70 @@ button {
   color: var(--secondary);
 }
 
+.mini-map {
+  position: absolute;
+  right: 48px;
+  top: 112px;
+  z-index: 3;
+  width: 82px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--soft-shadow);
+  backdrop-filter: blur(12px);
+}
+
+.mini-map strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.mini-map small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.mini-map-box {
+  position: relative;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(223, 229, 239, 0.9) 1px, transparent 1px),
+    linear-gradient(rgba(223, 229, 239, 0.9) 1px, transparent 1px),
+    #f3f7fb;
+  background-size: 14px 14px;
+}
+
+.mini-route {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 48%;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 79, 100, 0.16);
+  transform: rotate(-8deg);
+}
+
+.mini-map-box i {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 3px 8px rgba(23, 32, 51, 0.18);
+}
+
 .map-legend {
   position: absolute;
   left: 104px;
