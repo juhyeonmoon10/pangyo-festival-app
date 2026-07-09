@@ -464,12 +464,13 @@ function boothItem(booth) {
   const avg = repo.avgRating(booth.id).toFixed(1);
   const visits = repo.boothVisits(booth.id);
   return `
-    <button class="booth-item ${selected ? "selected" : ""}" data-list-select="${booth.id}">
+    <button class="booth-item ${booth.category || "class"} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       <span class="booth-main">
         <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
         <span class="meta">${booth.location}</span>
         <span class="booth-stats"><i>${icon("star")} ${avg}</i><i>방문 ${visits}</i><i>${stamped ? "스탬프 완료" : "방문 전"}</i></span>
       </span>
+      <span class="booth-state ${stamped ? "on" : ""}">${stamped ? "완료" : "대기"}</span>
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
     </button>
   `;
