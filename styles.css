@@ -2372,6 +2372,33 @@ button {
 }
 
 @media (max-width: 380px) {
+  .map-quick-dock {
+    gap: 6px;
+  }
+
+  .quick-dock-btn {
+    height: 58px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    column-gap: 5px;
+    padding: 8px 6px;
+    border-radius: 17px;
+  }
+
+  .quick-dock-btn i {
+    width: 24px;
+    height: 24px;
+    border-radius: 9px;
+    font-size: 10px;
+  }
+
+  .quick-dock-btn strong {
+    font-size: 11px;
+  }
+
+  .quick-dock-btn small {
+    font-size: 10px;
+  }
+
   .map-control-stack {
     right: 36px;
   }

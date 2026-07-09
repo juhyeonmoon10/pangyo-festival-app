@@ -1020,6 +1020,20 @@ function bindMapDrag() {
 
   card.addEventListener("pointerup", finish);
   card.addEventListener("pointercancel", finish);
+  card.addEventListener("dblclick", (event) => {
+    if (event.target.closest("button, input, select, textarea")) return;
+    event.preventDefault();
+    const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
+    const rect = card.getBoundingClientRect();
+    const maxX = 72 * nextZoom;
+    const maxY = 92 * nextZoom;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    state.mapZoom = nextZoom;
+    state.mapOffsetX = clamp(state.mapOffsetX + (centerX - event.clientX) * 0.18, maxX);
+    state.mapOffsetY = clamp(state.mapOffsetY + (centerY - event.clientY) * 0.18, maxY);
+    render();
+  });
 }
 
 function resetLogin() {
