@@ -363,8 +363,9 @@ function mapView() {
           <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small><i class="sheet-progress" style="--sheet-progress:${floorProgress}%"></i></span>
           <button class="sheet-open-link" id="sheetOpenBtn2">전체보기</button>
         </div>
-        <div class="search-row">
+        <div class="search-row ${state.search ? "has-clear" : ""}">
           <input id="search" class="input" placeholder="부스 검색" value="${state.search}" />
+          ${state.search ? `<button id="clearSearch" type="button" class="clear-search-btn" aria-label="검색어 지우기">×</button>` : ""}
           <select id="sort" class="select">
             <option value="name" ${state.sort === "name" ? "selected" : ""}>이름순</option>
             <option value="rating" ${state.sort === "rating" ? "selected" : ""}>별점순</option>
@@ -756,6 +757,11 @@ function bindEvents() {
   bindSheetDrag();
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
+    render();
+  });
+  document.querySelector("#clearSearch")?.addEventListener("click", () => {
+    state.search = "";
+    setSheetLevel("full");
     render();
   });
   document.querySelector("#sort")?.addEventListener("change", (event) => {

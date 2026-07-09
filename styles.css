@@ -1991,6 +1991,20 @@ button {
   grid-template-columns: 1fr 92px;
 }
 
+.search-row.has-clear {
+  grid-template-columns: minmax(0, 1fr) 38px 92px;
+}
+
+.clear-search-btn {
+  height: 42px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: #f1f4f8;
+  border: 1px solid var(--line);
+  font-size: 18px;
+  font-weight: 900;
+}
+
 .sheet-filter-row {
   display: flex;
   gap: 7px;
