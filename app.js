@@ -344,6 +344,7 @@ function mapView() {
           <strong>부스 검색</strong>
           <small>${state.search || "이름, 위치로 찾기"}</small>
         </button>
+        ${mapQuickDock(booths, stampedCount)}
         <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
@@ -410,6 +411,27 @@ function mapView() {
       </section>
       ${bottomNav("map")}
     </main>
+  `;
+}
+
+function mapQuickDock(booths, stampedCount) {
+  const favorites = booths.filter((booth) => booth.favorite).length;
+  const items = [
+    ["all", "전체", booths.length, "A"],
+    ["class", "부스", booths.filter((booth) => booth.category === "class").length, "B"],
+    ["visited", "방문", stampedCount, "V"],
+    ["favorite", "찜", favorites, "F"],
+  ];
+  return `
+    <div class="map-quick-dock" aria-label="지도 빠른 필터">
+      ${items.map(([filter, label, count, glyph]) => `
+        <button type="button" class="quick-dock-btn ${state.boothFilter === filter ? "active" : ""}" data-quick-filter="${filter}">
+          <i>${glyph}</i>
+          <strong>${label}</strong>
+          <small>${count}</small>
+        </button>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -780,6 +802,11 @@ function bindEvents() {
   document.querySelectorAll("[data-map-filter]").forEach((button) => button.addEventListener("click", () => {
     state.boothFilter = button.dataset.mapFilter;
     setSheetLevel("mid");
+    render();
+  }));
+  document.querySelectorAll("[data-quick-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.boothFilter = button.dataset.quickFilter;
+    setSheetLevel(button.dataset.quickFilter === "all" ? "peek" : "mid");
     render();
   }));
   document.querySelectorAll("[data-zoom]").forEach((button) => button.addEventListener("click", () => {
