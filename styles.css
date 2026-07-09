@@ -1362,6 +1362,7 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   pointer-events: auto;
+  animation: dock-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .quick-dock-btn {
@@ -1428,6 +1429,17 @@ button {
 
 .quick-dock-btn.active small {
   color: rgba(255, 255, 255, 0.82);
+}
+
+@keyframes dock-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .map-card {
@@ -1646,6 +1658,7 @@ button {
   box-shadow: 0 7px 16px rgba(23, 32, 51, 0.08);
   outline: 4px solid rgba(255, 255, 255, 0.38);
   outline-offset: -7px;
+  animation-delay: var(--stagger, 0ms);
 }
 
 .corridor {
@@ -1692,6 +1705,7 @@ button {
   place-items: center;
   overflow: visible;
   z-index: 2;
+  animation-delay: var(--stagger, 0ms);
 }
 
 .marker span {

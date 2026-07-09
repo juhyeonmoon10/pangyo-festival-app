@@ -359,8 +359,8 @@ function mapView() {
             <div class="corridor"></div>
             <div class="current-position-dot" aria-hidden="true"></div>
             ${selectedBooth && state.routeGuideId === selectedBooth.id ? mapRouteGuide(selectedBooth) : ""}
-            ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
-            ${booths.map((booth) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
+            ${rooms.map(([label, x, y, w, h], index) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--stagger:${index * 24}ms">${label}</div>`).join("")}
+            ${booths.map((booth, index) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
           <div class="map-control-stack" aria-label="지도 조작">
             <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
