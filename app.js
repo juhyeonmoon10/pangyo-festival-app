@@ -860,27 +860,47 @@ function bindMapDrag() {
   const canvas = card?.querySelector(".map-canvas");
   if (!card || !canvas) return;
 
+  const pointers = new Map();
   let startX = 0;
   let startY = 0;
   let baseX = state.mapOffsetX;
   let baseY = state.mapOffsetY;
+  let baseZoom = state.mapZoom;
+  let pinchStart = 0;
   let dragging = false;
 
   const clamp = (value, max) => Math.min(max, Math.max(-max, value));
+  const distance = ([first, second]) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 
   card.addEventListener("pointerdown", (event) => {
     if (event.target.closest("button, input, select, textarea")) return;
+    pointers.set(event.pointerId, event);
     dragging = true;
     startX = event.clientX;
     startY = event.clientY;
     baseX = state.mapOffsetX;
     baseY = state.mapOffsetY;
+    baseZoom = state.mapZoom;
+    if (pointers.size === 2) pinchStart = distance([...pointers.values()]);
     card.classList.add("dragging");
     card.setPointerCapture?.(event.pointerId);
   });
 
   card.addEventListener("pointermove", (event) => {
     if (!dragging) return;
+    if (pointers.has(event.pointerId)) pointers.set(event.pointerId, event);
+    if (pointers.size >= 2 && pinchStart) {
+      const nextZoom = Number(Math.min(1.6, Math.max(0.9, baseZoom * (distance([...pointers.values()].slice(0, 2)) / pinchStart))).toFixed(2));
+      state.mapZoom = nextZoom;
+      const maxX = 72 * nextZoom;
+      const maxY = 92 * nextZoom;
+      const nextX = clamp(state.mapOffsetX, maxX);
+      const nextY = clamp(state.mapOffsetY, maxY);
+      state.mapOffsetX = nextX;
+      state.mapOffsetY = nextY;
+      canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${nextZoom})`;
+      return;
+    }
     const maxX = 72 * state.mapZoom;
     const maxY = 92 * state.mapZoom;
     const nextX = clamp(baseX + event.clientX - startX, maxX);
@@ -890,11 +910,23 @@ function bindMapDrag() {
 
   const finish = (event) => {
     if (!dragging) return;
+    pointers.delete(event.pointerId);
+    if (pointers.size >= 1) {
+      const [remaining] = pointers.values();
+      startX = remaining.clientX;
+      startY = remaining.clientY;
+      baseX = state.mapOffsetX;
+      baseY = state.mapOffsetY;
+      baseZoom = state.mapZoom;
+      pinchStart = pointers.size === 2 ? distance([...pointers.values()]) : 0;
+      return;
+    }
     const maxX = 72 * state.mapZoom;
     const maxY = 92 * state.mapZoom;
     state.mapOffsetX = clamp(baseX + event.clientX - startX, maxX);
     state.mapOffsetY = clamp(baseY + event.clientY - startY, maxY);
     dragging = false;
+    pinchStart = 0;
     card.classList.remove("dragging");
     render();
   };
