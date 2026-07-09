@@ -1905,12 +1905,33 @@ button {
 .sheet-head span {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .sheet-head small {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.sheet-progress {
+  position: relative;
+  width: min(156px, 42vw);
+  height: 5px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f6;
+}
+
+.sheet-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: var(--sheet-progress, 0%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sheet-open-link {
@@ -1955,6 +1976,39 @@ button {
 .booth-item {
   border-radius: 15px;
   padding: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.booth-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.booth-stats {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.booth-stats::-webkit-scrollbar {
+  display: none;
+}
+
+.booth-stats i {
+  flex: 0 0 auto;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: #536174;
+  background: #f2f5f8;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .booth-item.selected {

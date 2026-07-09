@@ -293,6 +293,7 @@ function mapView() {
   const rooms = mapRoomsForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
+  const floorProgress = booths.length ? Math.round((stampedCount / booths.length) * 100) : 0;
   return `
     <main class="map-screen">
       <header class="top-bar">
@@ -357,7 +358,7 @@ function mapView() {
       <section class="sheet ${sheetClass()}" id="sheet">
         <button class="sheet-handle" id="sheetToggle" aria-label="부스 목록 열기"></button>
         <div class="sheet-head">
-          <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small></span>
+          <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small><i class="sheet-progress" style="--sheet-progress:${floorProgress}%"></i></span>
           <button class="sheet-open-link" id="sheetOpenBtn2">전체보기</button>
         </div>
         <div class="search-row">
@@ -409,11 +410,14 @@ function sheetClass() {
 function boothItem(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
   const selected = state.selectedBoothId === booth.id;
+  const avg = repo.avgRating(booth.id).toFixed(1);
+  const visits = repo.boothVisits(booth.id);
   return `
     <button class="booth-item ${selected ? "selected" : ""}" data-detail="${booth.id}">
-      <span>
+      <span class="booth-main">
         <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
-        <span class="meta">${booth.location} · ${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 방문 ${repo.boothVisits(booth.id)}</span>
+        <span class="meta">${booth.location}</span>
+        <span class="booth-stats"><i>${icon("star")} ${avg}</i><i>방문 ${visits}</i><i>${stamped ? "스탬프 완료" : "방문 전"}</i></span>
       </span>
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
     </button>
