@@ -45,6 +45,23 @@ const state = {
   pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
 };
 
+function readStorage(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const authProvider = {
   signInWithGoogle() {
     return this.demoProfile();
@@ -53,8 +70,8 @@ const authProvider = {
     return { uid: "google-admin", email: "admin@pangyo.hs.kr", displayName: "축제 관리자", provider: "google" };
   },
   demoProfile() {
-    const savedUid = localStorage.getItem("pangyo-demo-google-uid-v2") || "google-local-student";
-    localStorage.setItem("pangyo-demo-google-uid-v2", savedUid);
+    const savedUid = readStorage("pangyo-demo-google-uid-v2") || "google-local-student";
+    writeStorage("pangyo-demo-google-uid-v2", savedUid);
     return { uid: savedUid, email: "student@pangyo.hs.kr", displayName: "판교고 학생", provider: "google" };
   },
 };
@@ -111,12 +128,18 @@ const seed = {
 state.db = loadDb();
 
 function loadDb() {
-  const saved = localStorage.getItem(DB_KEY);
+  const saved = readStorage(DB_KEY);
   if (!saved) {
-    localStorage.setItem(DB_KEY, JSON.stringify(seed));
+    writeStorage(DB_KEY, JSON.stringify(seed));
     return structuredClone(seed);
   }
-  const db = JSON.parse(saved);
+  let db;
+  try {
+    db = JSON.parse(saved);
+  } catch {
+    writeStorage(DB_KEY, JSON.stringify(seed));
+    return structuredClone(seed);
+  }
   db.users = db.users.map((user) => ({
     googleUid: user.googleUid || user.id,
     googleEmail: user.googleEmail || "",
@@ -129,7 +152,7 @@ function loadDb() {
 }
 
 function saveDb() {
-  localStorage.setItem(DB_KEY, JSON.stringify(state.db));
+  writeStorage(DB_KEY, JSON.stringify(state.db));
 }
 
 const repo = {
@@ -215,7 +238,7 @@ function loginView() {
       <div>
         <div class="brand-mark">P</div>
         <h1 class="title">판교고 축제<br />스탬프 맵</h1>
-        <p class="subtitle">먼저 구글 계정으로 본인 인증을 하고, 그 다음 학번과 아이디를 등록합니다. 참여 기록은 구글 계정 기준으로 중복 방지됩니다.</p>
+        <p class="subtitle">현재는 구글 계정 인증 화면만 먼저 확인하는 단계입니다. 버튼을 누르면 학생 모드로 바로 입장합니다.</p>
       </div>
       <section class="panel">
         ${profileStep ? profileForm() : googleForm()}
@@ -229,7 +252,7 @@ function googleForm() {
     <div class="auth-card">
       <div class="auth-step">1단계</div>
       <h2>구글 계정 인증</h2>
-      <p class="subtitle">현재는 구글 계정 인증 UI 틀만 적용되어 있습니다. 버튼을 누르면 인증 완료로 처리되고 학생 정보 등록으로 넘어갑니다.</p>
+      <p class="subtitle">현재는 구글 계정 인증 UI 틀만 적용되어 있습니다. 버튼을 누르면 인증 완료로 처리되고 바로 지도 화면으로 이동합니다.</p>
       ${state.pendingNfcTag ? `<p class="success-text">NFC 태그 인식됨: ${state.pendingNfcTag}</p>` : ""}
       ${state.loginError ? `<p class="error-text">${state.loginError}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn">G 구글 계정으로 계속</button>
@@ -1015,6 +1038,7 @@ function startGoogleLogin(intent = "student") {
   state.authStep = "google";
   state.route = "map";
   state.loginError = "";
+  render();
   consumePendingNfc();
 }
 
