@@ -1064,7 +1064,7 @@ function goDetail(id) {
 function selectMapBooth(id) {
   state.selectedBoothId = id;
   if (state.routeGuideId && state.routeGuideId !== id) state.routeGuideId = null;
-  focusMapOnBooth(id);
+  focusMapOnBooth(id, 1.18);
   if (state.sheetLevel === "full") setSheetLevel("mid");
   render();
 }
@@ -1072,14 +1072,15 @@ function selectMapBooth(id) {
 function toggleRouteGuide(id) {
   state.selectedBoothId = id;
   state.routeGuideId = state.routeGuideId === id ? null : id;
-  focusMapOnBooth(id);
+  focusMapOnBooth(id, state.routeGuideId === id ? 1.26 : 1.18);
   if (state.sheetLevel === "full") setSheetLevel("mid");
   render();
 }
 
-function focusMapOnBooth(id) {
+function focusMapOnBooth(id, targetZoom = state.mapZoom) {
   const booth = state.db.booths.find((item) => item.id === id);
   if (!booth) return;
+  state.mapZoom = Math.min(1.52, Math.max(state.mapZoom, targetZoom));
   const maxX = 72 * state.mapZoom;
   const maxY = 92 * state.mapZoom;
   const targetX = (50 - booth.x) * 1.35;
