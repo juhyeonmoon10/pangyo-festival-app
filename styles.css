@@ -1884,7 +1884,7 @@ button {
   z-index: 4;
   min-height: 64px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto 32px;
   align-items: center;
   gap: 10px;
   padding: 11px 12px;
@@ -2023,6 +2023,16 @@ button {
   color: #fff;
   background: var(--primary);
   font-size: 12px;
+  font-weight: 900;
+}
+
+.preview-close-btn {
+  width: 32px;
+  height: 38px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: #f1f4f8;
+  font-size: 16px;
   font-weight: 900;
 }
 
@@ -2295,6 +2305,15 @@ button {
   .map-preview-card {
     left: 36px;
     right: 36px;
+    gap: 6px;
+  }
+
+  .preview-route-btn {
+    min-width: 52px;
+  }
+
+  .preview-detail-btn {
+    min-width: 46px;
   }
 
   .route-banner {

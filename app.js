@@ -444,6 +444,7 @@ function mapPreviewCard(booth) {
       </div>
       <button type="button" class="preview-route-btn ${guiding ? "active" : ""}" data-guide="${booth.id}">${guiding ? "안내중" : "길안내"}</button>
       <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
+      <button type="button" class="preview-close-btn" data-clear-selection aria-label="선택 해제">×</button>
     </article>
   `;
 }
@@ -801,6 +802,11 @@ function bindEvents() {
     toggleRouteGuide(button.dataset.guide);
   }));
   document.querySelector("[data-clear-guide]")?.addEventListener("click", () => {
+    state.routeGuideId = null;
+    render();
+  });
+  document.querySelector("[data-clear-selection]")?.addEventListener("click", () => {
+    state.selectedBoothId = null;
     state.routeGuideId = null;
     render();
   });
