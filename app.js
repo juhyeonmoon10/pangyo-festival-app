@@ -299,6 +299,11 @@ function mapView() {
           <button class="map-chip active">${floorInfo.caption}</button>
           <button class="map-chip" id="sheetOpenBtn">목록</button>
         </div>
+        <button class="map-search-pill" id="mapSearchBtn" type="button">
+          <span>⌕</span>
+          <strong>부스 검색</strong>
+          <small>${state.search || "이름, 위치로 찾기"}</small>
+        </button>
         <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
@@ -312,6 +317,10 @@ function mapView() {
             ${booths.map((booth) => `<button class="marker ${repo.hasStamp(state.user.id, booth.id) ? "visited" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
           <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
+          <div class="map-legend">
+            <span><i class="legend-pin"></i>미방문</span>
+            <span><i class="legend-pin visited"></i>방문</span>
+          </div>
           <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
         </div>
       </section>
@@ -580,6 +589,7 @@ function bindEvents() {
     state.sheetOpen = true;
     render();
   });
+  document.querySelector("#mapSearchBtn")?.addEventListener("click", openSearchSheet);
   document.querySelectorAll("[data-zoom]").forEach((button) => button.addEventListener("click", () => {
     const delta = button.dataset.zoom === "in" ? 0.16 : -0.16;
     state.mapZoom = Math.min(1.48, Math.max(0.92, Number((state.mapZoom + delta).toFixed(2))));
@@ -624,6 +634,12 @@ function bindEvents() {
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
+}
+
+function openSearchSheet() {
+  state.sheetOpen = true;
+  render();
+  requestAnimationFrame(() => document.querySelector("#search")?.focus());
 }
 
 function bindSheetDrag() {

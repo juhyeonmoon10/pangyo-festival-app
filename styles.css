@@ -1062,8 +1062,56 @@ button {
   backdrop-filter: blur(12px);
 }
 
+.map-search-pill {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 176px;
+  z-index: 6;
+  height: 48px;
+  display: grid;
+  grid-template-columns: 30px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border-radius: 18px;
+  text-align: left;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(223, 229, 239, 0.9);
+  box-shadow: 0 14px 30px rgba(23, 32, 51, 0.11);
+  backdrop-filter: blur(14px);
+}
+
+.map-search-pill span {
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--primary);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.map-search-pill strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.map-search-pill small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .map-card {
-  inset: 100px -36px 116px -34px;
+  inset: 116px -36px 116px -34px;
   border-radius: 0;
   border: 0;
   background:
@@ -1208,7 +1256,7 @@ button {
 }
 
 .marker.visited::after {
-  content: "✓";
+  content: "V";
   position: absolute;
   right: -5px;
   top: -5px;
@@ -1230,6 +1278,45 @@ button {
   bottom: 138px;
   z-index: 3;
   color: var(--secondary);
+}
+
+.map-legend {
+  position: absolute;
+  left: 104px;
+  bottom: 138px;
+  z-index: 3;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--soft-shadow);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.legend-pin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50% 50% 50% 2px;
+  display: inline-block;
+  transform: rotate(-45deg);
+  background: var(--primary);
+}
+
+.legend-pin.visited {
+  background: var(--secondary);
 }
 
 .zoom-control {
