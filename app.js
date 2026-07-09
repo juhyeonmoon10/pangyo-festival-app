@@ -429,12 +429,15 @@ function boothItem(booth) {
 
 function mapPreviewCard(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
+  const reviewed = repo.hasReview(state.user.id, booth.id);
   const guiding = state.routeGuideId === booth.id;
+  const reviewState = !stamped ? "방문 후 리뷰 가능" : reviewed ? "리뷰 완료" : "리뷰 가능";
   return `
     <article class="map-preview-card">
       <div>
         <strong>${booth.name}</strong>
         <span>${booth.location} · ${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 방문 ${repo.boothVisits(booth.id)}</span>
+        <span class="preview-status"><i class="${stamped ? "on" : ""}">${stamped ? "스탬프 획득" : "스탬프 미획득"}</i><i class="${stamped && !reviewed ? "on" : ""}">${reviewState}</i></span>
       </div>
       <button type="button" class="preview-route-btn ${guiding ? "active" : ""}" data-guide="${booth.id}">${guiding ? "안내중" : "길안내"}</button>
       <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
