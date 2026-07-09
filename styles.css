@@ -1393,6 +1393,37 @@ button {
   background-size: 38px 38px;
 }
 
+.map-floor-badge,
+.map-entry-label {
+  position: absolute;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(203, 214, 226, 0.78);
+  box-shadow: 0 8px 18px rgba(23, 32, 51, 0.1);
+  color: #536174;
+  font-size: 11px;
+  font-weight: 1000;
+  backdrop-filter: blur(10px);
+}
+
+.map-floor-badge {
+  left: 43%;
+  top: 12%;
+}
+
+.map-entry-label {
+  left: 47%;
+  top: 64%;
+  color: #fff;
+  background: rgba(23, 32, 51, 0.82);
+  border-color: rgba(23, 32, 51, 0.18);
+}
+
 .map-route-guide {
   position: absolute;
   inset: 0;
@@ -1493,7 +1524,9 @@ button {
 }
 
 .map-path {
-  background: rgba(255, 255, 255, 0.74);
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.24) 0 8px, rgba(232, 239, 246, 0.18) 8px 16px),
+    rgba(255, 255, 255, 0.74);
   border-color: rgba(198, 211, 224, 0.72);
 }
 
@@ -1502,6 +1535,16 @@ button {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 252, 0.94));
   border: 1px solid rgba(189, 202, 217, 0.92);
   box-shadow: 0 7px 16px rgba(23, 32, 51, 0.08);
+  outline: 4px solid rgba(255, 255, 255, 0.38);
+  outline-offset: -7px;
+}
+
+.corridor {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.88), rgba(247, 250, 252, 0.74)),
+    rgba(255, 255, 255, 0.72);
+  border-style: solid;
+  box-shadow: inset 0 0 0 4px rgba(232, 239, 246, 0.72), 0 8px 20px rgba(23, 32, 51, 0.08);
 }
 
 .marker {

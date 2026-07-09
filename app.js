@@ -324,6 +324,8 @@ function mapView() {
         <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
+            <div class="map-floor-badge">${floorInfo.label}</div>
+            <div class="map-entry-label">입구</div>
             <div class="school-label">PANGYO HIGH</div>
             <div class="map-river"></div>
             <div class="map-path main"></div>
