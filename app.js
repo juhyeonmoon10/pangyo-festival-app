@@ -309,7 +309,7 @@ function mapView() {
             <div class="map-plaza"></div>
             <div class="corridor"></div>
             ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
-            ${booths.map((booth) => `<button class="marker ${repo.hasStamp(state.user.id, booth.id) ? "visited" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span></button>`).join("")}
+            ${booths.map((booth) => `<button class="marker ${repo.hasStamp(state.user.id, booth.id) ? "visited" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
           <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
           <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
@@ -346,6 +346,10 @@ function markerLabel(booth) {
   if (booth.category !== "class") return booth.name.slice(0, 1);
   const match = booth.name.match(/\d반/);
   return match ? match[0].replace("반", "") : "반";
+}
+
+function markerName(booth) {
+  return booth.name.length > 6 ? `${booth.name.slice(0, 6)}…` : booth.name;
 }
 
 function boothItem(booth) {

@@ -1163,6 +1163,68 @@ button {
   background: #fff;
 }
 
+.marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50% 50% 50% 8px;
+  transform: translate(-50%, -100%) rotate(-45deg);
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  z-index: 2;
+}
+
+.marker span {
+  transform: rotate(45deg);
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 1000;
+}
+
+.marker em {
+  position: absolute;
+  left: 50%;
+  top: 39px;
+  transform: translateX(-50%) rotate(45deg);
+  min-width: 54px;
+  max-width: 76px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #2b3548;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(223, 229, 239, 0.88);
+  box-shadow: 0 7px 14px rgba(23, 32, 51, 0.12);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.marker.visited::after {
+  content: "✓";
+  position: absolute;
+  right: -5px;
+  top: -5px;
+  transform: rotate(45deg);
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--secondary);
+  border: 2px solid #fff;
+  font-size: 10px;
+  font-weight: 1000;
+}
+
 .locate-btn {
   left: 48px;
   bottom: 138px;
