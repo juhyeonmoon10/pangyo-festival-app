@@ -1949,13 +1949,18 @@ button {
 .marker.selected {
   z-index: 4;
   filter: brightness(1.04);
-  box-shadow: 0 14px 26px rgba(23, 32, 51, 0.24);
+  transform: translate(-50%, -104%) rotate(-45deg) scale(1.08);
+  box-shadow: 0 16px 30px rgba(23, 32, 51, 0.26), 0 0 0 5px rgba(255, 79, 100, 0.13);
 }
 
 .marker.selected em {
   color: #fff;
   background: rgba(23, 32, 51, 0.94);
   border-color: rgba(23, 32, 51, 0.28);
+  min-width: 72px;
+  height: 25px;
+  font-size: 11px;
+  box-shadow: 0 10px 20px rgba(23, 32, 51, 0.18);
 }
 
 .marker.visited {
