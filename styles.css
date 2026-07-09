@@ -1162,6 +1162,50 @@ button {
   background-size: 38px 38px;
 }
 
+.map-route-guide {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.map-route-guide polyline {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 3 2;
+  filter: drop-shadow(0 3px 6px rgba(255, 79, 100, 0.22));
+  animation: route-move 1.4s linear infinite;
+}
+
+.map-route-guide circle {
+  fill: #fff;
+  stroke: var(--primary);
+  stroke-width: 0.9;
+}
+
+.map-route-guide .route-end {
+  fill: var(--primary);
+  stroke: #fff;
+  stroke-width: 1.2;
+  animation: route-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes route-move {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+@keyframes route-pulse {
+  50% {
+    r: 3.1;
+  }
+}
+
 .school-label {
   position: absolute;
   left: 50%;
@@ -1426,7 +1470,7 @@ button {
   z-index: 4;
   min-height: 64px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   padding: 11px 12px;
@@ -1458,9 +1502,26 @@ button {
   font-weight: 800;
 }
 
-.preview-detail-btn {
+.preview-route-btn {
   height: 38px;
   min-width: 58px;
+  border-radius: 14px;
+  color: var(--primary-dark);
+  background: #fff0f2;
+  border: 1px solid rgba(255, 79, 100, 0.18);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.preview-route-btn.active {
+  color: #fff;
+  background: var(--secondary);
+  border-color: var(--secondary);
+}
+
+.preview-detail-btn {
+  height: 38px;
+  min-width: 50px;
   border-radius: 14px;
   color: #fff;
   background: var(--primary);
