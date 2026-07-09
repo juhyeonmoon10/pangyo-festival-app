@@ -189,13 +189,23 @@ function icon(name) {
 
 function render() {
   const app = document.querySelector("#app");
-  if (state.route === "login") app.innerHTML = loginView();
-  if (state.route === "map") app.innerHTML = mapView();
-  if (state.route === "detail") app.innerHTML = detailView();
-  if (state.route === "stamps") app.innerHTML = stampView();
-  if (state.route === "admin") app.innerHTML = adminView();
-  app.dataset.route = state.route;
-  bindEvents();
+  const previousRoute = app.dataset.route || state.route;
+  const nextRoute = state.route;
+  const swap = () => {
+    if (state.route === "login") app.innerHTML = loginView();
+    if (state.route === "map") app.innerHTML = mapView();
+    if (state.route === "detail") app.innerHTML = detailView();
+    if (state.route === "stamps") app.innerHTML = stampView();
+    if (state.route === "admin") app.innerHTML = adminView();
+    app.dataset.previousRoute = previousRoute;
+    app.dataset.route = nextRoute;
+    bindEvents();
+  };
+  if (document.startViewTransition && app.innerHTML && previousRoute !== nextRoute) {
+    document.startViewTransition(swap);
+  } else {
+    swap();
+  }
 }
 
 function loginView() {
@@ -396,8 +406,9 @@ function sheetClass() {
 
 function boothItem(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
+  const selected = state.selectedBoothId === booth.id;
   return `
-    <button class="booth-item" data-detail="${booth.id}">
+    <button class="booth-item ${selected ? "selected" : ""}" data-detail="${booth.id}">
       <span>
         <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
         <span class="meta">${booth.location} · ${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 방문 ${repo.boothVisits(booth.id)}</span>
@@ -786,32 +797,54 @@ function setSheetLevel(level) {
 
 function bindSheetDrag() {
   const handle = document.querySelector("#sheetToggle");
-  if (!handle) return;
+  const sheet = document.querySelector("#sheet");
+  if (!handle || !sheet) return;
   let startY = 0;
+  let startTranslate = 0;
+  let currentTranslate = 0;
   let dragging = false;
 
-  const finish = (clientY) => {
+  const peekTranslate = () => Math.max(0, sheet.getBoundingClientRect().height - 132);
+  const midTranslate = () => Math.round(window.innerHeight * 0.34);
+  const translateForLevel = (level) => {
+    if (level === "full") return 0;
+    if (level === "mid") return midTranslate();
+    return peekTranslate();
+  };
+  const clampTranslate = (value) => Math.min(peekTranslate(), Math.max(0, value));
+
+  const finish = () => {
     if (!dragging) return;
-    const delta = clientY - startY;
-    if (delta < -22) {
-      if (state.sheetLevel === "peek") setSheetLevel("mid");
-      else setSheetLevel("full");
-    }
-    if (delta > 22) {
-      if (state.sheetLevel === "full") setSheetLevel("mid");
-      else setSheetLevel("peek");
-    }
+    const targets = [
+      ["full", 0],
+      ["mid", midTranslate()],
+      ["peek", peekTranslate()],
+    ];
+    const [level] = targets.reduce((best, item) => (
+      Math.abs(item[1] - currentTranslate) < Math.abs(best[1] - currentTranslate) ? item : best
+    ), targets[0]);
+    setSheetLevel(level);
     dragging = false;
+    sheet.classList.remove("dragging");
+    sheet.style.transform = "";
     render();
   };
 
   handle.addEventListener("pointerdown", (event) => {
     dragging = true;
     startY = event.clientY;
+    startTranslate = translateForLevel(state.sheetLevel);
+    currentTranslate = startTranslate;
+    sheet.classList.add("dragging");
     handle.setPointerCapture?.(event.pointerId);
   });
-  handle.addEventListener("pointerup", (event) => finish(event.clientY));
-  handle.addEventListener("pointercancel", (event) => finish(event.clientY || startY));
+  handle.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    currentTranslate = clampTranslate(startTranslate + event.clientY - startY);
+    sheet.style.transform = `translateY(${currentTranslate}px)`;
+  });
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
 }
 
 function bindMapDrag() {

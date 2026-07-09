@@ -1887,6 +1887,10 @@ button {
   border-radius: 22px 22px 0 0;
 }
 
+.sheet.dragging {
+  transition: none;
+}
+
 .sheet-handle {
   width: 54px;
   height: 5px;
@@ -1951,6 +1955,13 @@ button {
 .booth-item {
   border-radius: 15px;
   padding: 12px;
+}
+
+.booth-item.selected {
+  border-color: rgba(255, 79, 100, 0.42);
+  background: #fff6f7;
+  box-shadow: 0 12px 24px rgba(255, 79, 100, 0.12);
+  transform: translateY(-1px);
 }
 
 .sheet.full .booth-list {
