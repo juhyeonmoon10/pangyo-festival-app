@@ -755,6 +755,42 @@ button {
   padding-bottom: 86px;
 }
 
+.admin-screen {
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f4f7fb 42%, #eef3f8 100%);
+}
+
+.admin-hero {
+  margin-top: 8px;
+  padding: 18px;
+  border-radius: 20px;
+  color: #fff;
+  background: linear-gradient(135deg, #172033, #31415f);
+  box-shadow: var(--soft-shadow);
+}
+
+.admin-eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.admin-hero h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.admin-hero p {
+  margin: 7px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .detail-hero {
   background: linear-gradient(135deg, var(--primary), #ff8a5c);
   color: #fff;
@@ -857,6 +893,129 @@ button {
   padding: 8px 0 12px;
 }
 
+.admin-tabs .pill-btn {
+  min-width: max-content;
+  padding: 0 14px;
+}
+
+.admin-stats {
+  margin-top: 14px;
+}
+
+.admin-stats .stat {
+  text-align: left;
+  display: grid;
+  gap: 5px;
+  border-radius: 18px;
+}
+
+.admin-stats .stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-stats .stat small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.admin-stats .stat.warn {
+  border-color: rgba(255, 79, 100, 0.35);
+  background: #fff7f8;
+}
+
+.admin-panel-card {
+  border-radius: 18px;
+  box-shadow: 0 8px 22px rgba(23, 32, 51, 0.06);
+}
+
+.admin-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-section-head h2 {
+  margin: 0;
+}
+
+.admin-section-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rank-row,
+.check-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+
+.rank-row:first-of-type,
+.check-row:first-of-type {
+  border-top: 0;
+}
+
+.rank-row b {
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--primary);
+  font-size: 12px;
+}
+
+.rank-row span {
+  min-width: 0;
+}
+
+.rank-row strong,
+.check-row strong {
+  display: block;
+  font-size: 14px;
+}
+
+.rank-row small,
+.rank-row em,
+.check-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.check-row {
+  grid-template-columns: 1fr auto;
+}
+
+.check-row.ok strong::before,
+.check-row.warn strong::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 7px;
+  background: var(--secondary);
+}
+
+.check-row.warn strong::before {
+  background: var(--primary);
+}
+
+.admin-form-grid {
+  gap: 9px;
+}
+
 .admin-table {
   display: grid;
   gap: 8px;
@@ -867,6 +1026,77 @@ button {
   border-radius: 16px;
   padding: 12px;
   background: #fff;
+}
+
+.admin-row {
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 8px 18px rgba(23, 32, 51, 0.04);
+}
+
+.row-main strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.row-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.row-metrics span {
+  min-height: 28px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #536174;
+  background: #f2f5f9;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-review-content {
+  margin: 0;
+  padding: 10px;
+  border-radius: 12px;
+  color: #3f4d61;
+  background: #f7f9fc;
+  line-height: 1.45;
+}
+
+.mini-progress {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: #e8edf4;
+}
+
+.mini-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+}
+
+.exchange-btn {
+  width: 100%;
+}
+
+.admin-empty {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.admin-empty strong {
+  font-size: 17px;
+}
+
+.admin-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .row-actions {
