@@ -1284,6 +1284,47 @@ button {
   font-weight: 1000;
 }
 
+.marker.class {
+  background: var(--primary);
+  box-shadow: 0 9px 18px rgba(255, 79, 100, 0.3);
+}
+
+.marker.class span {
+  color: var(--primary);
+}
+
+.marker.facility {
+  background: var(--blue);
+  box-shadow: 0 9px 18px rgba(75, 140, 255, 0.26);
+}
+
+.marker.facility span {
+  color: var(--blue);
+}
+
+.marker.custom {
+  background: #7a42d9;
+  box-shadow: 0 9px 18px rgba(122, 66, 217, 0.24);
+}
+
+.marker.custom span {
+  color: #7a42d9;
+}
+
+.marker.favorite {
+  outline: 3px solid rgba(255, 209, 102, 0.72);
+  outline-offset: 2px;
+}
+
+.marker.visited {
+  background: var(--secondary);
+  box-shadow: 0 9px 18px rgba(24, 169, 153, 0.3);
+}
+
+.marker.visited span {
+  color: var(--secondary);
+}
+
 .locate-btn {
   left: 48px;
   bottom: 138px;
@@ -1324,6 +1365,14 @@ button {
   display: inline-block;
   transform: rotate(-45deg);
   background: var(--primary);
+}
+
+.legend-pin.class {
+  background: var(--primary);
+}
+
+.legend-pin.facility {
+  background: var(--blue);
 }
 
 .legend-pin.visited {
