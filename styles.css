@@ -2240,10 +2240,40 @@ button {
 }
 
 .sheet-handle {
+  width: 96px;
+  height: 25px;
+  margin: 5px auto 4px;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  background: transparent;
+  touch-action: none;
+}
+
+.sheet-grip {
   width: 54px;
   height: 5px;
-  margin: 9px auto 9px;
+  border-radius: 99px;
   background: #c2cbd8;
+}
+
+.sheet-snap-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.sheet-snap-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d9e0ea;
+  transition: width 0.18s ease, background 0.18s ease;
+}
+
+.sheet-snap-dots i.active {
+  width: 16px;
+  border-radius: 999px;
+  background: var(--primary);
 }
 
 .sheet-head {

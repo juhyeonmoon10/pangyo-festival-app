@@ -385,7 +385,12 @@ function mapView() {
         </div>
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
-        <button class="sheet-handle" id="sheetToggle" aria-label="부스 목록 열기"></button>
+        <button class="sheet-handle" id="sheetToggle" aria-label="부스 목록 열기">
+          <span class="sheet-grip"></span>
+          <span class="sheet-snap-dots" aria-hidden="true">
+            ${["peek", "mid", "full"].map((level) => `<i class="${state.sheetLevel === level || (level === "mid" && state.sheetOpen && state.sheetLevel !== "full") ? "active" : ""}"></i>`).join("")}
+          </span>
+        </button>
         <div class="sheet-head">
           <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small><i class="sheet-progress" style="--sheet-progress:${floorProgress}%"></i></span>
           <button class="sheet-open-link" id="sheetOpenBtn2">전체보기</button>
