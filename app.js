@@ -46,7 +46,7 @@ const state = {
 };
 
 const authProvider = {
-  async signInWithGoogle() {
+  signInWithGoogle() {
     return this.demoProfile();
   },
   signInAdmin() {
@@ -867,23 +867,22 @@ function resetLogin() {
   state.authStep = "google";
   state.pendingGoogle = null;
   state.authIntent = "student";
+  state.loginBusy = false;
   state.loginError = "";
 }
 
-async function startGoogleLogin(intent = "student") {
-  if (state.loginBusy) return;
-  state.loginBusy = true;
+function startGoogleLogin(intent = "student") {
   state.authIntent = intent;
   state.loginError = "";
+  state.loginBusy = false;
   try {
-    state.pendingGoogle = await authProvider.signInWithGoogle();
+    state.pendingGoogle = authProvider.signInWithGoogle();
   } catch (error) {
-    state.loginError = error.message;
     state.loginBusy = false;
+    state.loginError = error.message || "로그인 처리 중 문제가 생겼습니다.";
     render();
     return;
   }
-  state.loginBusy = false;
   if (intent === "admin") {
     finishAdminGoogleLogin(state.pendingGoogle);
     return;
