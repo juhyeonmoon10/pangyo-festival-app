@@ -346,6 +346,7 @@ function mapView() {
           <span>⌕</span>
           <strong>부스 검색</strong>
           <small>${state.search || "이름, 위치로 찾기"}</small>
+          <b>${booths.length}개</b>
         </button>
         ${mapQuickDock(booths, stampedCount)}
         <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
