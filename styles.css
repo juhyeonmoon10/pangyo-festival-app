@@ -1278,7 +1278,7 @@ button {
   top: 132px;
   left: auto;
   right: 14px;
-  width: min(280px, calc(100% - 28px));
+  width: min(226px, calc(100% - 138px));
   height: auto;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -1286,8 +1286,8 @@ button {
 .map-chip {
   min-height: 36px;
   border-radius: 14px;
-  padding: 0 6px;
-  font-size: 12px;
+  padding: 0 4px;
+  font-size: 11px;
   color: #536174;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(12px);
@@ -2014,6 +2014,10 @@ button {
   box-shadow: 0 12px 24px rgba(23, 32, 51, 0.14);
 }
 
+.map-card:has(.map-preview-card) .map-control-stack {
+  bottom: 264px;
+}
+
 .marker.selected::before {
   content: "";
   position: absolute;
@@ -2037,6 +2041,10 @@ button {
 @media (max-width: 380px) {
   .map-control-stack {
     right: 36px;
+  }
+
+  .map-card:has(.map-preview-card) .map-control-stack {
+    bottom: 258px;
   }
 
   .map-preview-card {
