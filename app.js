@@ -279,6 +279,7 @@ function mapView() {
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const rooms = mapRoomsForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
+  const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
   return `
     <main class="map-screen">
       <header class="top-bar">
@@ -315,7 +316,7 @@ function mapView() {
             <div class="map-plaza"></div>
             <div class="corridor"></div>
             ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
-            ${booths.map((booth) => `<button class="${markerClass(booth)}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
+            ${booths.map((booth) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
           <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
           <div class="map-legend">
@@ -324,6 +325,7 @@ function mapView() {
             <span><i class="legend-pin visited"></i>방문</span>
           </div>
           <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
+          ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
         </div>
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
@@ -386,6 +388,19 @@ function boothItem(booth) {
       </span>
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
     </button>
+  `;
+}
+
+function mapPreviewCard(booth) {
+  const stamped = repo.hasStamp(state.user.id, booth.id);
+  return `
+    <article class="map-preview-card">
+      <div>
+        <strong>${booth.name}</strong>
+        <span>${booth.location} · ${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 방문 ${repo.boothVisits(booth.id)}</span>
+      </div>
+      <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
+    </article>
   `;
 }
 
@@ -645,6 +660,9 @@ function bindEvents() {
     setSheetLevel("mid");
     render();
   }));
+  document.querySelectorAll("[data-map-select]").forEach((button) => button.addEventListener("click", () => {
+    selectMapBooth(button.dataset.mapSelect);
+  }));
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => goDetail(button.dataset.detail)));
   document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => nfcAdapter.scan(button.dataset.nfc)));
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {
@@ -870,6 +888,12 @@ function goDetail(id) {
   state.route = "detail";
   state.sheetOpen = false;
   state.sheetLevel = "peek";
+  render();
+}
+
+function selectMapBooth(id) {
+  state.selectedBoothId = id;
+  if (state.sheetLevel === "full") setSheetLevel("mid");
   render();
 }
 

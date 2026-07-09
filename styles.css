@@ -1316,6 +1316,18 @@ button {
   outline-offset: 2px;
 }
 
+.marker.selected {
+  z-index: 4;
+  filter: brightness(1.04);
+  box-shadow: 0 14px 26px rgba(23, 32, 51, 0.24);
+}
+
+.marker.selected em {
+  color: #fff;
+  background: rgba(23, 32, 51, 0.94);
+  border-color: rgba(23, 32, 51, 0.28);
+}
+
 .marker.visited {
   background: var(--secondary);
   box-shadow: 0 9px 18px rgba(24, 169, 153, 0.3);
@@ -1404,6 +1416,67 @@ button {
 
 .zoom-control button + button {
   border-top: 1px solid var(--line);
+}
+
+.map-preview-card {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: 185px;
+  z-index: 4;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 18px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(223, 229, 239, 0.92);
+  box-shadow: 0 16px 34px rgba(23, 32, 51, 0.16);
+  backdrop-filter: blur(14px);
+  animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.map-preview-card strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.map-preview-card span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.preview-detail-btn {
+  height: 38px;
+  min-width: 58px;
+  border-radius: 14px;
+  color: #fff;
+  background: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+@keyframes preview-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .sheet {
