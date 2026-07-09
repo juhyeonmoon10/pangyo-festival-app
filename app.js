@@ -24,10 +24,12 @@ const state = {
   user: null,
   route: "login",
   floor: 1,
+  mapZoom: 1,
   selectedBoothId: null,
   sheetOpen: false,
   search: "",
   sort: "name",
+  boothFilter: "all",
   adminTab: "dashboard",
   reviewRating: 5,
   authStep: "google",
@@ -247,6 +249,8 @@ function visibleBooths() {
     const term = state.search.trim().toLowerCase();
     booths = booths.filter((booth) => `${booth.name} ${booth.location}`.toLowerCase().includes(term));
   }
+  if (state.boothFilter === "visited") booths = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id));
+  if (state.boothFilter === "favorite") booths = booths.filter((booth) => booth.favorite);
   return booths.sort((a, b) => {
     if (state.sort === "rating") return repo.avgRating(b.id) - repo.avgRating(a.id);
     return a.name.localeCompare(b.name, "ko");
@@ -293,18 +297,20 @@ function mapView() {
           <button class="map-chip active">${floorInfo.caption}</button>
           <button class="map-chip" id="sheetOpenBtn">목록</button>
         </div>
-        <div class="map-card">
-          <div class="map-grid"></div>
-          <div class="school-label">PANGYO HIGH</div>
-          <div class="map-river"></div>
-          <div class="map-path main"></div>
-          <div class="map-path sub"></div>
-          <div class="map-plaza"></div>
-          <div class="corridor"></div>
-          ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
-          ${booths.map((booth) => `<button class="marker ${repo.hasStamp(state.user.id, booth.id) ? "visited" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span></button>`).join("")}
-          <button class="locate-btn" title="현재 위치">⌾</button>
-          <div class="zoom-control" aria-hidden="true"><button>+</button><button>-</button></div>
+        <div class="map-card" style="--map-zoom:${state.mapZoom}">
+          <div class="map-canvas">
+            <div class="map-grid"></div>
+            <div class="school-label">PANGYO HIGH</div>
+            <div class="map-river"></div>
+            <div class="map-path main"></div>
+            <div class="map-path sub"></div>
+            <div class="map-plaza"></div>
+            <div class="corridor"></div>
+            ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
+            ${booths.map((booth) => `<button class="marker ${repo.hasStamp(state.user.id, booth.id) ? "visited" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span></button>`).join("")}
+          </div>
+          <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
+          <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
         </div>
       </section>
       <section class="sheet ${state.sheetOpen ? "open" : ""}" id="sheet">
@@ -320,7 +326,14 @@ function mapView() {
             <option value="rating" ${state.sort === "rating" ? "selected" : ""}>별점순</option>
           </select>
         </div>
-        <div class="booth-list">${booths.map(boothItem).join("")}</div>
+        <div class="sheet-filter-row">
+          ${[
+            ["all", "전체"],
+            ["visited", "방문완료"],
+            ["favorite", "즐겨찾기"],
+          ].map(([filter, label]) => `<button type="button" class="sheet-filter ${state.boothFilter === filter ? "active" : ""}" data-booth-filter="${filter}">${label}</button>`).join("")}
+        </div>
+        <div class="booth-list">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
       </section>
       ${bottomNav("map")}
     </main>
@@ -543,6 +556,8 @@ function bindEvents() {
   document.querySelectorAll("[data-floor]").forEach((button) => button.addEventListener("click", () => {
     state.floor = Number(button.dataset.floor);
     state.sheetOpen = false;
+    state.mapZoom = 1;
+    state.boothFilter = "all";
     render();
   }));
   document.querySelector("#sheetToggle")?.addEventListener("click", () => {
@@ -557,6 +572,16 @@ function bindEvents() {
     state.sheetOpen = true;
     render();
   });
+  document.querySelectorAll("[data-zoom]").forEach((button) => button.addEventListener("click", () => {
+    const delta = button.dataset.zoom === "in" ? 0.16 : -0.16;
+    state.mapZoom = Math.min(1.48, Math.max(0.92, Number((state.mapZoom + delta).toFixed(2))));
+    render();
+  }));
+  document.querySelector("#locateBtn")?.addEventListener("click", () => {
+    state.mapZoom = 1;
+    state.sheetOpen = false;
+    render();
+  });
   bindSheetDrag();
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
@@ -566,6 +591,11 @@ function bindEvents() {
     state.sort = event.target.value;
     render();
   });
+  document.querySelectorAll("[data-booth-filter]").forEach((button) => button.addEventListener("click", () => {
+    state.boothFilter = button.dataset.boothFilter;
+    state.sheetOpen = true;
+    render();
+  }));
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => goDetail(button.dataset.detail)));
   document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => nfcAdapter.scan(button.dataset.nfc)));
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {

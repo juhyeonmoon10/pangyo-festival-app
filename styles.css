@@ -1074,6 +1074,15 @@ button {
   box-shadow: none;
 }
 
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  transform: scale(var(--map-zoom, 1));
+  transform-origin: 50% 54%;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
 .map-grid {
   position: absolute;
   inset: 0;
@@ -1171,6 +1180,7 @@ button {
   color: var(--text);
   font-size: 19px;
   font-weight: 900;
+  touch-action: manipulation;
 }
 
 .zoom-control button + button {
@@ -1221,9 +1231,46 @@ button {
   grid-template-columns: 1fr 92px;
 }
 
+.sheet-filter-row {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 0 18px 12px;
+}
+
+.sheet-filter {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #f1f4f8;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid transparent;
+}
+
+.sheet-filter.active {
+  background: #fff0f2;
+  color: var(--primary-dark);
+  border-color: rgba(255, 79, 100, 0.22);
+}
+
 .booth-item {
   border-radius: 15px;
   padding: 12px;
+}
+
+.empty-list {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: #f8fafc;
 }
 
 .hidden {
