@@ -334,7 +334,10 @@ function mapView() {
             ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
             ${booths.map((booth) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
-          <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
+          <div class="map-control-stack" aria-label="지도 조작">
+            <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
+            <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
+          </div>
           <div class="mini-map" aria-hidden="true">
             <strong>${floorInfo.label}</strong>
             <div class="mini-map-box">
@@ -348,7 +351,6 @@ function mapView() {
             <span><i class="legend-pin facility"></i>시설</span>
             <span><i class="legend-pin visited"></i>방문</span>
           </div>
-          <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
           ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
         </div>
       </section>

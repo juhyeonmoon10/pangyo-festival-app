@@ -1984,6 +1984,67 @@ button {
   display: none !important;
 }
 
+.map-control-stack {
+  position: absolute;
+  right: 48px;
+  bottom: 136px;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+}
+
+.map-control-stack .locate-btn,
+.map-control-stack .zoom-control {
+  position: static;
+}
+
+.map-control-stack .locate-btn {
+  width: 44px;
+  height: 44px;
+  color: var(--secondary);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(223, 229, 239, 0.95);
+  box-shadow: 0 12px 24px rgba(23, 32, 51, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.map-control-stack .zoom-control {
+  width: 44px;
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(23, 32, 51, 0.14);
+}
+
+.marker.selected::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50% 50% 50% 10px;
+  border: 2px solid rgba(255, 79, 100, 0.34);
+  animation: selected-pin-pulse 1.35s ease-out infinite;
+}
+
+@keyframes selected-pin-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(0.78);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.34);
+  }
+}
+
+@media (max-width: 380px) {
+  .map-control-stack {
+    right: 36px;
+  }
+
+  .map-preview-card {
+    left: 36px;
+    right: 36px;
+  }
+}
+
 @media (min-width: 481px) {
   body {
     background: #e7ecf4;
