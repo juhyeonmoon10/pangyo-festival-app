@@ -316,6 +316,7 @@ function mapView() {
             <div class="map-path sub"></div>
             <div class="map-plaza"></div>
             <div class="corridor"></div>
+            <div class="current-position-dot" aria-hidden="true"></div>
             ${selectedBooth && state.routeGuideId === selectedBooth.id ? mapRouteGuide(selectedBooth) : ""}
             ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
             ${booths.map((booth) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
@@ -911,6 +912,7 @@ function goDetail(id) {
 function selectMapBooth(id) {
   state.selectedBoothId = id;
   if (state.routeGuideId && state.routeGuideId !== id) state.routeGuideId = null;
+  focusMapOnBooth(id);
   if (state.sheetLevel === "full") setSheetLevel("mid");
   render();
 }
@@ -918,8 +920,20 @@ function selectMapBooth(id) {
 function toggleRouteGuide(id) {
   state.selectedBoothId = id;
   state.routeGuideId = state.routeGuideId === id ? null : id;
+  focusMapOnBooth(id);
   if (state.sheetLevel === "full") setSheetLevel("mid");
   render();
+}
+
+function focusMapOnBooth(id) {
+  const booth = state.db.booths.find((item) => item.id === id);
+  if (!booth) return;
+  const maxX = 72 * state.mapZoom;
+  const maxY = 92 * state.mapZoom;
+  const targetX = (50 - booth.x) * 1.35;
+  const targetY = (48 - booth.y) * 1.15;
+  state.mapOffsetX = Math.min(maxX, Math.max(-maxX, targetX));
+  state.mapOffsetY = Math.min(maxY, Math.max(-maxY, targetY));
 }
 
 function submitReview() {
