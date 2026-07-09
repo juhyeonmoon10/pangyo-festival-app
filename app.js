@@ -317,6 +317,7 @@ function mapView() {
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
   const floorProgress = booths.length ? Math.round((stampedCount / booths.length) * 100) : 0;
+  const filterLabel = mapFilterLabel(state.boothFilter);
   return `
     <main class="map-screen">
       <header class="top-bar">
@@ -332,6 +333,7 @@ function mapView() {
           <span class="status-dot"></span>
           <strong>${floorInfo.label} 탐색 중</strong>
           <small>스탬프 ${stampedCount}/${booths.length}</small>
+          <em>${filterLabel}</em>
         </div>
         <div class="map-toolbar">
           <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체</button>
@@ -417,6 +419,16 @@ function mapView() {
       ${bottomNav("map")}
     </main>
   `;
+}
+
+function mapFilterLabel(filter) {
+  return {
+    all: "전체 보기",
+    class: "부스만",
+    facility: "시설만",
+    visited: "방문 완료",
+    favorite: "즐겨찾기",
+  }[filter] || "전체 보기";
 }
 
 function mapQuickDock(booths, stampedCount) {

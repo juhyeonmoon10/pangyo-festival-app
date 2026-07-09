@@ -1309,6 +1309,21 @@ button {
   font-weight: 800;
 }
 
+.map-status-card em {
+  grid-column: 1 / span 2;
+  justify-self: start;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--primary-dark);
+  background: #fff0f2;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 1000;
+}
+
 .status-dot {
   grid-row: 1 / span 2;
   width: 9px;
