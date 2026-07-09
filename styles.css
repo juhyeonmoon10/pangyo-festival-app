@@ -1271,12 +1271,22 @@ button {
 }
 
 .map-stage {
+  transition: filter 0.28s ease, transform 0.28s ease;
   inset: 0;
   background:
     linear-gradient(180deg, rgba(248, 251, 253, 0.72), rgba(237, 244, 248, 0.16) 24%, rgba(237, 244, 248, 0.58) 100%),
     radial-gradient(circle at 16% 23%, rgba(24, 169, 153, 0.18), transparent 27%),
     radial-gradient(circle at 82% 18%, rgba(75, 140, 255, 0.12), transparent 25%),
     #edf4f8;
+}
+
+.map-screen:has(.sheet.full) .map-stage {
+  filter: saturate(0.86) brightness(0.93);
+  transform: scale(0.992);
+}
+
+.map-screen:has(.sheet.full) .map-card {
+  pointer-events: none;
 }
 
 .map-status-card {
