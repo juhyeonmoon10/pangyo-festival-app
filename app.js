@@ -271,23 +271,31 @@ function mapView() {
   const booths = visibleBooths();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const rooms = mapRoomsForFloor(state.floor);
+  const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   return `
     <main class="map-screen">
       <header class="top-bar">
         <button class="icon-btn" data-route="stamps" title="스탬프">${icon("stamp")}</button>
-        <div class="top-title"><strong>판교고 축제 맵</strong><span>${state.user?.name || ""}님, 오늘도 즐겁게 둘러보세요</span></div>
+        <div class="top-title"><strong>판교고 축제 맵</strong><span>${floorInfo.label} · ${floorInfo.caption} · ${state.user?.name || ""}님</span></div>
         <button class="icon-btn" data-route="${state.user?.role === "admin" ? "admin" : "login"}" title="계정">${state.user?.role === "admin" ? icon("admin") : "G"}</button>
       </header>
       <nav class="floor-tabs">
         ${FLOORS.map(({ floor, label, caption }) => `<button class="pill-btn ${state.floor === floor ? "active" : ""}" data-floor="${floor}">${label}<small>${caption}</small></button>`).join("")}
       </nav>
       <section class="map-stage">
+        <div class="map-status-card">
+          <span class="status-dot"></span>
+          <strong>${floorInfo.label} 탐색 중</strong>
+          <small>스탬프 ${stampedCount}/${booths.length}</small>
+        </div>
         <div class="map-toolbar">
-          <button class="map-chip">필터</button>
+          <button class="map-chip">추천</button>
           <button class="map-chip active">${floorInfo.caption}</button>
-          <button class="map-chip" id="sheetOpenBtn">목록 표시</button>
+          <button class="map-chip" id="sheetOpenBtn">목록</button>
         </div>
         <div class="map-card">
+          <div class="map-grid"></div>
+          <div class="school-label">PANGYO HIGH</div>
           <div class="map-river"></div>
           <div class="map-path main"></div>
           <div class="map-path sub"></div>
@@ -296,13 +304,14 @@ function mapView() {
           ${rooms.map(([label, x, y, w, h]) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${label}</div>`).join("")}
           ${booths.map((booth) => `<button class="marker ${repo.hasStamp(state.user.id, booth.id) ? "visited" : ""}" style="left:${booth.x}%;top:${booth.y}%" data-detail="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span></button>`).join("")}
           <button class="locate-btn" title="현재 위치">⌾</button>
+          <div class="zoom-control" aria-hidden="true"><button>+</button><button>-</button></div>
         </div>
       </section>
       <section class="sheet ${state.sheetOpen ? "open" : ""}" id="sheet">
         <button class="sheet-handle" id="sheetToggle" aria-label="부스 목록 열기"></button>
         <div class="sheet-head">
-          <strong>${floorInfo.label} ${floorInfo.caption}</strong>
-          <span class="meta">${booths.length}개 표시</span>
+          <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small></span>
+          <button class="sheet-open-link" id="sheetOpenBtn2">전체보기</button>
         </div>
         <div class="search-row">
           <input id="search" class="input" placeholder="부스 검색" value="${state.search}" />
@@ -544,6 +553,11 @@ function bindEvents() {
     state.sheetOpen = true;
     render();
   });
+  document.querySelector("#sheetOpenBtn2")?.addEventListener("click", () => {
+    state.sheetOpen = true;
+    render();
+  });
+  bindSheetDrag();
   document.querySelector("#search")?.addEventListener("input", (event) => {
     state.search = event.target.value;
     render();
@@ -569,6 +583,30 @@ function bindEvents() {
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
+}
+
+function bindSheetDrag() {
+  const handle = document.querySelector("#sheetToggle");
+  if (!handle) return;
+  let startY = 0;
+  let dragging = false;
+
+  const finish = (clientY) => {
+    if (!dragging) return;
+    const delta = clientY - startY;
+    if (delta < -22) state.sheetOpen = true;
+    if (delta > 22) state.sheetOpen = false;
+    dragging = false;
+    render();
+  };
+
+  handle.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    startY = event.clientY;
+    handle.setPointerCapture?.(event.pointerId);
+  });
+  handle.addEventListener("pointerup", (event) => finish(event.clientY));
+  handle.addEventListener("pointercancel", (event) => finish(event.clientY || startY));
 }
 
 function resetLogin() {
