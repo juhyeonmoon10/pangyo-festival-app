@@ -1234,6 +1234,7 @@ button {
 }
 
 .map-screen .pill-btn {
+  position: relative;
   flex: 1 0 70px;
   min-height: 44px;
   border-radius: 15px;
@@ -1243,11 +1244,31 @@ button {
   touch-action: manipulation;
 }
 
+.map-screen .pill-btn b {
+  position: absolute;
+  right: 6px;
+  top: 5px;
+  min-width: 17px;
+  height: 17px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 9px;
+  font-weight: 1000;
+}
+
 .map-screen .pill-btn.active {
-  position: relative;
   background: var(--primary);
   color: #fff;
   box-shadow: 0 8px 18px rgba(255, 79, 100, 0.25);
+}
+
+.map-screen .pill-btn.active b {
+  color: var(--primary);
+  background: #fff;
 }
 
 .map-screen .pill-btn.active::after {

@@ -326,7 +326,7 @@ function mapView() {
         <button class="icon-btn" data-route="${state.user?.role === "admin" ? "admin" : "login"}" title="계정">${state.user?.role === "admin" ? icon("admin") : "G"}</button>
       </header>
       <nav class="floor-tabs">
-        ${FLOORS.map(({ floor, label, caption }) => `<button class="pill-btn ${state.floor === floor ? "active" : ""}" data-floor="${floor}">${label}<small>${caption}</small></button>`).join("")}
+        ${FLOORS.map(({ floor, label, caption }) => `<button class="pill-btn ${state.floor === floor ? "active" : ""}" data-floor="${floor}">${label}<small>${caption}</small><b>${state.db.booths.filter((booth) => booth.floor === floor).length}</b></button>`).join("")}
       </nav>
       <section class="map-stage">
         <div class="map-status-card">
