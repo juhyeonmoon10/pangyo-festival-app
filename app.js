@@ -345,7 +345,8 @@ function mapView() {
             <strong>${floorInfo.label}</strong>
             <div class="mini-map-box">
               <span class="mini-route"></span>
-              <i style="left:${Math.min(78, Math.max(18, 50 - state.mapOffsetX / 3))}%;top:${Math.min(78, Math.max(18, 52 - state.mapOffsetY / 3))}%"></i>
+              <i class="mini-view" style="left:${Math.min(78, Math.max(18, 50 - state.mapOffsetX / 3))}%;top:${Math.min(78, Math.max(18, 52 - state.mapOffsetY / 3))}%"></i>
+              ${selectedBooth ? `<i class="mini-destination" style="left:${Math.min(84, Math.max(16, selectedBooth.x))}%;top:${Math.min(84, Math.max(16, selectedBooth.y))}%"></i>` : ""}
             </div>
             <small>${Math.round(state.mapZoom * 100)}%</small>
           </div>

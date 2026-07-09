@@ -1760,6 +1760,17 @@ button {
   box-shadow: 0 3px 8px rgba(23, 32, 51, 0.18);
 }
 
+.mini-map-box .mini-view {
+  background: var(--blue);
+}
+
+.mini-map-box .mini-destination {
+  width: 13px;
+  height: 13px;
+  background: var(--primary);
+  box-shadow: 0 0 0 5px rgba(255, 79, 100, 0.14), 0 3px 8px rgba(23, 32, 51, 0.2);
+}
+
 .map-legend {
   position: absolute;
   left: 104px;
