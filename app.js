@@ -313,6 +313,7 @@ function mapRoomsForFloor(floor) {
 function mapView() {
   const booths = visibleBooths();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
+  const floorBooths = state.db.booths.filter((booth) => booth.floor === state.floor);
   const rooms = mapRoomsForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
@@ -337,10 +338,10 @@ function mapView() {
           <span class="map-status-progress" style="--status-progress:${floorProgress}%"></span>
         </div>
         <div class="map-toolbar">
-          <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체</button>
-          <button class="map-chip ${state.boothFilter === "class" ? "active" : ""}" type="button" data-map-filter="class">부스</button>
-          <button class="map-chip ${state.boothFilter === "facility" ? "active" : ""}" type="button" data-map-filter="facility">시설</button>
-          <button class="map-chip" id="sheetOpenBtn">목록</button>
+          <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체<b>${floorBooths.length}</b></button>
+          <button class="map-chip ${state.boothFilter === "class" ? "active" : ""}" type="button" data-map-filter="class">부스<b>${floorBooths.filter((booth) => booth.category === "class").length}</b></button>
+          <button class="map-chip ${state.boothFilter === "facility" ? "active" : ""}" type="button" data-map-filter="facility">시설<b>${floorBooths.filter((booth) => booth.category === "facility").length}</b></button>
+          <button class="map-chip" id="sheetOpenBtn">목록<b>${booths.length}</b></button>
         </div>
         <button class="map-search-pill" id="mapSearchBtn" type="button">
           <span>⌕</span>
