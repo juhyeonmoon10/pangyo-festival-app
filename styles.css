@@ -1989,6 +1989,17 @@ button {
   animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.map-preview-card::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 0;
+  height: 4px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+}
+
 .route-banner {
   position: absolute;
   left: 48px;
@@ -1997,7 +2008,7 @@ button {
   z-index: 4;
   min-height: 38px;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto 28px;
+  grid-template-columns: 24px auto auto minmax(0, 1fr) auto 28px;
   align-items: center;
   gap: 7px;
   padding: 0 11px;
@@ -2008,6 +2019,16 @@ button {
   box-shadow: 0 14px 30px rgba(23, 32, 51, 0.13);
   backdrop-filter: blur(14px);
   animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.route-banner::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 50%, #fff 0 3px, transparent 4px),
+    var(--primary);
 }
 
 .route-banner span,
@@ -2092,7 +2113,7 @@ button {
 }
 
 .preview-route-btn {
-  height: 38px;
+  height: 40px;
   min-width: 58px;
   border-radius: 14px;
   color: var(--primary-dark);
@@ -2109,7 +2130,7 @@ button {
 }
 
 .preview-detail-btn {
-  height: 38px;
+  height: 40px;
   min-width: 50px;
   border-radius: 14px;
   color: #fff;
@@ -2120,7 +2141,7 @@ button {
 
 .preview-close-btn {
   width: 32px;
-  height: 38px;
+  height: 40px;
   border-radius: 14px;
   color: var(--muted);
   background: #f1f4f8;
@@ -2425,19 +2446,34 @@ button {
     left: 36px;
     right: 36px;
     gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 48px 42px 30px;
+    padding: 11px 10px;
   }
 
   .preview-route-btn {
-    min-width: 52px;
+    min-width: 48px;
+    padding: 0 6px;
   }
 
   .preview-detail-btn {
-    min-width: 46px;
+    min-width: 42px;
+    padding: 0 6px;
+  }
+
+  .preview-close-btn {
+    width: 30px;
   }
 
   .route-banner {
     left: 36px;
     right: 92px;
+    grid-template-columns: 22px auto auto minmax(0, 1fr) auto 26px;
+  }
+
+  .route-banner::before {
+    width: 22px;
+    height: 22px;
+    border-radius: 9px;
   }
 }
 
