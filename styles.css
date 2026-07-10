@@ -38,6 +38,7 @@ select {
 button {
   border: 0;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .app-shell {
@@ -1325,19 +1326,15 @@ button {
 .map-stage {
   transition: filter 0.28s ease, transform 0.28s ease;
   inset: 0;
-  background:
-    linear-gradient(180deg, rgba(248, 251, 253, 0.72), rgba(237, 244, 248, 0.16) 24%, rgba(237, 244, 248, 0.58) 100%),
-    radial-gradient(circle at 16% 23%, rgba(24, 169, 153, 0.18), transparent 27%),
-    radial-gradient(circle at 82% 18%, rgba(75, 140, 255, 0.12), transparent 25%),
-    #edf4f8;
+  background: #edf4f8;
 }
 
-.map-screen:has(.sheet.full) .map-stage {
+.map-screen.sheet-full .map-stage {
   filter: saturate(0.86) brightness(0.93);
   transform: scale(0.992);
 }
 
-.map-screen:has(.sheet.full) .map-card {
+.map-screen.sheet-full .map-card {
   pointer-events: none;
 }
 
@@ -1383,11 +1380,7 @@ button {
   inset: 116px -36px 116px -34px;
   border-radius: 0;
   border: 0;
-  background:
-    radial-gradient(circle at 24% 28%, rgba(112, 188, 133, 0.2) 0 13%, transparent 14%),
-    radial-gradient(circle at 72% 29%, rgba(112, 188, 133, 0.16) 0 12%, transparent 13%),
-    radial-gradient(circle at 50% 78%, rgba(255, 209, 102, 0.18) 0 14%, transparent 15%),
-    linear-gradient(145deg, #e8f0f4, #dfeaf0 52%, #edf1f5);
+  background: linear-gradient(180deg, #eef4f8 0%, #e8eef3 100%);
   box-shadow: none;
   touch-action: none;
   cursor: grab;
@@ -1408,6 +1401,20 @@ button {
 
 .map-card.dragging .map-canvas {
   transition: none;
+}
+
+.map-card.has-preview .map-canvas {
+  filter: blur(1.15px) saturate(0.84) brightness(0.96);
+  opacity: 0.9;
+}
+
+.map-card.has-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: rgba(246, 248, 251, 0.18);
+  pointer-events: none;
 }
 
 .map-empty-card {
@@ -1452,14 +1459,13 @@ button {
 .map-grid {
   position: absolute;
   inset: 0;
-  opacity: 0.26;
+  opacity: 0.1;
   background-image:
     linear-gradient(rgba(114, 132, 153, 0.16) 1px, transparent 1px),
     linear-gradient(90deg, rgba(114, 132, 153, 0.16) 1px, transparent 1px);
-  background-size: 38px 38px;
+  background-size: 46px 46px;
 }
 
-.map-floor-badge,
 .map-entry-label {
   position: absolute;
   z-index: 2;
@@ -1477,17 +1483,12 @@ button {
   backdrop-filter: blur(10px);
 }
 
-.map-floor-badge {
-  left: 43%;
-  top: 12%;
-}
-
 .map-entry-label {
   left: 47%;
   top: 64%;
-  color: #fff;
-  background: rgba(23, 32, 51, 0.82);
-  border-color: rgba(23, 32, 51, 0.18);
+  color: rgba(83, 97, 116, 0.88);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(203, 214, 226, 0.72);
 }
 
 .map-compass {
@@ -1560,8 +1561,8 @@ button {
   left: 50%;
   top: 22%;
   transform: translateX(-50%);
-  color: rgba(83, 97, 116, 0.2);
-  font-size: 24px;
+  color: rgba(83, 97, 116, 0.08);
+  font-size: 22px;
   font-weight: 1000;
   letter-spacing: 0;
   white-space: nowrap;
@@ -1573,14 +1574,28 @@ button {
   width: 36%;
   height: 100%;
   border-radius: 50% 0 0 50%;
-  background: linear-gradient(180deg, #bfe8f7, #89d0ef);
+  background: linear-gradient(180deg, rgba(191, 232, 247, 0.26), rgba(137, 208, 239, 0.22));
 }
 
 .map-path {
   background:
-    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.24) 0 8px, rgba(232, 239, 246, 0.18) 8px 16px),
-    rgba(255, 255, 255, 0.74);
-  border-color: rgba(198, 211, 224, 0.72);
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0 8px, rgba(232, 239, 246, 0.1) 8px 16px),
+    rgba(255, 255, 255, 0.5);
+  border-color: rgba(198, 211, 224, 0.4);
+}
+
+.map-path.sub,
+.map-plaza,
+.corridor {
+  opacity: 0.18;
+}
+
+.map-compass {
+  opacity: 0.45;
+}
+
+.map-entry-label {
+  opacity: 0.75;
 }
 
 .room {
@@ -1613,9 +1628,14 @@ button {
 .marker span {
   width: 22px;
   height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  transform: rotate(45deg);
   color: var(--primary);
   background: #fff;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 1000;
 }
 
 .marker.visited {
@@ -1625,70 +1645,6 @@ button {
 
 .marker.visited span {
   color: var(--secondary);
-  background: #fff;
-}
-
-.marker {
-  width: 36px;
-  height: 36px;
-  border-radius: 50% 50% 50% 8px;
-  transform: translate(-50%, -100%) rotate(-45deg);
-  display: grid;
-  place-items: center;
-  overflow: visible;
-  z-index: 2;
-  animation-delay: var(--stagger, 0ms);
-}
-
-.marker span {
-  transform: rotate(45deg);
-  width: 23px;
-  height: 23px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-weight: 1000;
-}
-
-.marker em {
-  position: absolute;
-  left: 50%;
-  top: 39px;
-  transform: translateX(-50%) rotate(45deg);
-  min-width: 54px;
-  max-width: 76px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  color: #2b3548;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(223, 229, 239, 0.88);
-  box-shadow: 0 7px 14px rgba(23, 32, 51, 0.12);
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 900;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.marker.visited::after {
-  content: "V";
-  position: absolute;
-  right: -5px;
-  top: -5px;
-  transform: rotate(45deg);
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: var(--secondary);
-  border: 2px solid #fff;
-  font-size: 10px;
-  font-weight: 1000;
 }
 
 .marker.class {
@@ -1730,31 +1686,14 @@ button {
   box-shadow: 0 16px 30px rgba(23, 32, 51, 0.26), 0 0 0 5px rgba(255, 79, 100, 0.13);
 }
 
-.marker.selected em {
-  color: #fff;
-  background: rgba(23, 32, 51, 0.94);
-  border-color: rgba(23, 32, 51, 0.28);
-  min-width: 72px;
-  height: 25px;
-  font-size: 11px;
-  box-shadow: 0 10px 20px rgba(23, 32, 51, 0.18);
-}
-
-.marker.visited {
-  background: var(--secondary);
-  box-shadow: 0 9px 18px rgba(24, 169, 153, 0.3);
-}
-
-.marker.visited span {
-  color: var(--secondary);
-}
-
 .map-preview-card {
   position: absolute;
   left: 48px;
   right: 48px;
-  bottom: 185px;
-  z-index: 4;
+  top: 50%;
+  bottom: auto;
+  z-index: 5;
+  transform: translateY(-50%);
   min-height: 64px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 32px;
@@ -1766,7 +1705,7 @@ button {
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(223, 229, 239, 0.92);
   box-shadow: 0 16px 34px rgba(23, 32, 51, 0.16);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
   animation: preview-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -1854,11 +1793,11 @@ button {
 @keyframes preview-rise {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: translateY(calc(-50% + 12px)) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(-50%) scale(1);
   }
 }
 

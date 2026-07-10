@@ -224,11 +224,7 @@ function render() {
     app.dataset.route = nextRoute;
     bindEvents();
   };
-  if (document.startViewTransition && app.innerHTML && previousRoute !== nextRoute) {
-    document.startViewTransition(swap);
-  } else {
-    swap();
-  }
+  swap();
 }
 
 function loginView() {
@@ -313,7 +309,7 @@ function mapView() {
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
   return `
-    <main class="map-screen">
+    <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
       <header class="top-bar">
         <button class="icon-btn" data-route="stamps" title="스탬프">${icon("stamp")}</button>
         <div class="top-title"><strong>판교고 축제 맵</strong><span>${floorInfo.label} · ${floorInfo.caption} · ${state.user?.name || ""}님</span></div>
@@ -338,10 +334,9 @@ function mapView() {
         })}
       </nav>
       <section class="map-stage">
-        <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
+        <div class="map-card ${selectedBooth ? "has-preview" : ""}" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
-            <div class="map-floor-badge">${floorInfo.label}</div>
             <div class="map-entry-label">입구</div>
             <div class="map-compass" aria-hidden="true"><b>N</b><span></span></div>
             <div class="school-label">PANGYO HIGH</div>
@@ -352,7 +347,7 @@ function mapView() {
             <div class="corridor"></div>
             <div class="current-position-dot" aria-hidden="true"></div>
             ${rooms.map(([label, x, y, w, h], index) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--stagger:${index * 24}ms">${label}</div>`).join("")}
-            ${booths.map((booth, index) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
+            ${booths.map((booth, index) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}"><span aria-hidden="true">${icon("map")}</span></button>`).join("")}
           </div>
           ${booths.length ? "" : mapEmptyCard()}
           ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
@@ -445,21 +440,11 @@ function choiceSelect({ id, label, caption = "", options }) {
   `;
 }
 
-function markerLabel(booth) {
-  if (booth.category !== "class") return booth.name.slice(0, 1);
-  const match = booth.name.match(/\d반/);
-  return match ? match[0].replace("반", "") : "반";
-}
-
 function markerClass(booth) {
   const classes = ["marker", booth.category || "class"];
   if (booth.favorite) classes.push("favorite");
   if (repo.hasStamp(state.user.id, booth.id)) classes.push("visited");
   return classes.join(" ");
-}
-
-function markerName(booth) {
-  return booth.name.length > 6 ? `${booth.name.slice(0, 6)}…` : booth.name;
 }
 
 function sheetClass() {
@@ -852,14 +837,26 @@ function bindEvents() {
   document.querySelectorAll("[data-map-select]").forEach((button) => button.addEventListener("click", () => {
     selectMapBooth(button.dataset.mapSelect);
   }));
-  document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
-    selectMapBooth(button.dataset.listSelect);
-  }));
-  document.querySelector("[data-clear-selection]")?.addEventListener("click", () => {
+  document.querySelector("#mapCard")?.addEventListener("click", (event) => {
+    if (!state.selectedBoothId) return;
+    if (event.target.closest("button") || event.target.closest(".map-preview-card")) return;
     state.selectedBoothId = null;
     render();
   });
-  document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => goDetail(button.dataset.detail)));
+  document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
+    goDetail(button.dataset.listSelect);
+  }));
+  document.querySelectorAll("[data-clear-selection]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.selectedBoothId = null;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    goDetail(button.dataset.detail);
+  }));
   document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => nfcAdapter.scan(button.dataset.nfc)));
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {
     state.reviewRating = Number(button.dataset.rating);
@@ -1076,6 +1073,7 @@ function resetLogin() {
   state.authIntent = "student";
   state.loginBusy = false;
   state.loginError = "";
+  state.openMenu = null;
 }
 
 function startGoogleLogin(intent = "student") {
@@ -1112,6 +1110,7 @@ function startGoogleLogin(intent = "student") {
   state.authStep = "google";
   state.route = "map";
   state.loginError = "";
+  state.openMenu = null;
   render();
   consumePendingNfc();
 }
@@ -1175,14 +1174,12 @@ function finishAdminGoogleLogin(google) {
   state.user = admin;
   state.route = "admin";
   state.loginError = "";
+  state.openMenu = null;
   render();
 }
 
 function consumePendingNfc() {
-  if (!state.pendingNfcTag || !state.user) {
-    render();
-    return;
-  }
+  if (!state.pendingNfcTag || !state.user) return;
   const tagId = state.pendingNfcTag;
   state.pendingNfcTag = "";
   nfcAdapter.scan(tagId);
@@ -1194,6 +1191,7 @@ function goDetail(id) {
   state.searchOpen = false;
   state.sheetOpen = false;
   state.sheetLevel = "peek";
+  state.openMenu = null;
   render();
 }
 
@@ -1202,6 +1200,7 @@ function selectMapBooth(id) {
   state.searchOpen = false;
   focusMapOnBooth(id, 1.18);
   if (state.sheetLevel === "full") setSheetLevel("mid");
+  state.openMenu = null;
   render();
 }
 
