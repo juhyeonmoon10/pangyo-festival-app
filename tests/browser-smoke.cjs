@@ -22,7 +22,7 @@ async function run() {
   page.on("pageerror", (error) => errors.push(`page: ${error.message}`));
   await page.addInitScript(() => localStorage.clear());
 
-  const appUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
+  const appUrl = process.env.APP_URL || pathToFileURL(path.join(__dirname, "..", "index.html")).href;
   await page.goto(appUrl, { waitUntil: "load" });
   await expectVisible(page, "#googleLogin", "login");
   await page.click("#googleLogin");
