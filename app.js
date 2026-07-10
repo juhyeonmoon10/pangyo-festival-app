@@ -77,7 +77,8 @@ const authProvider = {
 };
 
 function makeId() {
-  return crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function makeClassBooths(grade, floor) {
@@ -1082,37 +1083,37 @@ function startGoogleLogin(intent = "student") {
   state.loginBusy = false;
   try {
     state.pendingGoogle = authProvider.signInWithGoogle();
+    if (intent === "admin") {
+      finishAdminGoogleLogin(state.pendingGoogle);
+      return;
+    }
+    let user = state.db.users.find((item) => item.googleUid === state.pendingGoogle.uid);
+    if (!user) {
+      user = { id: makeId(), role: "user", exchangedAt: null };
+      state.db.users.push(user);
+    }
+    Object.assign(user, {
+      googleUid: state.pendingGoogle.uid,
+      googleEmail: state.pendingGoogle.email,
+      studentNumber: user.studentNumber || "demo-student",
+      schoolId: user.schoolId || "google-demo-user",
+      name: user.name || state.pendingGoogle.displayName || "판교고 학생",
+      role: user.role || "user",
+    });
+    saveDb();
+    state.user = user;
+    state.authStep = "google";
+    state.route = "map";
+    state.loginError = "";
+    state.openMenu = null;
+    render();
+    consumePendingNfc();
   } catch (error) {
     state.loginBusy = false;
     state.loginError = error.message || "로그인 처리 중 문제가 생겼습니다.";
+    state.route = "login";
     render();
-    return;
   }
-  if (intent === "admin") {
-    finishAdminGoogleLogin(state.pendingGoogle);
-    return;
-  }
-  let user = state.db.users.find((item) => item.googleUid === state.pendingGoogle.uid);
-  if (!user) {
-    user = { id: makeId(), role: "user", exchangedAt: null };
-    state.db.users.push(user);
-  }
-  Object.assign(user, {
-    googleUid: state.pendingGoogle.uid,
-    googleEmail: state.pendingGoogle.email,
-    studentNumber: user.studentNumber || "demo-student",
-    schoolId: user.schoolId || "google-demo-user",
-    name: user.name || state.pendingGoogle.displayName || "판교고 학생",
-    role: user.role || "user",
-  });
-  saveDb();
-  state.user = user;
-  state.authStep = "google";
-  state.route = "map";
-  state.loginError = "";
-  state.openMenu = null;
-  render();
-  consumePendingNfc();
 }
 
 function completeProfile() {
