@@ -9,14 +9,14 @@ const FLOORS = [
 ];
 
 const classPositions = [
-  [16, 28],
-  [35, 22],
-  [56, 25],
-  [76, 31],
-  [19, 68],
-  [39, 74],
-  [61, 70],
-  [80, 62],
+  [9, 41],
+  [19, 41],
+  [29, 41],
+  [39, 41],
+  [49, 41],
+  [73, 41],
+  [83, 41],
+  [93, 41],
 ];
 
 const state = {
@@ -115,9 +115,9 @@ const seed = {
   booths: [
     { id: "b1", name: "보건실", floor: 1, location: "1층 보건실", description: "축제 중 몸이 불편할 때 방문할 수 있는 응급 지원 공간입니다.", nfcTagId: "NFC-HEALTH-101", x: 17, y: 32, favorite: false, category: "facility" },
     { id: "b2", name: "학생회 안내소", floor: 1, location: "1층 중앙 현관", description: "축제 안내, 분실물 문의, 음료 교환 문의를 도와주는 운영 부스입니다.", nfcTagId: "NFC-INFO-102", x: 50, y: 43, favorite: true, category: "facility" },
-    { id: "b3", name: "교무실", floor: 1, location: "1층 교무실", description: "운영 문의와 긴급 연락을 처리하는 관리 공간입니다.", nfcTagId: "NFC-OFFICE-103", x: 78, y: 32, favorite: false, category: "facility" },
-    { id: "b4", name: "방송실", floor: 1, location: "1층 방송실", description: "축제 방송과 안내 멘트를 운영하는 공간입니다.", nfcTagId: "NFC-STUDIO-104", x: 26, y: 72, favorite: false, category: "facility" },
-    { id: "b5", name: "매점", floor: 1, location: "1층 매점", description: "간단한 간식과 음료를 구매할 수 있는 편의 공간입니다.", nfcTagId: "NFC-STORE-105", x: 69, y: 70, favorite: false, category: "facility" },
+    { id: "b3", name: "행정실", floor: 1, location: "1층 행정실", description: "축제 운영 문의와 긴급 연락을 처리하는 관리 공간입니다.", nfcTagId: "NFC-OFFICE-103", x: 46, y: 40, favorite: false, category: "facility" },
+    { id: "b4", name: "시청각실", floor: 1, location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다.", nfcTagId: "NFC-STUDIO-104", x: 84, y: 50, favorite: false, category: "facility" },
+    { id: "b5", name: "상담실", floor: 1, location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다.", nfcTagId: "NFC-STORE-105", x: 31, y: 31, favorite: false, category: "facility" },
     ...makeClassBooths(1, 2),
     ...makeClassBooths(2, 3),
     ...makeClassBooths(3, 4),
@@ -141,6 +141,16 @@ function loadDb() {
     writeStorage(DB_KEY, JSON.stringify(seed));
     return structuredClone(seed);
   }
+  const legacyFacilityUpdates = {
+    b3: { legacyName: "교무실", name: "행정실", location: "1층 행정실", description: "축제 운영 문의와 긴급 연락을 처리하는 관리 공간입니다." },
+    b4: { legacyName: "방송실", name: "시청각실", location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다." },
+    b5: { legacyName: "매점", name: "상담실", location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다." },
+  };
+  db.booths = db.booths.map((booth) => {
+    const update = legacyFacilityUpdates[booth.id];
+    if (!update || booth.name !== update.legacyName) return booth;
+    return { ...booth, name: update.name, location: update.location, description: update.description };
+  });
   db.users = db.users.map((user) => ({
     googleUid: user.googleUid || user.id,
     googleEmail: user.googleEmail || "",
@@ -289,24 +299,121 @@ function visibleBooths() {
   });
 }
 
-function mapRoomsForFloor(floor) {
+function mapPlanForFloor(floor) {
+  const room = (label, x, y, w, h, type = "facility") => ({ label, x, y, w, h, type });
+  const corridor = (x, y, w, h, label = "복도") => ({ x, y, w, h, label });
+  const connector = (x, y, w, h) => ({ x, y, w, h });
+
   if (floor === 1) {
-    return [
-      ["보건실", 8, 15, 26, 20],
-      ["중앙 현관", 38, 27, 24, 24],
-      ["교무실", 66, 15, 26, 20],
-      ["방송실", 13, 63, 26, 20],
-      ["매점", 59, 61, 28, 22],
-    ];
+    return {
+      subtitle: "중앙 현관 · 보건실 · 시청각실",
+      rooms: [
+        room("계단", 4, 22, 8, 18, "core"),
+        room("발간실", 12, 22, 14, 18),
+        room("상담실", 26, 22, 11, 18),
+        room("중앙 현관", 52, 22, 12, 38, "entrance"),
+        room("계단", 64, 22, 8, 18, "core"),
+        room("시청각실", 72, 22, 24, 38, "hall"),
+        room("특수학급", 4, 46, 14, 14),
+        room("보건실", 18, 46, 16, 14, "health"),
+        room("교장실", 34, 46, 10, 14),
+        room("행정실", 44, 46, 8, 14),
+      ],
+      corridors: [corridor(4, 40, 92, 6, "본관 복도")],
+      connectors: [],
+      exits: [{ label: "중앙 출입구", x: 58, y: 64 }],
+    };
   }
+
   const grade = floor - 1;
-  return classPositions.map(([x, y], index) => [`${grade}-${index + 1}`, Math.max(x - 9, 5), Math.max(y - 12, 8), 18, 16]);
+  const classroomX = [4, 14, 24, 34, 44, 68, 78, 88];
+  const classrooms = classroomX.map((x, index) => room(`${grade}-${index + 1}`, x, 34, 10, 14, "classroom"));
+  const shared = [
+    room("계단", 4, 8, 7, 20, "core"),
+    room(floor === 2 ? "스튜디오" : floor === 3 ? "학생안전부" : "수준별교실", 11, 8, 16, 20, "special"),
+    room(floor === 2 ? "본교무실" : floor === 3 ? "교사휴게실" : "교사휴게실", 27, 8, 20, 20),
+    room("계단", 65, 8, 8, 20, "core"),
+    room(`${grade}학년 교무실`, 58, 34, 10, 14, "grade-office"),
+    ...classrooms,
+  ];
+
+  if (floor === 2) {
+    return {
+      subtitle: "1학년 교실 · 도서관 · 다목적강당",
+      rooms: [
+        ...shared,
+        room("인문학실", 34, 63, 15, 12, "special"),
+        room("계단", 49, 63, 8, 12, "core"),
+        room("글빛누리 도서관", 34, 75, 23, 14, "library"),
+        room("학사실", 57, 63, 14, 26),
+        room("다목적강당", 76, 63, 22, 26, "auditorium"),
+      ],
+      corridors: [corridor(4, 28, 95, 6), corridor(34, 57, 64, 6, "연결 복도")],
+      connectors: [connector(52, 48, 5, 9), connector(71, 68, 5, 6)],
+      exits: [{ label: "본관 출입구", x: 51, y: 53 }, { label: "강당 연결", x: 73, y: 68 }],
+    };
+  }
+
+  if (floor === 3) {
+    return {
+      subtitle: "2학년 교실 · 과학실 · 음악실",
+      rooms: [
+        ...shared,
+        room("음악실", 50, 52, 12, 11, "special"),
+        room("과학실", 31, 67, 18, 12, "science"),
+        room("계단", 49, 67, 8, 20, "core"),
+        room("과학실", 31, 79, 18, 12, "science"),
+        room("진로상담부", 31, 91, 26, 5),
+        room("학사실", 57, 67, 14, 29),
+        room("다목적강당", 77, 67, 21, 27, "auditorium"),
+      ],
+      corridors: [corridor(4, 28, 95, 6), corridor(31, 61, 67, 6, "특별실 연결")],
+      connectors: [connector(50, 48, 5, 13), connector(71, 72, 6, 6)],
+      exits: [{ label: "본관 출입구", x: 49, y: 54 }, { label: "특별실 계단", x: 55, y: 89 }],
+    };
+  }
+
+  return {
+    subtitle: "3학년 교실 · 미술실 · 하늘정원",
+    rooms: [
+      ...shared,
+      room("미술실", 53, 53, 12, 11, "special"),
+      room("하늘정원", 31, 66, 35, 24, "garden"),
+      room("다목적강당", 76, 66, 22, 24, "auditorium"),
+    ],
+    corridors: [corridor(4, 28, 95, 6), corridor(31, 60, 67, 6, "하늘정원 연결")],
+    connectors: [connector(53, 48, 5, 12), connector(66, 72, 10, 6)],
+    exits: [{ label: "본관 출입구", x: 52, y: 54 }, { label: "강당 연결", x: 71, y: 72 }],
+  };
+}
+
+function boothMapPosition(booth) {
+  const classMatch = /^g([1-3])-([1-8])$/.exec(booth.id);
+  if (classMatch) return { x: classPositions[Number(classMatch[2]) - 1][0], y: 41 };
+  const firstFloorPositions = {
+    b1: { x: 26, y: 53 },
+    b2: { x: 58, y: 41 },
+    b3: { x: 48, y: 53 },
+    b4: { x: 84, y: 41 },
+    b5: { x: 31, y: 31 },
+  };
+  return firstFloorPositions[booth.id] || { x: booth.x, y: booth.y };
+}
+
+function mapPlanMarkup(plan) {
+  return `
+    <div class="plan-boundary" aria-hidden="true"></div>
+    ${plan.connectors.map((item) => `<div class="plan-connector" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"></div>`).join("")}
+    ${plan.corridors.map((item) => `<div class="plan-corridor" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"><span>${item.label}</span></div>`).join("")}
+    ${plan.rooms.map((item, index) => `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms"><span>${item.label}</span></div>`).join("")}
+    ${plan.exits.map((item) => `<div class="plan-exit" style="left:${item.x}%;top:${item.y}%">${item.label}</div>`).join("")}
+  `;
 }
 
 function mapView() {
   const booths = visibleBooths();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
-  const rooms = mapRoomsForFloor(state.floor);
+  const plan = mapPlanForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
   return `
@@ -320,35 +427,33 @@ function mapView() {
         </button>
         <button class="icon-btn" data-route="${state.user?.role === "admin" ? "admin" : "login"}" title="계정">${state.user?.role === "admin" ? icon("admin") : "G"}</button>
       </header>
-      <nav class="floor-tabs selector-bar">
-        ${choiceSelect({
-          id: "floor",
-          label: floorInfo.label,
-          caption: floorInfo.caption,
-          options: FLOORS.map(({ floor, label, caption }) => ({
-            label,
-            caption,
-            count: state.db.booths.filter((booth) => booth.floor === floor).length,
-            active: state.floor === floor,
-            attr: `data-floor="${floor}"`,
-          })),
-        })}
+      <nav class="floor-tabs" aria-label="층 선택">
+        ${FLOORS.map(({ floor, label, caption }) => `
+          <button type="button" class="floor-tab ${state.floor === floor ? "active" : ""}" data-floor="${floor}" aria-pressed="${state.floor === floor}">
+            <strong>${label}</strong><small>${caption}</small>
+          </button>
+        `).join("")}
       </nav>
       <section class="map-stage">
+        <div class="map-context-bar">
+          <span><strong>${floorInfo.label}</strong>${plan.subtitle}</span>
+          <button type="button" id="resetMapView">전체보기</button>
+        </div>
+        <div class="map-legend" aria-label="지도 범례">
+          <span><i class="classroom"></i>학급</span>
+          <span><i class="facility"></i>시설</span>
+          <span><i class="visited"></i>방문 완료</span>
+        </div>
         <div class="map-card ${selectedBooth ? "has-preview" : ""}" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
-            <div class="map-entry-label">입구</div>
-            <div class="map-compass" aria-hidden="true"><b>N</b><span></span></div>
-            <div class="school-label">PANGYO HIGH</div>
-            <div class="map-river"></div>
-            <div class="map-path main"></div>
-            <div class="map-path sub"></div>
-            <div class="map-plaza"></div>
-            <div class="corridor"></div>
-            <div class="current-position-dot" aria-hidden="true"></div>
-            ${rooms.map(([label, x, y, w, h], index) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--stagger:${index * 24}ms">${label}</div>`).join("")}
-            ${booths.map((booth, index) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}"><span aria-hidden="true">${icon("map")}</span></button>`).join("")}
+            <div class="school-label">PANGYO HIGH SCHOOL · ${floorInfo.label}</div>
+            ${mapPlanMarkup(plan)}
+            ${booths.map((booth, index) => {
+              const position = boothMapPosition(booth);
+              const markerLabel = booth.category === "class" ? booth.location.match(/(\d-\d)/)?.[1] || "부스" : "시설";
+              return `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${position.x}%;top:${position.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}"><span aria-hidden="true">${markerLabel}</span></button>`;
+            }).join("")}
           </div>
           ${booths.length ? "" : mapEmptyCard()}
           ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
@@ -792,6 +897,13 @@ function bindEvents() {
     }
     render();
   });
+  document.querySelector("#resetMapView")?.addEventListener("click", () => {
+    state.mapZoom = 1;
+    state.mapOffsetX = 0;
+    state.mapOffsetY = 0;
+    state.selectedBoothId = null;
+    render();
+  });
   document.querySelector(".sheet-head")?.addEventListener("click", () => {
     if (state.sheetLevel === "peek") {
       setSheetLevel("mid");
@@ -1215,11 +1327,12 @@ function selectMapBooth(id) {
 function focusMapOnBooth(id, targetZoom = state.mapZoom) {
   const booth = state.db.booths.find((item) => item.id === id);
   if (!booth) return;
+  const position = boothMapPosition(booth);
   state.mapZoom = Math.min(1.52, Math.max(state.mapZoom, targetZoom));
   const maxX = 72 * state.mapZoom;
   const maxY = 92 * state.mapZoom;
-  const targetX = (50 - booth.x) * 1.35;
-  const targetY = (48 - booth.y) * 1.15;
+  const targetX = (50 - position.x) * 1.35;
+  const targetY = (48 - position.y) * 1.15;
   state.mapOffsetX = Math.min(maxX, Math.max(-maxX, targetX));
   state.mapOffsetY = Math.min(maxY, Math.max(-maxY, targetY));
 }
