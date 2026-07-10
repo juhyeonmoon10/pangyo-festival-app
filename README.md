@@ -1,78 +1,62 @@
-# 판교고 축제 모바일 웹앱
+# 판교고 축제 맵 · 판교마켓
 
-`index.html`을 브라우저로 열면 바로 실행되는 모바일 웹앱입니다.
+학교 축제 지도, NFC 스탬프, 리뷰, 가상 주식 투자를 하나로 연결한 모바일 웹앱입니다. `index.html`을 브라우저로 열면 바로 실행됩니다.
+
+## 핵심 흐름
+
+1. 학생 모드로 로그인합니다.
+2. 부스 NFC를 인식해 스탬프를 모읍니다.
+3. 기본 3개를 달성하면 100,000 판교머니가 한 번만 지급됩니다.
+4. 판교마켓에서 5개 가상 종목을 매수·매도합니다.
+5. 기본 목표 자산 120,000원을 달성하면 상품 교환 자격이 고정됩니다.
+6. 관리자가 상품 교환 완료를 처리하면 다시 교환할 수 없습니다.
+
+스탬프 수, 지급 투자금, 상품 목표 자산은 관리자 대시보드에서 변경할 수 있습니다. 학년 대항전, 투자 미션, 손실 보험, 시간별 이벤트, 라운드 방식은 포함하지 않았습니다.
 
 ## 현재 구현
 
-- 구글 인증 후 학번/아이디 등록 흐름
-- `googleUid`, `studentNumber`, `schoolId` 기준 중복 참여 방지 구조
-- 4층 지도 구성
-- 1층: 보건실, 학생회 안내소, 교무실, 방송실, 매점
-- 2층: 1학년 1반 ~ 1학년 8반
-- 3층: 2학년 1반 ~ 2학년 8반
-- 4층: 3학년 1반 ~ 3학년 8반
-- 층별 지도 마커, Bottom Sheet 부스 목록
-- 부스 검색, 이름순/별점순 정렬, 즐겨찾기 표시
-- NFC 태그 인식 흐름을 위한 `nfcAdapter.scan(tagId)` 구조
-- 스탬프 획득 후 리뷰 작성 활성화
-- 동일 사용자/동일 부스 리뷰 1회 제한
-- 평균 별점 자동 계산
-- 스탬프 현황, 목표 달성, 음료 교환 완료 처리
-- 관리자 부스 추가/삭제, NFC 태그 수정, 리뷰 삭제, 사용자/통계 조회
+- 1층 시설, 2층 1학년, 3층 2학년, 4층 3학년 지도
+- 교실 터치 영역, 층 전환, 지도 이동·확대, Bottom Sheet
+- 부스 검색, 이름순·별점순 정렬, 즐겨찾기
+- `nfcAdapter.scan(tagId)` 기반 NFC 연결 구조
+- 방문 인증 사용자만 리뷰 작성 가능
+- 사용자별 동일 부스 리뷰 1회 제한과 평균 별점 계산
+- 스탬프 목표 달성 시 투자금 1회 지급
+- 15초 단위로 갱신되는 5개 가상 종목
+- 수량 조절, 매수·매도, 현금·평가액·총자산 계산
+- 보유 종목과 거래 내역
+- 목표 자산 달성 시 거래 잠금과 상품 교환 자격 확정
+- 관리자 보상 기준 설정, 참여자 자산 확인, 상품 교환 완료 처리
+- 관리자 부스/NFC 관리, 리뷰 삭제, 사용자·방문·별점 통계
 
-## 로그인 구조
+## 로그인
 
-현재 버전은 실제 Google OAuth 연결 없이 구글 계정 인증 UI 틀만 제공합니다.
+현재는 실제 Google OAuth를 연결하기 전 단계라 `G 구글 계정으로 계속` 버튼을 누르면 고정된 데모 Google 사용자로 바로 입장합니다. 입력해야 작동하는 별도 아이디 필드는 없습니다.
 
-동작 흐름:
+실제 인증을 붙일 때는 `authProvider.signInWithGoogle()`이 Google 로그인 결과의 `uid`, `email`, `displayName`을 반환하도록 교체합니다. 운영 환경에서는 서버에서 Google ID 토큰을 검증하고 사용자 식별값을 저장해야 중복 참여를 확실히 막을 수 있습니다.
 
-1. `G 구글 계정으로 계속` 버튼 클릭
-2. 구글 인증이 완료된 것으로 처리
-3. 이름, 학번, 아이디 입력
-4. 학번/아이디 중복 여부 확인 후 앱 진입
+## 데이터 구조
 
-나중에 실제 Google OAuth를 붙일 때는 `authProvider.signInWithGoogle()`만 실제 구글 로그인 결과를 반환하도록 교체하면 됩니다.
+현재는 브라우저 `localStorage`의 `pangyo-festival-db-v3`에 저장합니다.
 
-필수 저장값:
+- `User`: 사용자, Google 식별값, 역할, 상품 교환 완료 시각
+- `Booth`: 부스, 층, 위치, 설명, NFC 태그 ID
+- `Stamp`: 사용자별 부스 방문 인증
+- `Review`: 별점과 리뷰 내용
+- `MarketSettings`: 필요 스탬프, 지급 투자금, 상품 목표 자산
+- `Portfolio`: 현금, 종목별 보유 수량, 지급·목표 달성 시각
+- `MarketTransaction`: 투자금 지급, 매수, 매도, 목표 달성, 상품 교환 기록
 
-- `googleUid`: Google 계정 고유 ID
-- `googleEmail`: Google 이메일
-- `studentNumber`: 학번
-- `schoolId`: 학생이 등록한 아이디
-- `name`: 이름
+여러 사람의 방문·리뷰·자산을 공유하고 조작을 막으려면 이 저장소를 Firebase, Supabase 또는 별도 API/DB로 교체해야 합니다. 가격 계산과 보상·거래 검증도 최종 운영에서는 서버가 담당해야 합니다.
 
-중복 방지 기준:
+## 부스와 NFC 교체
 
-- 같은 `googleUid`는 같은 사용자로 로그인
-- 다른 `googleUid`가 이미 등록된 `studentNumber` 또는 `schoolId`를 사용하면 등록 차단
-- 스탬프와 리뷰는 내부 `user.id`에 연결
+실제 동아리 부스가 정해지면 `app.js`의 `seed.booths` 또는 `makeClassBooths()`에서 이름, 설명, `nfcTagId`를 바꿉니다. NFC 태그에는 배포 주소와 `?nfc=태그ID`를 기록할 수 있습니다.
 
-## 나중에 교체할 데이터
-
-실제 동아리 부스와 NFC 태그 정보가 정해지면 `app.js`의 `seed.booths` 배열 또는 `makeClassBooths()`에서 생성되는 교실 부스 이름/설명을 바꾸면 됩니다.
-
-```js
-{
-  id: "b1",
-  name: "부스명",
-  floor: 1,
-  location: "1층 교실명",
-  description: "부스 설명",
-  nfcTagId: "실제 NFC 태그 ID",
-  x: 24,
-  y: 31
-}
+```text
+https://pangyo-festival-app.vercel.app/?nfc=NFC-G1-01
 ```
 
-## 실제 서비스 확장 방향
+## 검증
 
-현재는 브라우저 `localStorage`를 임시 데이터베이스로 사용합니다. 배포용 서비스에서는 같은 저장소 인터페이스를 Firebase Firestore, Supabase, PostgreSQL API 등으로 교체하면 됩니다.
-
-권장 컬렉션/테이블:
-
-- `User`: `id`, `googleUid`, `googleEmail`, `studentNumber`, `schoolId`, `name`, `role`, `exchangedAt`
-- `Booth`: `id`, `name`, `floor`, `location`, `description`, `nfcTagId`
-- `Stamp`: `id`, `userId`, `boothId`, `createdAt`
-- `Review`: `id`, `userId`, `boothId`, `rating`, `content`, `createdAt`
-
-NFC는 실제 기기 연동 시 Web NFC API 또는 네이티브 래퍼에서 태그 ID를 읽은 뒤 `nfcAdapter.scan(tagId)`로 넘기면 됩니다.
+`tests/browser-smoke.cjs`는 모바일 Chrome에서 로그인, 잠긴 투자 화면, NFC 보상, 매수·매도, 목표 달성, 관리자 상품 교환과 재사용 방지를 확인합니다. 실행 시 Playwright와 Chrome 경로를 환경 변수로 제공합니다.
