@@ -1047,6 +1047,13 @@ function bindMapDrag() {
     dragging = false;
     pinchStart = 0;
     card.classList.remove("dragging");
+    // A map tap re-renders during pointerup, so clear the preview here instead of
+    // waiting for the later click event that would otherwise be discarded.
+    if (!moved && state.selectedBoothId && !event.target.closest("button, input, select, textarea")) {
+      state.selectedBoothId = null;
+      render();
+      return;
+    }
     if (!moved && now - lastTap.time < 320 && tapDistance < 36) {
       lastTap = { time: 0, x: 0, y: 0 };
       lastTouchZoomAt = now;
