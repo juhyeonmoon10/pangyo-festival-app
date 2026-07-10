@@ -28,12 +28,12 @@ const state = {
   mapOffsetX: 0,
   mapOffsetY: 0,
   selectedBoothId: null,
-  routeGuideId: null,
   sheetOpen: false,
   sheetLevel: "peek",
+  openMenu: null,
   search: "",
+  searchOpen: false,
   sort: "name",
-  boothFilter: "all",
   adminTab: "dashboard",
   reviewRating: 5,
   authStep: "google",
@@ -286,10 +286,6 @@ function visibleBooths() {
     const term = state.search.trim().toLowerCase();
     booths = booths.filter((booth) => `${booth.name} ${booth.location}`.toLowerCase().includes(term));
   }
-  if (state.boothFilter === "visited") booths = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id));
-  if (state.boothFilter === "favorite") booths = booths.filter((booth) => booth.favorite);
-  if (state.boothFilter === "class") booths = booths.filter((booth) => booth.category === "class");
-  if (state.boothFilter === "facility") booths = booths.filter((booth) => booth.category === "facility");
   return booths.sort((a, b) => {
     if (state.sort === "rating") return repo.avgRating(b.id) - repo.avgRating(a.id);
     return a.name.localeCompare(b.name, "ko");
@@ -313,43 +309,35 @@ function mapRoomsForFloor(floor) {
 function mapView() {
   const booths = visibleBooths();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
-  const floorBooths = state.db.booths.filter((booth) => booth.floor === state.floor);
   const rooms = mapRoomsForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
-  const floorProgress = booths.length ? Math.round((stampedCount / booths.length) * 100) : 0;
-  const filterLabel = mapFilterLabel(state.boothFilter);
   return `
     <main class="map-screen">
       <header class="top-bar">
         <button class="icon-btn" data-route="stamps" title="스탬프">${icon("stamp")}</button>
         <div class="top-title"><strong>판교고 축제 맵</strong><span>${floorInfo.label} · ${floorInfo.caption} · ${state.user?.name || ""}님</span></div>
+        <button class="icon-btn map-search-action ${state.search ? "has-query" : ""}" id="mapSearchBtn" type="button" aria-label="부스 검색">
+          <span>⌕</span>
+          ${state.search ? `<b>${booths.length}</b>` : ""}
+        </button>
         <button class="icon-btn" data-route="${state.user?.role === "admin" ? "admin" : "login"}" title="계정">${state.user?.role === "admin" ? icon("admin") : "G"}</button>
       </header>
-      <nav class="floor-tabs">
-        ${FLOORS.map(({ floor, label, caption }) => `<button class="pill-btn ${state.floor === floor ? "active" : ""}" data-floor="${floor}">${label}<small>${caption}</small><b>${state.db.booths.filter((booth) => booth.floor === floor).length}</b></button>`).join("")}
+      <nav class="floor-tabs selector-bar">
+        ${choiceSelect({
+          id: "floor",
+          label: floorInfo.label,
+          caption: floorInfo.caption,
+          options: FLOORS.map(({ floor, label, caption }) => ({
+            label,
+            caption,
+            count: state.db.booths.filter((booth) => booth.floor === floor).length,
+            active: state.floor === floor,
+            attr: `data-floor="${floor}"`,
+          })),
+        })}
       </nav>
       <section class="map-stage">
-        <div class="map-status-card">
-          <span class="status-dot"></span>
-          <strong>${floorInfo.label} 탐색 중</strong>
-          <small>스탬프 ${stampedCount}/${booths.length}</small>
-          <em>${filterLabel}</em>
-          <span class="map-status-progress" style="--status-progress:${floorProgress}%"></span>
-        </div>
-        <div class="map-toolbar">
-          <button class="map-chip ${state.boothFilter === "all" ? "active" : ""}" type="button" data-map-filter="all">전체<b>${floorBooths.length}</b></button>
-          <button class="map-chip ${state.boothFilter === "class" ? "active" : ""}" type="button" data-map-filter="class">부스<b>${floorBooths.filter((booth) => booth.category === "class").length}</b></button>
-          <button class="map-chip ${state.boothFilter === "facility" ? "active" : ""}" type="button" data-map-filter="facility">시설<b>${floorBooths.filter((booth) => booth.category === "facility").length}</b></button>
-          <button class="map-chip" id="sheetOpenBtn">목록<b>${booths.length}</b></button>
-        </div>
-        <button class="map-search-pill" id="mapSearchBtn" type="button">
-          <span>⌕</span>
-          <strong>부스 검색</strong>
-          <small>${state.search || "이름, 위치로 찾기"}</small>
-          <b>${booths.length}개</b>
-        </button>
-        ${mapQuickDock(booths, stampedCount)}
         <div class="map-card" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
           <div class="map-canvas">
             <div class="map-grid"></div>
@@ -363,31 +351,10 @@ function mapView() {
             <div class="map-plaza"></div>
             <div class="corridor"></div>
             <div class="current-position-dot" aria-hidden="true"></div>
-            ${selectedBooth && state.routeGuideId === selectedBooth.id ? mapRouteGuide(selectedBooth) : ""}
             ${rooms.map(([label, x, y, w, h], index) => `<div class="room" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--stagger:${index * 24}ms">${label}</div>`).join("")}
             ${booths.map((booth, index) => `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${booth.x}%;top:${booth.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" title="${booth.name}"><span>${markerLabel(booth)}</span><em>${markerName(booth)}</em></button>`).join("")}
           </div>
           ${booths.length ? "" : mapEmptyCard()}
-          <div class="map-control-stack" aria-label="지도 조작">
-            <button class="locate-btn" id="locateBtn" title="현재 위치">⌾</button>
-            <div class="zoom-control"><button type="button" data-zoom="in" aria-label="지도 확대">+</button><button type="button" data-zoom="out" aria-label="지도 축소">-</button></div>
-          </div>
-          <div class="mini-map" aria-hidden="true">
-            <strong>${floorInfo.label}</strong>
-            <div class="mini-map-box">
-              <span class="mini-route"></span>
-              <i class="mini-view" style="left:${Math.min(78, Math.max(18, 50 - state.mapOffsetX / 3))}%;top:${Math.min(78, Math.max(18, 52 - state.mapOffsetY / 3))}%"></i>
-              ${selectedBooth ? `<i class="mini-destination" style="left:${Math.min(84, Math.max(16, selectedBooth.x))}%;top:${Math.min(84, Math.max(16, selectedBooth.y))}%"></i>` : ""}
-            </div>
-            <small>${Math.round(state.mapZoom * 100)}%</small>
-          </div>
-          <div class="map-legend">
-            <span><i class="legend-pin class"></i>부스</span>
-            <span><i class="legend-pin facility"></i>시설</span>
-            <span><i class="legend-pin visited"></i>방문</span>
-          </div>
-          <div class="map-scale" aria-hidden="true"><i></i><span>교실 1칸</span></div>
-          ${selectedBooth && state.routeGuideId === selectedBooth.id ? routeBanner(selectedBooth) : ""}
           ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
         </div>
       </section>
@@ -399,30 +366,50 @@ function mapView() {
           </span>
         </button>
         <div class="sheet-head">
-          <span><strong>${floorInfo.label} ${floorInfo.caption}</strong><small>${stampedCount}개 방문 · ${booths.length}개 부스</small><i class="sheet-progress" style="--sheet-progress:${floorProgress}%"></i></span>
-          <button class="sheet-open-link" id="sheetOpenBtn2">전체보기</button>
-        </div>
-        <div class="search-row ${state.search ? "has-clear" : ""}">
-          <input id="search" class="input" placeholder="부스 검색" value="${state.search}" />
-          ${state.search ? `<button id="clearSearch" type="button" class="clear-search-btn" aria-label="검색어 지우기">×</button>` : ""}
-          <div class="sort-toggle" aria-label="부스 정렬">
-            <button type="button" class="sort-option ${state.sort === "name" ? "active" : ""}" data-sort-option="name">이름</button>
-            <button type="button" class="sort-option ${state.sort === "rating" ? "active" : ""}" data-sort-option="rating">별점</button>
-          </div>
-        </div>
-        <div class="sheet-filter-row">
-          ${[
-            ["all", "전체"],
-            ["class", "부스"],
-            ["facility", "시설"],
-            ["visited", "방문완료"],
-            ["favorite", "즐겨찾기"],
-          ].map(([filter, label]) => `<button type="button" class="sheet-filter ${state.boothFilter === filter ? "active" : ""}" data-booth-filter="${filter}">${label}</button>`).join("")}
+          <span>
+            <strong>${floorInfo.label} 부스</strong>
+            <small>${booths.length}개 · ${stampedCount}개 방문</small>
+          </span>
+          <small class="sheet-hint">탭해서 목록 펼치기</small>
         </div>
         <div class="booth-list">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
       </section>
+      ${state.searchOpen ? searchOverlay(booths) : ""}
       ${bottomNav("map")}
     </main>
+  `;
+}
+
+function searchOverlay(booths) {
+  return `
+    <section class="search-screen" role="dialog" aria-modal="true" aria-label="부스 검색">
+      <header class="search-screen-head">
+        <button class="icon-btn" id="closeSearchScreen" type="button" aria-label="검색 닫기">${icon("back")}</button>
+        <div class="search-screen-input ${state.search ? "has-clear" : ""}">
+          <span aria-hidden="true">⌕</span>
+          <input id="searchScreenInput" class="input" placeholder="부스 이름이나 위치 검색" value="${state.search}" />
+          ${state.search ? `<button id="clearSearchScreen" type="button" class="clear-search-btn" aria-label="검색어 지우기">×</button>` : ""}
+        </div>
+      </header>
+      <div class="search-screen-controls">
+        ${choiceSelect({
+          id: "search-sort",
+          label: state.sort === "rating" ? "별점순" : "이름순",
+          caption: "정렬",
+          options: [
+            { label: "이름순", active: state.sort === "name", attr: `data-sort-option="name"` },
+            { label: "별점순", active: state.sort === "rating", attr: `data-sort-option="rating"` },
+          ],
+        })}
+      </div>
+      <div class="search-result-meta">
+        <strong>${booths.length}개 결과</strong>
+        <span>${state.search ? `"${state.search}"` : "전체 부스"}</span>
+      </div>
+      <div class="search-result-list">
+        ${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}
+      </div>
+    </section>
   `;
 }
 
@@ -430,39 +417,30 @@ function mapEmptyCard() {
   return `
     <div class="map-empty-card">
       <strong>조건에 맞는 부스가 없어요</strong>
-      <span>검색어나 필터를 바꿔보세요.</span>
-      <button type="button" data-map-filter="all">전체 보기</button>
+      <span>검색어를 지우고 다시 확인해보세요.</span>
+      <button type="button" id="clearEmptySearch">검색 초기화</button>
     </div>
   `;
 }
 
-function mapFilterLabel(filter) {
-  return {
-    all: "전체 보기",
-    class: "부스만",
-    facility: "시설만",
-    visited: "방문 완료",
-    favorite: "즐겨찾기",
-  }[filter] || "전체 보기";
-}
-
-function mapQuickDock(booths, stampedCount) {
-  const favorites = booths.filter((booth) => booth.favorite).length;
-  const items = [
-    ["all", "전체", booths.length, "A"],
-    ["class", "부스", booths.filter((booth) => booth.category === "class").length, "B"],
-    ["visited", "방문", stampedCount, "V"],
-    ["favorite", "찜", favorites, "F"],
-  ];
+function choiceSelect({ id, label, caption = "", options }) {
+  const open = state.openMenu === id;
   return `
-    <div class="map-quick-dock" aria-label="지도 빠른 필터">
-      ${items.map(([filter, label, count, glyph]) => `
-        <button type="button" class="quick-dock-btn ${state.boothFilter === filter ? "active" : ""}" data-quick-filter="${filter}">
-          <i>${glyph}</i>
-          <strong>${label}</strong>
-          <small>${count}</small>
-        </button>
-      `).join("")}
+    <div class="choice-select ${open ? "open" : ""}" data-choice-root="${id}">
+      <button type="button" class="choice-trigger" data-toggle-menu="${id}" aria-expanded="${open}">
+        <span><strong>${label}</strong>${caption ? `<small>${caption}</small>` : ""}</span>
+        <i aria-hidden="true">⌄</i>
+      </button>
+      ${open ? `
+        <div class="choice-menu" role="menu">
+          ${options.map((option) => `
+            <button type="button" class="choice-option ${option.active ? "active" : ""}" ${option.attr} role="menuitem">
+              <span><strong>${option.label}</strong>${option.caption ? `<small>${option.caption}</small>` : ""}</span>
+              ${Number.isFinite(option.count) ? `<b>${option.count}</b>` : ""}
+            </button>
+          `).join("")}
+        </div>
+      ` : ""}
     </div>
   `;
 }
@@ -511,7 +489,6 @@ function boothItem(booth) {
 function mapPreviewCard(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
   const reviewed = repo.hasReview(state.user.id, booth.id);
-  const guiding = state.routeGuideId === booth.id;
   const reviewState = !stamped ? "방문 후 리뷰 가능" : reviewed ? "리뷰 완료" : "리뷰 가능";
   return `
     <article class="map-preview-card">
@@ -520,32 +497,9 @@ function mapPreviewCard(booth) {
         <span>${booth.location} · ${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 방문 ${repo.boothVisits(booth.id)}</span>
         <span class="preview-status"><i class="${stamped ? "on" : ""}">${stamped ? "스탬프 획득" : "스탬프 미획득"}</i><i class="${stamped && !reviewed ? "on" : ""}">${reviewState}</i></span>
       </div>
-      <button type="button" class="preview-route-btn ${guiding ? "active" : ""}" data-guide="${booth.id}">${guiding ? "안내중" : "길안내"}</button>
       <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
       <button type="button" class="preview-close-btn" data-clear-selection aria-label="선택 해제">×</button>
     </article>
-  `;
-}
-
-function mapRouteGuide(booth) {
-  return `
-    <svg class="map-route-guide" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points="50,52 ${Math.max(8, booth.x - 8)},58 ${booth.x},${booth.y}" />
-      <circle cx="50" cy="52" r="1.7" />
-      <circle class="route-end" cx="${booth.x}" cy="${booth.y}" r="2.2" />
-    </svg>
-  `;
-}
-
-function routeBanner(booth) {
-  return `
-    <div class="route-banner">
-      <span>현재 위치</span>
-      <b>→</b>
-      <strong>${booth.name}</strong>
-      <em>도보 1분</em>
-      <button type="button" data-clear-guide aria-label="길안내 종료">×</button>
-    </div>
   `;
 }
 
@@ -634,6 +588,7 @@ function adminView() {
     ["reviews", "리뷰"],
     ["users", "참여자"],
   ];
+  const currentTab = tabs.find(([id]) => id === state.adminTab) || tabs[0];
   return `
     <main class="screen admin-screen">
       <header class="top-bar">
@@ -641,7 +596,18 @@ function adminView() {
         <div class="top-title"><strong>관리자 패널</strong><span>부스, NFC, 리뷰, 교환 현황 관리</span></div>
         <button class="icon-btn" data-route="login">G</button>
       </header>
-      <nav class="admin-tabs">${tabs.map(([id, label]) => `<button class="pill-btn ${state.adminTab === id ? "active" : ""}" data-admin-tab="${id}">${label}</button>`).join("")}</nav>
+      <nav class="admin-tabs selector-bar">
+        ${choiceSelect({
+          id: "admin-tab",
+          label: currentTab[1],
+          caption: "관리 메뉴",
+          options: tabs.map(([id, label]) => ({
+            label,
+            active: state.adminTab === id,
+            attr: `data-admin-tab="${id}"`,
+          })),
+        })}
+      </nav>
       ${adminPanel()}
       ${bottomNav("admin")}
     </main>
@@ -783,8 +749,24 @@ function bottomNav(active) {
 }
 
 function bindEvents() {
+  document.querySelectorAll(".choice-select").forEach((root) => {
+    root.addEventListener("click", (event) => event.stopPropagation());
+  });
+  document.querySelectorAll("[data-toggle-menu]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.openMenu = state.openMenu === button.dataset.toggleMenu ? null : button.dataset.toggleMenu;
+      render();
+    });
+  });
+  document.body.onclick = () => {
+    if (!state.openMenu) return;
+    state.openMenu = null;
+    render();
+  };
   document.querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
+      closeMenus();
+      state.searchOpen = false;
       if (button.dataset.route === "admin" && state.user?.role !== "admin") {
         state.route = "login";
         state.loginError = "관리자 계정으로 로그인해야 접근할 수 있습니다.";
@@ -804,13 +786,14 @@ function bindEvents() {
   });
   document.querySelector("#adminLogin")?.addEventListener("click", adminLogin);
   document.querySelectorAll("[data-floor]").forEach((button) => button.addEventListener("click", () => {
+    closeMenus();
     state.floor = Number(button.dataset.floor);
     state.sheetOpen = false;
     state.sheetLevel = "peek";
     state.mapZoom = 1;
     state.mapOffsetX = 0;
     state.mapOffsetY = 0;
-    state.boothFilter = "all";
+    state.searchOpen = false;
     render();
   }));
   document.querySelector("#sheetToggle")?.addEventListener("click", () => {
@@ -823,56 +806,47 @@ function bindEvents() {
     }
     render();
   });
-  document.querySelector("#sheetOpenBtn")?.addEventListener("click", () => {
-    setSheetLevel("mid");
+  document.querySelector(".sheet-head")?.addEventListener("click", () => {
+    if (state.sheetLevel === "peek") {
+      setSheetLevel("mid");
+    } else if (state.sheetLevel === "mid") {
+      setSheetLevel("full");
+    } else {
+      setSheetLevel("peek");
+    }
     render();
   });
-  document.querySelector("#sheetOpenBtn2")?.addEventListener("click", () => {
-    setSheetLevel("full");
-    render();
+  document.querySelector("#mapSearchBtn")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openSearchScreen();
   });
-  document.querySelector("#mapSearchBtn")?.addEventListener("click", openSearchSheet);
-  document.querySelectorAll("[data-map-filter]").forEach((button) => button.addEventListener("click", () => {
-    state.boothFilter = button.dataset.mapFilter;
-    setSheetLevel("mid");
-    render();
-  }));
-  document.querySelectorAll("[data-quick-filter]").forEach((button) => button.addEventListener("click", () => {
-    state.boothFilter = button.dataset.quickFilter;
-    setSheetLevel(button.dataset.quickFilter === "all" ? "peek" : "mid");
-    render();
-  }));
-  document.querySelectorAll("[data-zoom]").forEach((button) => button.addEventListener("click", () => {
-    const delta = button.dataset.zoom === "in" ? 0.16 : -0.16;
-    state.mapZoom = Math.min(1.48, Math.max(0.92, Number((state.mapZoom + delta).toFixed(2))));
-    render();
-  }));
-  document.querySelector("#locateBtn")?.addEventListener("click", () => {
-    state.mapZoom = 1;
-    state.mapOffsetX = 0;
-    state.mapOffsetY = 0;
-    state.sheetOpen = false;
-    state.sheetLevel = "peek";
+  document.querySelector("#closeSearchScreen")?.addEventListener("click", () => {
+    state.searchOpen = false;
+    closeMenus();
     render();
   });
   bindMapDrag();
   bindSheetDrag();
-  document.querySelector("#search")?.addEventListener("input", (event) => {
+  document.querySelector("#searchScreenInput")?.addEventListener("input", (event) => {
     state.search = event.target.value;
+    state.searchOpen = true;
     render();
+    focusSearchInput();
   });
-  document.querySelector("#clearSearch")?.addEventListener("click", () => {
+  document.querySelector("#clearEmptySearch")?.addEventListener("click", () => {
     state.search = "";
     setSheetLevel("full");
     render();
   });
-  document.querySelectorAll("[data-sort-option]").forEach((button) => button.addEventListener("click", () => {
-    state.sort = button.dataset.sortOption;
+  document.querySelector("#clearSearchScreen")?.addEventListener("click", () => {
+    state.search = "";
+    state.searchOpen = true;
     render();
-  }));
-  document.querySelectorAll("[data-booth-filter]").forEach((button) => button.addEventListener("click", () => {
-    state.boothFilter = button.dataset.boothFilter;
-    setSheetLevel("mid");
+    focusSearchInput();
+  });
+  document.querySelectorAll("[data-sort-option]").forEach((button) => button.addEventListener("click", () => {
+    closeMenus();
+    state.sort = button.dataset.sortOption;
     render();
   }));
   document.querySelectorAll("[data-map-select]").forEach((button) => button.addEventListener("click", () => {
@@ -881,16 +855,8 @@ function bindEvents() {
   document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
     selectMapBooth(button.dataset.listSelect);
   }));
-  document.querySelectorAll("[data-guide]").forEach((button) => button.addEventListener("click", () => {
-    toggleRouteGuide(button.dataset.guide);
-  }));
-  document.querySelector("[data-clear-guide]")?.addEventListener("click", () => {
-    state.routeGuideId = null;
-    render();
-  });
   document.querySelector("[data-clear-selection]")?.addEventListener("click", () => {
     state.selectedBoothId = null;
-    state.routeGuideId = null;
     render();
   });
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => goDetail(button.dataset.detail)));
@@ -901,6 +867,7 @@ function bindEvents() {
   }));
   document.querySelector("#submitReview")?.addEventListener("click", submitReview);
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
+    closeMenus();
     state.adminTab = button.dataset.adminTab;
     render();
   }));
@@ -912,10 +879,24 @@ function bindEvents() {
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
 }
 
-function openSearchSheet() {
-  setSheetLevel("full");
+function closeMenus() {
+  state.openMenu = null;
+}
+
+function openSearchScreen() {
+  state.searchOpen = true;
+  closeMenus();
   render();
-  requestAnimationFrame(() => document.querySelector("#search")?.focus());
+  focusSearchInput();
+}
+
+function focusSearchInput() {
+  requestAnimationFrame(() => {
+    const input = document.querySelector("#searchScreenInput");
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
 }
 
 function setSheetLevel(level) {
@@ -1210,6 +1191,7 @@ function consumePendingNfc() {
 function goDetail(id) {
   state.selectedBoothId = id;
   state.route = "detail";
+  state.searchOpen = false;
   state.sheetOpen = false;
   state.sheetLevel = "peek";
   render();
@@ -1217,16 +1199,8 @@ function goDetail(id) {
 
 function selectMapBooth(id) {
   state.selectedBoothId = id;
-  if (state.routeGuideId && state.routeGuideId !== id) state.routeGuideId = null;
+  state.searchOpen = false;
   focusMapOnBooth(id, 1.18);
-  if (state.sheetLevel === "full") setSheetLevel("mid");
-  render();
-}
-
-function toggleRouteGuide(id) {
-  state.selectedBoothId = id;
-  state.routeGuideId = state.routeGuideId === id ? null : id;
-  focusMapOnBooth(id, state.routeGuideId === id ? 1.26 : 1.18);
   if (state.sheetLevel === "full") setSheetLevel("mid");
   render();
 }
