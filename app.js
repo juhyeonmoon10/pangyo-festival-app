@@ -221,11 +221,15 @@ function icon(name) {
   return icons[name] || "";
 }
 
+let renderInProgress = false;
+
 function render() {
+  if (renderInProgress) return;
+  renderInProgress = true;
   const app = document.querySelector("#app");
-  const previousRoute = app.dataset.route || state.route;
-  const nextRoute = state.route;
-  const swap = () => {
+  try {
+    const previousRoute = app.dataset.route || state.route;
+    const nextRoute = state.route;
     if (state.route === "login") app.innerHTML = loginView();
     if (state.route === "map") app.innerHTML = mapView();
     if (state.route === "detail") app.innerHTML = detailView();
@@ -234,8 +238,9 @@ function render() {
     app.dataset.previousRoute = previousRoute;
     app.dataset.route = nextRoute;
     bindEvents();
-  };
-  swap();
+  } finally {
+    renderInProgress = false;
+  }
 }
 
 function loginView() {

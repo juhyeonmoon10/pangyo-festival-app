@@ -2543,6 +2543,56 @@ button {
   }
 }
 
+/* Rendering safety: keep the mobile UI responsive on low-power devices. */
+.map-screen .icon-btn,
+.map-screen .floor-tabs,
+.map-chip,
+.map-preview-card,
+.search-screen,
+.bottom-nav {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.map-card {
+  contain: layout paint;
+}
+
+.map-canvas {
+  will-change: auto;
+}
+
+.map-card.dragging .map-canvas {
+  will-change: transform;
+}
+
+.map-card.has-preview .map-canvas {
+  filter: none;
+  opacity: 0.68;
+}
+
+.current-position-dot::after,
+.marker.selected::before {
+  animation: none;
+}
+
+.admin-screen .section,
+.admin-table > .table-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .selector-bar {
   overflow: visible;
 }
@@ -2913,4 +2963,28 @@ button {
   .search-screen-controls {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Final overrides stay last so later component rules cannot restore GPU-heavy blur. */
+.map-screen .icon-btn,
+.map-screen .floor-tabs,
+.map-chip,
+.map-preview-card,
+.search-screen,
+.bottom-nav,
+.choice-trigger,
+.choice-menu {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.choice-trigger,
+.choice-menu,
+.search-screen {
+  background-color: #fff;
+}
+
+.map-card.has-preview .map-canvas {
+  filter: none;
+  opacity: 0.68;
 }
