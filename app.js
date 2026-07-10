@@ -400,12 +400,29 @@ function boothMapPosition(booth) {
   return firstFloorPositions[booth.id] || { x: booth.x, y: booth.y };
 }
 
-function mapPlanMarkup(plan) {
+function boothForPlanRoom(item, booths) {
+  if (item.type === "classroom") return booths.find((booth) => booth.id === `g${item.label}`) || null;
+  return booths.find((booth) => booth.name === item.label || booth.location.includes(item.label)) || null;
+}
+
+function mapPlanMarkup(plan, booths) {
   return `
     <div class="plan-boundary" aria-hidden="true"></div>
     ${plan.connectors.map((item) => `<div class="plan-connector" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"></div>`).join("")}
     ${plan.corridors.map((item) => `<div class="plan-corridor" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"><span>${item.label}</span></div>`).join("")}
-    ${plan.rooms.map((item, index) => `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms"><span>${item.label}</span></div>`).join("")}
+    ${plan.rooms.map((item, index) => {
+      const booth = boothForPlanRoom(item, booths);
+      if (!booth) return `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms"><span>${item.label}</span></div>`;
+      const visited = repo.hasStamp(state.user.id, booth.id);
+      const selected = state.selectedBoothId === booth.id;
+      return `
+        <button type="button" class="plan-room ${item.type} booth-room ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}">
+          <span>${item.label}</span>
+          <small>${booth.category === "class" ? "부스" : "안내"}</small>
+          <i class="room-state" aria-hidden="true"></i>
+        </button>
+      `;
+    }).join("")}
     ${plan.exits.map((item) => `<div class="plan-exit" style="left:${item.x}%;top:${item.y}%">${item.label}</div>`).join("")}
   `;
 }
@@ -414,6 +431,8 @@ function mapView() {
   const booths = visibleBooths();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const plan = mapPlanForFloor(state.floor);
+  const placedBoothIds = new Set(plan.rooms.map((item) => boothForPlanRoom(item, booths)?.id).filter(Boolean));
+  const floatingBooths = booths.filter((booth) => !placedBoothIds.has(booth.id));
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
   return `
@@ -448,10 +467,10 @@ function mapView() {
           <div class="map-canvas">
             <div class="map-grid"></div>
             <div class="school-label">PANGYO HIGH SCHOOL · ${floorInfo.label}</div>
-            ${mapPlanMarkup(plan)}
-            ${booths.map((booth, index) => {
+            ${mapPlanMarkup(plan, booths)}
+            ${floatingBooths.map((booth, index) => {
               const position = boothMapPosition(booth);
-              const markerLabel = booth.category === "class" ? booth.location.match(/(\d-\d)/)?.[1] || "부스" : "시설";
+              const markerLabel = booth.category === "class" ? booth.location.match(/(\d-\d)/)?.[1] || "부스" : "부스";
               return `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${position.x}%;top:${position.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}"><span aria-hidden="true">${markerLabel}</span></button>`;
             }).join("")}
           </div>
@@ -954,6 +973,9 @@ function bindEvents() {
     if (!state.selectedBoothId) return;
     if (event.target.closest("button") || event.target.closest(".map-preview-card")) return;
     state.selectedBoothId = null;
+    state.mapZoom = 1;
+    state.mapOffsetX = 0;
+    state.mapOffsetY = 0;
     render();
   });
   document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
@@ -963,6 +985,9 @@ function bindEvents() {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       state.selectedBoothId = null;
+      state.mapZoom = 1;
+      state.mapOffsetX = 0;
+      state.mapOffsetY = 0;
       render();
     });
   });
@@ -1163,6 +1188,9 @@ function bindMapDrag() {
     // waiting for the later click event that would otherwise be discarded.
     if (!moved && state.selectedBoothId && !event.target.closest("button, input, select, textarea")) {
       state.selectedBoothId = null;
+      state.mapZoom = 1;
+      state.mapOffsetX = 0;
+      state.mapOffsetY = 0;
       render();
       return;
     }
@@ -1318,7 +1346,6 @@ function goDetail(id) {
 function selectMapBooth(id) {
   state.selectedBoothId = id;
   state.searchOpen = false;
-  focusMapOnBooth(id, 1.18);
   if (state.sheetLevel === "full") setSheetLevel("mid");
   state.openMenu = null;
   render();

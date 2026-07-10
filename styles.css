@@ -2351,6 +2351,65 @@ button {
   border-color: #7fb499;
 }
 
+.plan-room.booth-room {
+  appearance: none;
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 2px;
+  overflow: visible;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 4px 0 #d9c04f, 0 8px 15px rgba(31, 48, 75, 0.12);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.plan-room.booth-room:not(.classroom) {
+  box-shadow: 0 4px 0 #9fb2cc, 0 8px 15px rgba(31, 48, 75, 0.11);
+}
+
+.plan-room.booth-room > span {
+  overflow: visible;
+  font-size: clamp(9px, 2.4vw, 11px);
+  line-height: 1;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.plan-room.booth-room > small {
+  color: rgba(76, 91, 112, 0.72);
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.plan-room.booth-room .room-state {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 5px rgba(31, 48, 75, 0.18);
+}
+
+.plan-room.booth-room.visited .room-state {
+  background: var(--secondary);
+}
+
+.plan-room.booth-room.selected {
+  z-index: 5;
+  transform: translateY(-3px);
+  border-color: var(--primary);
+  box-shadow: 0 5px 0 #d8485c, 0 12px 22px rgba(255, 79, 100, 0.22), 0 0 0 3px rgba(255, 79, 100, 0.16);
+}
+
+.plan-room.booth-room:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 0 #d9c04f, 0 5px 10px rgba(31, 48, 75, 0.1);
+}
+
 .plan-corridor {
   z-index: 0;
   display: grid;
@@ -2391,8 +2450,8 @@ button {
 .marker.facility,
 .marker.custom {
   z-index: 3;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   color: #fff;
@@ -2411,7 +2470,7 @@ button {
   transform: none;
   color: #fff;
   background: transparent;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 1000;
   line-height: 1;
 }
