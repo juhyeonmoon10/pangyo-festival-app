@@ -3275,6 +3275,62 @@ button {
   padding: 11px 9px;
 }
 
+.admin-test-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-test-panel .admin-section-head {
+  margin-bottom: 0;
+}
+
+.test-tool-status {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.test-tool-status > span,
+.test-tool-status b,
+.test-tool-status small {
+  min-width: 0;
+  display: block;
+}
+
+.test-tool-status b {
+  font-size: 13px;
+}
+
+.test-tool-status small {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-test-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.admin-test-actions .ghost-btn {
+  min-width: 0;
+}
+
+.admin-test-actions .ghost-btn:disabled {
+  color: #9aa5b5;
+  background: #e8edf3;
+  cursor: not-allowed;
+}
+
 @media (max-width: 390px) {
   .market-stock-row {
     grid-template-columns: 36px minmax(0, 1fr) 84px;
@@ -3290,6 +3346,10 @@ button {
   }
 
   .market-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-test-actions {
     grid-template-columns: minmax(0, 1fr);
   }
 }

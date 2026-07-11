@@ -116,6 +116,27 @@ async function run() {
     state.adminTab = "dashboard";
     render();
   });
+  await expectVisible(page, "#adminTestStamp", "admin stamp test tool");
+  for (let index = 0; index < 3; index += 1) await page.click("#adminTestStamp");
+  const adminStampTest = await page.evaluate(() => {
+    const user = state.db.users.find((item) => item.googleUid === ADMIN_TEST_USER_UID);
+    const stamps = user ? repo.stampsForUser(user.id) : [];
+    const portfolio = user ? repo.portfolioForUser(user.id) : null;
+    return {
+      stampCount: stamps.length,
+      testSourcesOnly: stamps.every((stamp) => stamp.source === "admin-test"),
+      rewardGranted: Boolean(portfolio?.grantedAt),
+    };
+  });
+  if (adminStampTest.stampCount !== 3 || !adminStampTest.testSourcesOnly || !adminStampTest.rewardGranted) {
+    throw new Error(`admin stamp test failed: ${JSON.stringify(adminStampTest)}`);
+  }
+  await page.click("#resetAdminTestStamps");
+  const adminTestReset = await page.evaluate(() => ({
+    userExists: state.db.users.some((item) => item.googleUid === ADMIN_TEST_USER_UID),
+    testStampCount: state.db.stamps.filter((stamp) => stamp.source === "admin-test").length,
+  }));
+  if (adminTestReset.userExists || adminTestReset.testStampCount) throw new Error(`admin stamp reset failed: ${JSON.stringify(adminTestReset)}`);
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.screenshot({ path: path.join(__dirname, "admin-desktop.png"), fullPage: true });
 
@@ -124,6 +145,8 @@ async function run() {
     reward,
     trade,
     sold,
+    adminStampTest,
+    adminTestReset,
     mobileLayout,
     errors,
   };

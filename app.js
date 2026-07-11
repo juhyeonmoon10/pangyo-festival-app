@@ -1,4 +1,5 @@
 const DB_KEY = "pangyo-festival-db-v3";
+const ADMIN_TEST_USER_UID = "admin-stamp-test-user";
 const DEFAULT_MARKET_SETTINGS = {
   stampGoal: 3,
   grantAmount: 100000,
@@ -56,6 +57,7 @@ const state = {
   loginBusy: false,
   loginError: "",
   adminMessage: "",
+  adminTestMessage: "",
   marketStockId: "happy-tech",
   marketQuantity: 1,
   marketMessage: "",
@@ -202,7 +204,7 @@ const repo = {
     return state.db.reviews.some((review) => review.userId === userId && review.boothId === boothId);
   },
   boothVisits(boothId) {
-    return state.db.stamps.filter((stamp) => stamp.boothId === boothId).length;
+    return state.db.stamps.filter((stamp) => stamp.boothId === boothId && stamp.source !== "admin-test").length;
   },
   stampsForUser(userId) {
     return state.db.stamps.filter((stamp) => stamp.userId === userId);
@@ -305,6 +307,19 @@ function syncMarketQualification(userId) {
   return true;
 }
 
+function awardStamp(userId, boothId, source = "nfc") {
+  if (repo.hasStamp(userId, boothId)) return { awarded: false, rewardGranted: false };
+  state.db.stamps.push({
+    id: makeId(),
+    userId,
+    boothId,
+    source,
+    createdAt: new Date().toISOString(),
+  });
+  saveDb();
+  return { awarded: true, rewardGranted: syncMarketReward(userId) };
+}
+
 const nfcAdapter = {
   async scan(tagId) {
     const booth = state.db.booths.find((item) => item.nfcTagId === tagId);
@@ -319,12 +334,8 @@ const nfcAdapter = {
       render();
       return;
     }
-    if (!repo.hasStamp(state.user.id, booth.id)) {
-      state.db.stamps.push({ id: makeId(), userId: state.user.id, boothId: booth.id, createdAt: new Date().toISOString() });
-      saveDb();
-      const rewardGranted = syncMarketReward(state.user.id);
-      showStampPop(rewardGranted ? `${formatMoney(state.db.marketSettings.grantAmount)} ${state.db.marketSettings.currencyName} 지급` : "스탬프 획득");
-    }
+    const result = awardStamp(state.user.id, booth.id);
+    if (result.awarded) showStampPop(result.rewardGranted ? `${formatMoney(state.db.marketSettings.grantAmount)} ${state.db.marketSettings.currencyName} 지급` : "스탬프 획득");
     goDetail(booth.id);
   },
 };
@@ -1080,11 +1091,15 @@ function adminView() {
 
 function adminPanel() {
   const settings = state.db.marketSettings;
-  const regularUsers = state.db.users.filter((user) => user.role !== "admin");
+  const testUser = state.db.users.find((user) => user.googleUid === ADMIN_TEST_USER_UID) || null;
+  const testStampCount = testUser ? repo.stampsForUser(testUser.id).length : 0;
+  const testPortfolio = testUser ? repo.portfolioForUser(testUser.id) : null;
+  const nextTestBooth = state.db.booths.find((booth) => !testUser || !repo.hasStamp(testUser.id, booth.id)) || state.db.booths[0];
+  const regularUsers = state.db.users.filter((user) => user.role !== "admin" && user.googleUid !== ADMIN_TEST_USER_UID);
   const investingUsers = regularUsers.filter((user) => repo.portfolioForUser(user.id)?.grantedAt);
   const achievedUsers = regularUsers.filter((user) => repo.portfolioForUser(user.id)?.qualifiedAt);
   const pendingExchange = achievedUsers.filter((user) => !user.exchangedAt);
-  const totalVisits = state.db.stamps.length;
+  const totalVisits = state.db.stamps.filter((stamp) => stamp.source !== "admin-test").length;
   const totalReviews = state.db.reviews.length;
   const reviewAverage = totalReviews
     ? state.db.reviews.reduce((sum, review) => sum + Number(review.rating), 0) / totalReviews
@@ -1113,6 +1128,23 @@ function adminPanel() {
           <label class="field">상품 목표 자산<input id="marketPrizeTarget" class="input" type="number" min="1000" step="1000" inputmode="numeric" value="${settings.prizeTarget}" /></label>
         </div>
         <button id="saveMarketSettings" type="button" class="primary-btn">보상 기준 저장</button>
+      </section>
+      <section class="panel section admin-panel-card admin-test-panel">
+        <div class="admin-section-head"><h2>테스트 스탬프</h2><span>운영 통계 제외</span></div>
+        ${state.adminTestMessage ? `<p class="success-text">${state.adminTestMessage}</p>` : ""}
+        <div class="test-tool-status">
+          <strong class="stamp ${testStampCount ? "on" : ""}">${icon("stamp")}</strong>
+          <span><b>테스트 학생 · ${testStampCount}/${settings.stampGoal}개</b><small>${testPortfolio?.grantedAt ? `${formatMoney(testPortfolio.cash)} ${settings.currencyName} 보유` : `투자금 지급까지 ${Math.max(settings.stampGoal - testStampCount, 0)}개`}</small></span>
+        </div>
+        <label class="field">스탬프를 찍을 부스
+          <select id="adminTestBooth" class="select">
+            ${state.db.booths.map((booth) => `<option value="${booth.id}" ${booth.id === nextTestBooth?.id ? "selected" : ""}>${booth.name} · ${booth.location}</option>`).join("")}
+          </select>
+        </label>
+        <div class="admin-test-actions">
+          <button id="adminTestStamp" type="button" class="primary-btn">테스트 스탬프 찍기</button>
+          <button id="resetAdminTestStamps" type="button" class="ghost-btn" ${testUser ? "" : "disabled"}>테스트 기록 초기화</button>
+        </div>
       </section>
       <section class="panel section admin-panel-card">
         <div class="admin-section-head"><h2>인기 부스 TOP 5</h2><span>방문수 기준</span></div>
@@ -1412,6 +1444,8 @@ function bindEvents() {
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
   document.querySelector("#saveMarketSettings")?.addEventListener("click", saveMarketSettings);
+  document.querySelector("#adminTestStamp")?.addEventListener("click", issueAdminTestStamp);
+  document.querySelector("#resetAdminTestStamps")?.addEventListener("click", resetAdminTestStamps);
 }
 
 function closeMenus() {
@@ -1884,6 +1918,56 @@ function saveMarketSettings() {
     syncMarketQualification(user.id);
   });
   state.adminMessage = "투자 보상 기준을 저장했습니다.";
+  saveDb();
+  render();
+}
+
+function ensureAdminTestUser() {
+  let user = state.db.users.find((item) => item.googleUid === ADMIN_TEST_USER_UID);
+  if (user) return user;
+  user = {
+    id: makeId(),
+    googleUid: ADMIN_TEST_USER_UID,
+    googleEmail: "test-student@pangyo.local",
+    studentNumber: "TEST-001",
+    schoolId: "admin-stamp-test",
+    name: "테스트 학생",
+    role: "user",
+    testOnly: true,
+    exchangedAt: null,
+  };
+  state.db.users.push(user);
+  return user;
+}
+
+function issueAdminTestStamp() {
+  if (state.user?.role !== "admin") return;
+  const boothId = document.querySelector("#adminTestBooth")?.value;
+  const booth = state.db.booths.find((item) => item.id === boothId);
+  if (!booth) return;
+  const testUser = ensureAdminTestUser();
+  const result = awardStamp(testUser.id, booth.id, "admin-test");
+  if (!result.awarded) {
+    state.adminTestMessage = `${booth.name} 스탬프는 이미 테스트했습니다.`;
+  } else if (result.rewardGranted) {
+    state.adminTestMessage = `${booth.name} 스탬프 획득 · ${formatMoney(state.db.marketSettings.grantAmount)} ${state.db.marketSettings.currencyName} 지급 완료`;
+  } else {
+    state.adminTestMessage = `${booth.name} 테스트 스탬프를 찍었습니다.`;
+  }
+  saveDb();
+  render();
+}
+
+function resetAdminTestStamps() {
+  if (state.user?.role !== "admin") return;
+  const testUser = state.db.users.find((item) => item.googleUid === ADMIN_TEST_USER_UID);
+  if (!testUser) return;
+  state.db.stamps = state.db.stamps.filter((stamp) => stamp.userId !== testUser.id);
+  state.db.reviews = state.db.reviews.filter((review) => review.userId !== testUser.id);
+  state.db.portfolios = state.db.portfolios.filter((portfolio) => portfolio.userId !== testUser.id);
+  state.db.marketTransactions = state.db.marketTransactions.filter((transaction) => transaction.userId !== testUser.id);
+  state.db.users = state.db.users.filter((user) => user.id !== testUser.id);
+  state.adminTestMessage = "테스트 학생의 스탬프와 투자 기록을 초기화했습니다.";
   saveDb();
   render();
 }
