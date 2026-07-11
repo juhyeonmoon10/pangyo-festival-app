@@ -2567,8 +2567,8 @@ button {
 }
 
 .map-card.has-preview .map-canvas {
-  filter: none;
-  opacity: 0.68;
+  filter: blur(1.2px) saturate(0.88);
+  opacity: 0.64;
 }
 
 /* Performance guardrails: animate navigation, not every state update. */
@@ -3708,6 +3708,6 @@ button {
 }
 
 .map-card.has-preview .map-canvas {
-  filter: none;
-  opacity: 0.68;
+  filter: blur(1.2px) saturate(0.88);
+  opacity: 0.64;
 }

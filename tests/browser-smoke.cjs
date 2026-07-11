@@ -28,6 +28,12 @@ async function run() {
   await page.click("#googleLogin");
   await expectVisible(page, ".map-screen", "map");
   await page.screenshot({ path: path.join(__dirname, "map-mobile.png"), fullPage: true });
+  await page.locator("[data-map-select]").first().click();
+  await expectVisible(page, ".map-preview-card", "map preview");
+  const previewFilter = await page.locator(".map-canvas").evaluate((element) => getComputedStyle(element).filter);
+  if (!previewFilter.includes("blur")) throw new Error(`map preview blur is missing: ${previewFilter}`);
+  await page.locator("#mapCard").evaluate((element) => element.click());
+  await page.locator(".map-preview-card").waitFor({ state: "detached", timeout: 5000 });
 
   await page.click('[data-route="market"]');
   await expectVisible(page, ".market-gate", "locked market");
