@@ -1,28 +1,62 @@
 **Design QA**
 
-- 검증 뷰포트: 모바일 `390 x 844`, 데스크톱 `1024 x 900`
-- 검증 브라우저: Chrome Headless + Playwright
-- 검증 화면: 로그인, 지도, 투자 잠금, 투자 거래, 자산, 관리자 대시보드
+- Source visual truth: `C:\Users\juhye\AppData\Local\Temp\codex-clipboard-ebe36b4d-2267-49d8-bf76-ed8406d8deee.png`, `C:\Users\juhye\AppData\Local\Temp\codex-clipboard-6e42bee8-a73f-4153-bfab-3a87979451a7.png`
+- User-reported implementation evidence: `C:\Users\juhye\AppData\Local\Temp\codex-clipboard-f8d86c09-a69f-4981-8cec-c0dd576bea8c.png`
+- Intended implementation viewport: 390 x 844
+- Intended state: signed-in map, floors 1 through 4, booth preview closed and open
+- Implementation screenshot: unavailable because the in-app browser control surface was not exposed in this session
 
-**확인 결과**
+**Full-view comparison evidence**
 
-- 지도 교실 이름과 터치 영역이 하단 메뉴에 가려지지 않습니다.
-- 하단 메뉴 `지도 · 투자 · 자산 · 스탬프`가 모바일 폭 안에 안정적으로 배치됩니다.
-- 투자 전 잠금 화면에서 스탬프 진행률과 지급 금액이 명확히 보입니다.
-- 종목명, 현재가, 등락률, 차트, 거래 수량과 주문 금액이 서로 겹치지 않습니다.
-- 자산 화면에서 현금, 주식 평가액, 총자산, 목표 진행률과 교환 상태를 구분할 수 있습니다.
-- 관리자 화면에서 보상 기준 입력과 통계 카드가 480px 앱 프레임 안에 들어옵니다.
-- `390px` 검사에서 문서 가로 넘침과 버튼/텍스트 오버플로가 없습니다.
-- 콘솔 오류와 페이지 런타임 오류가 없습니다.
+- Source floor relationships were inspected at original resolution.
+- The implementation could not be captured in a browser, so visible composition, crop, typography, and touch-target placement could not be compared side by side.
 
-**동작 검증**
+**Focused region comparison evidence**
 
-- Google 데모 로그인 후 지도 진입
-- 스탬프 목표 전 투자 잠금
-- 서로 다른 NFC 3개 인식 후 100,000 판교머니 1회 지급
-- 매수 시 현금 감소와 보유 수량 증가
-- 매도 시 현금 복원과 보유 수량 감소
-- 목표 자산 달성 시 거래 잠금과 교환 자격 고정
-- 관리자 상품 교환 완료 후 버튼 비활성화와 재사용 방지
+- Source classroom sequences and connected special-room blocks were inspected at original resolution.
+- Browser-rendered focused regions were unavailable.
 
-final result: passed
+**Findings**
+
+- [P1] Large pin controls obscured every classroom label.
+  Evidence: the supplied 4th-floor screenshot shows circular `3-2` through `3-8` pins covering the room names beneath them.
+  Impact: users cannot scan classroom locations without reading duplicate pin labels.
+  Fix applied: removed class pins and converted each classroom cell into the touch target; a small corner dot now communicates visit state.
+
+- [P1] Selecting a booth moved and zoomed the plan, leaving edge classrooms clipped.
+  Evidence: the supplied screenshot does not show the full left edge of the classroom row.
+  Impact: users lose their orientation after checking a booth.
+  Fix applied: booth selection no longer changes camera position, and dismissing a preview restores zoom and offsets.
+
+- [P1] Browser-rendered mobile layout is unverified.
+  Evidence: source images are available, but no implementation screenshot could be captured.
+  Impact: overlap, text legibility, and map framing at 390 x 844 cannot be confirmed visually.
+  Fix: capture floors 1 through 4 at 390 x 844, test floor switching, map pan/zoom, pin preview dismissal, and bottom-sheet dragging, then compare against the source layout.
+
+**Static verification completed**
+
+- JavaScript syntax passes.
+- All four floor plans render through the map template.
+- Class pins G1-01 through G3-08 resolve to the correct classroom sequence.
+- Classroom cells are clickable and class-pin overlays are absent.
+- Selecting a classroom leaves map zoom and offsets unchanged.
+- Elevator, restroom, cafeteria-wing, kitchen, and mechanical-room labels are absent from the user-facing floor-plan data.
+- CSS braces and whitespace checks pass.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: code-reviewed; browser rendering blocked.
+- Spacing and layout rhythm: responsive constraints added; visual confirmation blocked.
+- Colors and visual tokens: classroom, facility, special-room, and visited-state tokens defined; visual confirmation blocked.
+- Image quality and asset fidelity: the source plans are used as structural reference rather than shipped raster assets; browser comparison blocked.
+- Copy and content: floor labels, classroom order, and retained room names verified in source.
+
+**Comparison history**
+
+- Initial pass: source images opened and analyzed; implementation capture unavailable.
+- User screenshot pass: identified label occlusion and retained camera offset; both were fixed in code and interaction smoke tests.
+- Post-fix browser capture remains unavailable, so a final visual comparison is still blocked.
+
+**Final result**
+
+final result: blocked

@@ -1,20 +1,5 @@
 const DB_KEY = "pangyo-festival-db-v3";
-const ADMIN_TEST_USER_UID = "admin-stamp-test-user";
-const DEFAULT_MARKET_SETTINGS = {
-  stampGoal: 3,
-  grantAmount: 100000,
-  prizeTarget: 120000,
-  currencyName: "판교머니",
-};
-const MARKET_TICK_MS = 15000;
-const MARKET_STOCKS = [
-  { id: "happy-tech", name: "해피전자", symbol: "해피", description: "생활 전자제품을 만드는 회사", basePrice: 12500, amplitude: 0.075, phase: 0.6, color: "#5b67d8" },
-  { id: "cloud-food", name: "구름식품", symbol: "구름", description: "간식과 식품을 만드는 회사", basePrice: 8400, amplitude: 0.065, phase: 1.8, color: "#e6952e" },
-  { id: "momo-games", name: "모모게임즈", symbol: "모모", description: "즐거운 게임을 만드는 회사", basePrice: 18800, amplitude: 0.18, phase: 3.1, color: "#df5269" },
-  { id: "green-energy", name: "초록에너지", symbol: "초록", description: "친환경 에너지를 만드는 회사", basePrice: 10700, amplitude: 0.08, phase: 4.4, color: "#269b69" },
-  { id: "moon-travel", name: "달빛여행", symbol: "달빛", description: "여행 상품을 만드는 회사", basePrice: 15200, amplitude: 0.09, phase: 5.7, color: "#2f86c9" },
-];
-const moneyFormatter = new Intl.NumberFormat("ko-KR");
+const GOAL_COUNT = 5;
 
 const FLOORS = [
   { floor: 1, label: "1층", caption: "시설" },
@@ -57,11 +42,6 @@ const state = {
   loginBusy: false,
   loginError: "",
   adminMessage: "",
-  adminTestMessage: "",
-  adminPreviewAdminId: null,
-  marketStockId: "happy-tech",
-  marketQuantity: 1,
-  marketMessage: "",
   pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
 };
 
@@ -134,7 +114,7 @@ const seed = {
   ],
   booths: [
     { id: "b1", name: "보건실", floor: 1, location: "1층 보건실", description: "축제 중 몸이 불편할 때 방문할 수 있는 응급 지원 공간입니다.", nfcTagId: "NFC-HEALTH-101", x: 17, y: 32, favorite: false, category: "facility" },
-    { id: "b2", name: "학생회 안내소", floor: 1, location: "1층 중앙 현관", description: "축제 안내, 분실물 문의, 상품 교환 문의를 도와주는 운영 부스입니다.", nfcTagId: "NFC-INFO-102", x: 50, y: 43, favorite: true, category: "facility" },
+    { id: "b2", name: "학생회 안내소", floor: 1, location: "1층 중앙 현관", description: "축제 안내, 분실물 문의, 음료 교환 문의를 도와주는 운영 부스입니다.", nfcTagId: "NFC-INFO-102", x: 50, y: 43, favorite: true, category: "facility" },
     { id: "b3", name: "행정실", floor: 1, location: "1층 행정실", description: "축제 운영 문의와 긴급 연락을 처리하는 관리 공간입니다.", nfcTagId: "NFC-OFFICE-103", x: 46, y: 40, favorite: false, category: "facility" },
     { id: "b4", name: "시청각실", floor: 1, location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다.", nfcTagId: "NFC-STUDIO-104", x: 84, y: 50, favorite: false, category: "facility" },
     { id: "b5", name: "상담실", floor: 1, location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다.", nfcTagId: "NFC-STORE-105", x: 31, y: 31, favorite: false, category: "facility" },
@@ -144,9 +124,6 @@ const seed = {
   ],
   stamps: [],
   reviews: [],
-  marketSettings: { ...DEFAULT_MARKET_SETTINGS },
-  portfolios: [],
-  marketTransactions: [],
 };
 
 state.db = loadDb();
@@ -174,9 +151,6 @@ function loadDb() {
     if (!update || booth.name !== update.legacyName) return booth;
     return { ...booth, name: update.name, location: update.location, description: update.description };
   });
-  db.marketSettings = { ...DEFAULT_MARKET_SETTINGS, ...(db.marketSettings || {}) };
-  db.portfolios = Array.isArray(db.portfolios) ? db.portfolios : [];
-  db.marketTransactions = Array.isArray(db.marketTransactions) ? db.marketTransactions : [];
   db.users = db.users.map((user) => ({
     googleUid: user.googleUid || user.id,
     googleEmail: user.googleEmail || "",
@@ -205,121 +179,12 @@ const repo = {
     return state.db.reviews.some((review) => review.userId === userId && review.boothId === boothId);
   },
   boothVisits(boothId) {
-    return state.db.stamps.filter((stamp) => stamp.boothId === boothId && stamp.source !== "admin-test").length;
+    return state.db.stamps.filter((stamp) => stamp.boothId === boothId).length;
   },
   stampsForUser(userId) {
     return state.db.stamps.filter((stamp) => stamp.userId === userId);
   },
-  portfolioForUser(userId) {
-    return state.db.portfolios.find((portfolio) => portfolio.userId === userId) || null;
-  },
-  marketTransactionsForUser(userId) {
-    return state.db.marketTransactions.filter((transaction) => transaction.userId === userId);
-  },
 };
-
-function formatMoney(value) {
-  return moneyFormatter.format(Math.round(value));
-}
-
-function emptyHoldings() {
-  return Object.fromEntries(MARKET_STOCKS.map((stock) => [stock.id, 0]));
-}
-
-function ensurePortfolio(userId) {
-  let portfolio = repo.portfolioForUser(userId);
-  if (!portfolio) {
-    portfolio = {
-      id: makeId(),
-      userId,
-      cash: 0,
-      holdings: emptyHoldings(),
-      grantedAt: null,
-      qualifiedAt: null,
-      createdAt: new Date().toISOString(),
-    };
-    state.db.portfolios.push(portfolio);
-  }
-  portfolio.holdings = { ...emptyHoldings(), ...(portfolio.holdings || {}) };
-  return portfolio;
-}
-
-function marketTick(at = Date.now()) {
-  return Math.floor(at / MARKET_TICK_MS);
-}
-
-function stockPriceAt(stock, tick) {
-  const primaryWave = Math.sin(tick * 0.63 + stock.phase) * stock.amplitude;
-  const secondaryWave = Math.sin(tick * 0.21 + stock.phase * 2.4) * stock.amplitude * 0.38;
-  const drift = Math.sin(tick * 0.071 + stock.phase * 0.8) * 0.018;
-  return Math.max(500, Math.round((stock.basePrice * (1 + primaryWave + secondaryWave + drift)) / 100) * 100);
-}
-
-function marketSnapshot(at = Date.now()) {
-  const tick = marketTick(at);
-  return MARKET_STOCKS.map((stock) => {
-    const price = stockPriceAt(stock, tick);
-    const previousPrice = stockPriceAt(stock, tick - 1);
-    const history = Array.from({ length: 10 }, (_, index) => stockPriceAt(stock, tick - 9 + index));
-    return { ...stock, price, previousPrice, history };
-  });
-}
-
-function portfolioValues(portfolio, snapshot = marketSnapshot()) {
-  const invested = snapshot.reduce((sum, stock) => sum + (portfolio.holdings?.[stock.id] || 0) * stock.price, 0);
-  return { cash: portfolio.cash, invested, total: portfolio.cash + invested };
-}
-
-function addMarketTransaction(userId, type, details = {}) {
-  state.db.marketTransactions.unshift({
-    id: makeId(),
-    userId,
-    type,
-    createdAt: new Date().toISOString(),
-    ...details,
-  });
-  state.db.marketTransactions = state.db.marketTransactions.slice(0, 500);
-}
-
-function syncMarketReward(userId) {
-  const user = state.db.users.find((item) => item.id === userId);
-  if (!user || user.role === "admin") return false;
-  const settings = state.db.marketSettings;
-  const stampCount = repo.stampsForUser(userId).length;
-  if (stampCount < settings.stampGoal) return false;
-  const portfolio = ensurePortfolio(userId);
-  if (portfolio.grantedAt) return false;
-  portfolio.cash += settings.grantAmount;
-  portfolio.grantedAt = new Date().toISOString();
-  addMarketTransaction(userId, "grant", { amount: settings.grantAmount, stampCount });
-  saveDb();
-  return true;
-}
-
-function syncMarketQualification(userId) {
-  const portfolio = repo.portfolioForUser(userId);
-  if (!portfolio?.grantedAt || portfolio.qualifiedAt) return false;
-  const stampCount = repo.stampsForUser(userId).length;
-  const values = portfolioValues(portfolio);
-  if (stampCount < state.db.marketSettings.stampGoal || values.total < state.db.marketSettings.prizeTarget) return false;
-  portfolio.qualifiedAt = new Date().toISOString();
-  addMarketTransaction(userId, "qualification", { amount: values.total });
-  saveDb();
-  return true;
-}
-
-function awardStamp(userId, boothId, source = "nfc") {
-  if (repo.hasStamp(userId, boothId)) return { awarded: false, rewardGranted: false };
-  state.db.stamps.push({
-    id: makeId(),
-    userId,
-    boothId,
-    source,
-    createdAt: new Date().toISOString(),
-  });
-  saveDb();
-  return { awarded: true, rewardGranted: syncMarketReward(userId) };
-}
 
 const nfcAdapter = {
   async scan(tagId) {
@@ -335,8 +200,11 @@ const nfcAdapter = {
       render();
       return;
     }
-    const result = awardStamp(state.user.id, booth.id);
-    if (result.awarded) showStampPop(result.rewardGranted ? `${formatMoney(state.db.marketSettings.grantAmount)} ${state.db.marketSettings.currencyName} 지급` : "스탬프 획득");
+    if (!repo.hasStamp(state.user.id, booth.id)) {
+      state.db.stamps.push({ id: makeId(), userId: state.user.id, boothId: booth.id, createdAt: new Date().toISOString() });
+      saveDb();
+      showStampPop();
+    }
     goDetail(booth.id);
   },
 };
@@ -354,74 +222,26 @@ function icon(name) {
 }
 
 let renderInProgress = false;
-let marketRefreshTimer = null;
-let lastMarketRefreshTick = null;
 
-function render(options = {}) {
+function render() {
   if (renderInProgress) return;
   renderInProgress = true;
   const app = document.querySelector("#app");
-  const preserveScroll = Boolean(options.preserveScroll);
-  const previousScroll = preserveScroll ? { x: window.scrollX, y: window.scrollY } : null;
   try {
-    if (state.user && state.user.role !== "admin") {
-      syncMarketReward(state.user.id);
-      syncMarketQualification(state.user.id);
-    }
-    const hasRenderedRoute = Boolean(app.dataset.route);
     const previousRoute = app.dataset.route || state.route;
     const nextRoute = state.route;
-    const routeChanged = !hasRenderedRoute || previousRoute !== nextRoute;
-    app.classList.toggle("route-change", routeChanged);
-    app.classList.toggle("state-update", !routeChanged);
     if (state.route === "login") app.innerHTML = loginView();
     if (state.route === "map") app.innerHTML = mapView();
-    if (state.route === "market") app.innerHTML = marketView();
-    if (state.route === "wallet") app.innerHTML = walletView();
     if (state.route === "detail") app.innerHTML = detailView();
     if (state.route === "stamps") app.innerHTML = stampView();
     if (state.route === "admin") app.innerHTML = adminView();
     app.dataset.previousRoute = previousRoute;
     app.dataset.route = nextRoute;
     bindEvents();
-    if (["market", "wallet"].includes(state.route)) lastMarketRefreshTick = marketTick();
-    scheduleMarketRefresh();
-    if (previousScroll) {
-      requestAnimationFrame(() => window.scrollTo(previousScroll.x, previousScroll.y));
-    }
   } finally {
     renderInProgress = false;
   }
 }
-
-function scheduleMarketRefresh() {
-  if (marketRefreshTimer) clearTimeout(marketRefreshTimer);
-  marketRefreshTimer = null;
-  if (document.hidden || !state.user || !["market", "wallet"].includes(state.route)) return;
-  const delay = MARKET_TICK_MS - (Date.now() % MARKET_TICK_MS) + 40;
-  marketRefreshTimer = setTimeout(() => {
-    marketRefreshTimer = null;
-    if (document.hidden || !["market", "wallet"].includes(state.route)) return;
-    if (document.activeElement?.matches("input, textarea, select")) {
-      marketRefreshTimer = setTimeout(scheduleMarketRefresh, 600);
-      return;
-    }
-    const nextTick = marketTick();
-    if (nextTick !== lastMarketRefreshTick) render({ preserveScroll: true, reason: "market-tick" });
-    else scheduleMarketRefresh();
-  }, delay);
-}
-
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    if (marketRefreshTimer) clearTimeout(marketRefreshTimer);
-    marketRefreshTimer = null;
-    return;
-  }
-  if (!["market", "wallet"].includes(state.route)) return;
-  if (marketTick() !== lastMarketRefreshTick) render({ preserveScroll: true, reason: "visibility" });
-  else scheduleMarketRefresh();
-});
 
 function loginView() {
   const profileStep = state.authStep === "profile" && state.pendingGoogle;
@@ -429,8 +249,8 @@ function loginView() {
     <main class="screen login-screen">
       <div>
         <div class="brand-mark">P</div>
-        <h1 class="title">판교고 축제<br />스탬프 & 마켓</h1>
-        <p class="subtitle">부스를 방문해 스탬프를 모으고, 받은 판교머니로 가상 투자에 도전하세요.</p>
+        <h1 class="title">판교고 축제<br />스탬프 맵</h1>
+        <p class="subtitle">현재는 구글 계정 인증 화면만 먼저 확인하는 단계입니다. 버튼을 누르면 학생 모드로 바로 입장합니다.</p>
       </div>
       <section class="panel">
         ${profileStep ? profileForm() : googleForm()}
@@ -850,229 +670,28 @@ function reviewView(review) {
 }
 
 function stampView() {
-  const adminPreview = Boolean(state.adminPreviewAdminId);
   const count = repo.stampsForUser(state.user.id).length;
   const total = state.db.booths.length;
-  const settings = state.db.marketSettings;
-  const portfolio = repo.portfolioForUser(state.user.id);
-  const remain = Math.max(settings.stampGoal - count, 0);
-  const percent = Math.min((count / settings.stampGoal) * 100, 100);
+  const remain = Math.max(GOAL_COUNT - count, 0);
+  const percent = Math.min((count / GOAL_COUNT) * 100, 100);
+  const user = state.db.users.find((item) => item.id === state.user.id);
   return `
     <main class="screen stamp-screen">
       <header class="top-bar">
-        ${adminPreview ? `<button class="icon-btn" data-admin-preview-exit title="관리자로 돌아가기">${icon("back")}</button>` : `<button class="icon-btn" data-route="map">${icon("back")}</button>`}
-        <div class="top-title"><strong>${adminPreview ? "테스트 스탬프" : "스탬프 현황"}</strong><span>목표 ${settings.stampGoal}개 달성 시 투자금 지급</span></div>
-        <button class="icon-btn top-money-btn" data-route="market" title="투자">원</button>
+        <button class="icon-btn" data-route="map">${icon("back")}</button>
+        <div class="top-title"><strong>스탬프 현황</strong><span>목표 ${GOAL_COUNT}개 달성 시 음료 교환</span></div>
+        <button class="icon-btn" data-route="admin">${icon("admin")}</button>
       </header>
-      <section class="panel stamp-reward-panel">
-        <span class="section-kicker">STAMP REWARD</span>
+      <section class="panel">
         <h1 class="title">현재 ${count}개 획득</h1>
         <p class="subtitle">전체 ${total}개 중 ${count}개를 모았습니다.</p>
         <div class="progress-wrap"><div class="progress" style="width:${percent}%"></div></div>
-        <p class="notice">${remain ? `투자금 지급까지 ${remain}개 남았습니다.` : `${formatMoney(settings.grantAmount)} ${settings.currencyName} 지급 완료`}</p>
-        ${portfolio?.grantedAt ? `<button type="button" class="primary-btn stamp-market-cta" data-route="market">판교마켓 시작</button>` : ""}
+        <p class="notice">${remain ? `목표까지 ${remain}개 남았습니다.` : user?.exchangedAt ? "음료 교환 완료" : "음료수 교환 가능"}</p>
       </section>
       <section class="section stats-grid">
         ${state.db.booths.map((booth) => `<div class="stat"><strong class="stamp ${repo.hasStamp(state.user.id, booth.id) ? "on" : ""}">${icon("stamp")}</strong><span>${booth.name}</span></div>`).join("")}
       </section>
       ${bottomNav("stamps")}
-    </main>
-  `;
-}
-
-function marketTrend(stock) {
-  const change = stock.price - stock.previousPrice;
-  const rate = stock.previousPrice ? (change / stock.previousPrice) * 100 : 0;
-  return {
-    change,
-    rate,
-    className: change > 0 ? "up" : change < 0 ? "down" : "flat",
-    label: `${change > 0 ? "+" : ""}${formatMoney(change)} (${change > 0 ? "+" : ""}${rate.toFixed(1)}%)`,
-  };
-}
-
-function marketChart(stock, large = false) {
-  const min = Math.min(...stock.history);
-  const max = Math.max(...stock.history);
-  const range = Math.max(max - min, 1);
-  return `
-    <div class="market-chart ${large ? "large" : ""}" aria-label="${stock.name} 최근 시세">
-      ${stock.history.map((price, index) => {
-        const height = 24 + ((price - min) / range) * (large ? 48 : 24);
-        const previous = index ? stock.history[index - 1] : price;
-        return `<i class="${price >= previous ? "up" : "down"}" style="height:${height}px"></i>`;
-      }).join("")}
-    </div>
-  `;
-}
-
-function marketGoalStrip(values, portfolio) {
-  const settings = state.db.marketSettings;
-  const percent = Math.min(100, Math.round((values.total / settings.prizeTarget) * 100));
-  return `
-    <section class="market-goal-strip ${portfolio.qualifiedAt ? "complete" : ""}">
-      <div><span>${portfolio.qualifiedAt ? "상품 교환 자격 달성" : "상품 목표"}</span><strong>${formatMoney(values.total)} / ${formatMoney(settings.prizeTarget)}원</strong></div>
-      <div class="mini-progress"><span style="width:${percent}%"></span></div>
-    </section>
-  `;
-}
-
-function marketView() {
-  const adminPreview = Boolean(state.adminPreviewAdminId);
-  const settings = state.db.marketSettings;
-  const stampCount = repo.stampsForUser(state.user.id).length;
-  const portfolio = repo.portfolioForUser(state.user.id) || ensurePortfolio(state.user.id);
-  const snapshot = marketSnapshot();
-  const selected = snapshot.find((stock) => stock.id === state.marketStockId) || snapshot[0];
-  const values = portfolioValues(portfolio, snapshot);
-  const selectedTrend = marketTrend(selected);
-  const quantity = Math.max(1, Math.floor(Number(state.marketQuantity) || 1));
-  const tradeAmount = selected.price * quantity;
-  const owned = portfolio.holdings?.[selected.id] || 0;
-  const tradingLocked = !portfolio.grantedAt || Boolean(portfolio.qualifiedAt);
-
-  return `
-    <main class="screen market-screen">
-      <header class="top-bar">
-        ${adminPreview ? `<button class="icon-btn" data-admin-preview-exit title="관리자로 돌아가기">${icon("back")}</button>` : `<button class="icon-btn" data-route="map">${icon("back")}</button>`}
-        <div class="top-title"><strong>${adminPreview ? "관리자 투자 테스트" : "판교마켓"}</strong><span>${adminPreview ? "테스트 학생 포트폴리오" : "축제 가상 주식 투자"}</span></div>
-        <button class="icon-btn top-money-btn" data-route="wallet" title="내 자산">원</button>
-      </header>
-      ${!portfolio.grantedAt ? `
-        <section class="market-gate market-gate-compact">
-          <span class="section-kicker">MARKET PASS</span>
-          <h1>스탬프 ${settings.stampGoal}개로<br />투자를 시작하세요</h1>
-          <p>현재 ${stampCount}개를 모았습니다.</p>
-          <div class="progress-wrap"><div class="progress" style="width:${Math.min(100, (stampCount / settings.stampGoal) * 100)}%"></div></div>
-          <strong>${formatMoney(settings.grantAmount)} ${settings.currencyName}</strong>
-          <button type="button" class="primary-btn" data-route="stamps">스탬프 확인</button>
-        </section>
-        <section class="market-section locked-market-preview">
-          <div class="market-section-head"><div><span class="section-kicker">MARKET PREVIEW</span><h2>투자 종목 미리보기</h2></div><span>거래 전 조회 가능</span></div>
-          <div class="market-stock-list">
-            ${snapshot.map((stock) => {
-              const trend = marketTrend(stock);
-              return `
-                <article class="market-stock-row market-stock-readonly" style="--stock-color:${stock.color}">
-                  <span class="stock-symbol">${stock.symbol.slice(0, 1)}</span>
-                  <span class="stock-copy"><strong>${stock.name}</strong><small>${stock.description}</small></span>
-                  ${marketChart(stock)}
-                  <span class="stock-price"><strong>${formatMoney(stock.price)}원</strong><small class="${trend.className}">${trend.label}</small></span>
-                </article>
-              `;
-            }).join("")}
-          </div>
-          <p class="locked-market-note">스탬프 ${settings.stampGoal}개를 모으면 ${formatMoney(settings.grantAmount)} ${settings.currencyName}로 거래할 수 있습니다.</p>
-        </section>
-      ` : `
-        <section class="market-balance">
-          <div><span>총 자산</span><strong>${formatMoney(values.total)}원</strong></div>
-          <dl><div><dt>보유 현금</dt><dd>${formatMoney(values.cash)}원</dd></div><div><dt>주식 평가액</dt><dd>${formatMoney(values.invested)}원</dd></div></dl>
-        </section>
-        ${marketGoalStrip(values, portfolio)}
-        ${portfolio.qualifiedAt ? `<section class="qualification-banner"><strong>상품 교환 자격을 달성했습니다</strong><span>투자가 종료되어 자산이 고정되었습니다.</span><button type="button" class="ghost-btn" data-route="wallet">교환 상태 보기</button></section>` : ""}
-        <section class="market-section">
-          <div class="market-section-head"><div><span class="section-kicker">LIVE MARKET</span><h2>종목</h2></div><span>실시간 시세</span></div>
-          <div class="market-stock-list">
-            ${snapshot.map((stock) => {
-              const trend = marketTrend(stock);
-              return `
-                <button type="button" class="market-stock-row ${selected.id === stock.id ? "active" : ""}" data-market-stock="${stock.id}" style="--stock-color:${stock.color}">
-                  <span class="stock-symbol">${stock.symbol.slice(0, 1)}</span>
-                  <span class="stock-copy"><strong>${stock.name}</strong><small>${stock.description}</small></span>
-                  ${marketChart(stock)}
-                  <span class="stock-price"><strong>${formatMoney(stock.price)}원</strong><small class="${trend.className}">${trend.label}</small></span>
-                </button>
-              `;
-            }).join("")}
-          </div>
-        </section>
-        <section class="trade-panel" style="--stock-color:${selected.color}">
-          <div class="trade-heading">
-            <div><span class="stock-symbol">${selected.symbol.slice(0, 1)}</span><span><strong>${selected.name}</strong><small>보유 ${owned}주</small></span></div>
-            <div><strong>${formatMoney(selected.price)}원</strong><small class="${selectedTrend.className}">${selectedTrend.label}</small></div>
-          </div>
-          ${marketChart(selected, true)}
-          <div class="trade-controls">
-            <span>수량</span>
-            <div class="quantity-control">
-              <button type="button" data-market-quantity="-1" aria-label="수량 줄이기">−</button>
-              <input id="marketQuantity" type="number" min="1" max="99" inputmode="numeric" value="${quantity}" />
-              <button type="button" data-market-quantity="1" aria-label="수량 늘리기">+</button>
-            </div>
-          </div>
-          <div class="trade-total"><span>주문 금액</span><strong>${formatMoney(tradeAmount)}원</strong></div>
-          ${state.marketMessage ? `<p class="market-message">${state.marketMessage}</p>` : ""}
-          <div class="trade-actions">
-            <button id="marketSell" type="button" class="sell-btn" ${tradingLocked || owned < quantity ? "disabled" : ""}>매도</button>
-            <button id="marketBuy" type="button" class="buy-btn" ${tradingLocked || values.cash < tradeAmount ? "disabled" : ""}>매수</button>
-          </div>
-        </section>
-      `}
-      ${bottomNav("market")}
-    </main>
-  `;
-}
-
-function transactionCopy(transaction) {
-  const stock = MARKET_STOCKS.find((item) => item.id === transaction.stockId);
-  if (transaction.type === "grant") return { title: "스탬프 투자금 지급", detail: `+${formatMoney(transaction.amount)} ${state.db.marketSettings.currencyName}` };
-  if (transaction.type === "qualification") return { title: "상품 교환 자격 달성", detail: `${formatMoney(transaction.amount)}원` };
-  if (transaction.type === "buy") return { title: `${stock?.name || "주식"} 매수`, detail: `${transaction.quantity}주 · -${formatMoney(transaction.amount)}원` };
-  if (transaction.type === "sell") return { title: `${stock?.name || "주식"} 매도`, detail: `${transaction.quantity}주 · +${formatMoney(transaction.amount)}원` };
-  if (transaction.type === "exchange") return { title: "상품 교환 완료", detail: "재사용 불가" };
-  return { title: "거래", detail: `${formatMoney(transaction.amount || 0)}원` };
-}
-
-function transactionRows(transactions, emptyText = "아직 거래 내역이 없습니다.") {
-  if (!transactions.length) return `<p class="empty-copy">${emptyText}</p>`;
-  return transactions.map((transaction) => {
-    const copy = transactionCopy(transaction);
-    return `<div class="transaction-row"><span><strong>${copy.title}</strong><small>${new Date(transaction.createdAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</small></span><em>${copy.detail}</em></div>`;
-  }).join("");
-}
-
-function walletView() {
-  const adminPreview = Boolean(state.adminPreviewAdminId);
-  const settings = state.db.marketSettings;
-  const user = state.db.users.find((item) => item.id === state.user.id);
-  const portfolio = repo.portfolioForUser(state.user.id) || ensurePortfolio(state.user.id);
-  const snapshot = marketSnapshot();
-  const values = portfolioValues(portfolio, snapshot);
-  const holdings = snapshot.filter((stock) => (portfolio.holdings?.[stock.id] || 0) > 0);
-  const transactions = repo.marketTransactionsForUser(state.user.id).slice(0, 8);
-
-  return `
-    <main class="screen wallet-screen">
-      <header class="top-bar">
-        <button class="icon-btn" data-route="market">${icon("back")}</button>
-        <div class="top-title"><strong>${adminPreview ? "테스트 자산" : "내 자산"}</strong><span>${settings.currencyName} 포트폴리오</span></div>
-        <button class="icon-btn" data-route="stamps" title="스탬프">${icon("stamp")}</button>
-      </header>
-      <section class="wallet-hero ${portfolio.qualifiedAt ? "complete" : ""}">
-        <span>${portfolio.grantedAt ? "총 자산" : "투자 준비 중"}</span>
-        <h1>${portfolio.grantedAt ? `${formatMoney(values.total)}원` : "스탬프를 모아주세요"}</h1>
-        <div class="wallet-asset-grid"><div><span>현금</span><strong>${formatMoney(values.cash)}원</strong></div><div><span>주식</span><strong>${formatMoney(values.invested)}원</strong></div></div>
-      </section>
-      ${portfolio.grantedAt ? marketGoalStrip(values, portfolio) : ""}
-      <section class="prize-status ${user?.exchangedAt ? "exchanged" : portfolio.qualifiedAt ? "ready" : "waiting"}">
-        <span class="prize-status-mark">${user?.exchangedAt ? "완" : portfolio.qualifiedAt ? "성" : "목"}</span>
-        <div><strong>${user?.exchangedAt ? "상품 교환 완료" : portfolio.qualifiedAt ? "상품 교환 가능" : `목표 자산 ${formatMoney(settings.prizeTarget)}원`}</strong><p>${user?.exchangedAt ? "이미 교환 처리되어 다시 사용할 수 없습니다." : portfolio.qualifiedAt ? "운영 부스에서 관리자에게 이 화면을 보여주세요." : `목표까지 ${formatMoney(Math.max(settings.prizeTarget - values.total, 0))}원 남았습니다.`}</p></div>
-      </section>
-      <section class="wallet-section">
-        <div class="market-section-head"><div><span class="section-kicker">PORTFOLIO</span><h2>보유 종목</h2></div><span>${holdings.length}종목</span></div>
-        <div class="holding-list">
-          ${holdings.length ? holdings.map((stock) => {
-            const quantity = portfolio.holdings[stock.id];
-            return `<div class="holding-row" style="--stock-color:${stock.color}"><span class="stock-symbol">${stock.symbol.slice(0, 1)}</span><span><strong>${stock.name}</strong><small>${quantity}주 · 현재 ${formatMoney(stock.price)}원</small></span><em>${formatMoney(quantity * stock.price)}원</em></div>`;
-          }).join("") : `<p class="empty-copy">보유한 주식이 없습니다.</p>`}
-        </div>
-      </section>
-      <section class="wallet-section">
-        <div class="market-section-head"><div><span class="section-kicker">HISTORY</span><h2>거래 내역</h2></div></div>
-        <div class="transaction-list">${transactionRows(transactions)}</div>
-      </section>
-      ${bottomNav("wallet")}
     </main>
   `;
 }
@@ -1089,7 +708,7 @@ function adminView() {
     <main class="screen admin-screen">
       <header class="top-bar">
         <button class="icon-btn" data-route="map">${icon("back")}</button>
-        <div class="top-title"><strong>관리자 패널</strong><span>부스, 투자 보상, 상품 교환 관리</span></div>
+        <div class="top-title"><strong>관리자 패널</strong><span>부스, NFC, 리뷰, 교환 현황 관리</span></div>
         <button class="icon-btn" data-route="login">G</button>
       </header>
       <nav class="admin-tabs selector-bar">
@@ -1111,16 +730,10 @@ function adminView() {
 }
 
 function adminPanel() {
-  const settings = state.db.marketSettings;
-  const testUser = state.db.users.find((user) => user.googleUid === ADMIN_TEST_USER_UID) || null;
-  const testStampCount = testUser ? repo.stampsForUser(testUser.id).length : 0;
-  const testPortfolio = testUser ? repo.portfolioForUser(testUser.id) : null;
-  const nextTestBooth = state.db.booths.find((booth) => !testUser || !repo.hasStamp(testUser.id, booth.id)) || state.db.booths[0];
-  const regularUsers = state.db.users.filter((user) => user.role !== "admin" && user.googleUid !== ADMIN_TEST_USER_UID);
-  const investingUsers = regularUsers.filter((user) => repo.portfolioForUser(user.id)?.grantedAt);
-  const achievedUsers = regularUsers.filter((user) => repo.portfolioForUser(user.id)?.qualifiedAt);
+  const regularUsers = state.db.users.filter((user) => user.role !== "admin");
+  const achievedUsers = regularUsers.filter((user) => repo.stampsForUser(user.id).length >= GOAL_COUNT);
   const pendingExchange = achievedUsers.filter((user) => !user.exchangedAt);
-  const totalVisits = state.db.stamps.filter((stamp) => stamp.source !== "admin-test").length;
+  const totalVisits = state.db.stamps.length;
   const totalReviews = state.db.reviews.length;
   const reviewAverage = totalReviews
     ? state.db.reviews.reduce((sum, review) => sum + Number(review.rating), 0) / totalReviews
@@ -1132,41 +745,13 @@ function adminPanel() {
       <section class="admin-hero">
         <span class="admin-eyebrow">Festival Control</span>
         <h1>운영 현황</h1>
-        <p>방문 인증부터 투자금 지급, 상품 교환 대상까지 한 화면에서 확인합니다.</p>
+        <p>방문 인증, 리뷰, 음료 교환 대상을 한 화면에서 확인합니다.</p>
       </section>
       <section class="stats-grid admin-stats">
         <div class="stat"><span>총 방문 인증</span><strong>${totalVisits}</strong><small>스탬프 발급 수</small></div>
         <div class="stat"><span>총 리뷰</span><strong>${totalReviews}</strong><small>평균 ${reviewAverage.toFixed(1)}점</small></div>
-        <div class="stat"><span>투자 시작</span><strong>${investingUsers.length}</strong><small>전체 참여자 ${regularUsers.length}명</small></div>
-        <div class="stat ${pendingExchange.length ? "warn" : ""}"><span>상품 교환 대기</span><strong>${pendingExchange.length}</strong><small>목표 자산 달성</small></div>
-      </section>
-      <section class="panel section admin-panel-card market-settings-panel">
-        <div class="admin-section-head"><h2>투자 보상 기준</h2><span>축제 운영 설정</span></div>
-        ${state.adminMessage ? `<p class="success-text">${state.adminMessage}</p>` : ""}
-        <div class="market-settings-grid">
-          <label class="field">필요 스탬프 수<input id="marketStampGoal" class="input" type="number" min="1" max="${state.db.booths.length}" inputmode="numeric" value="${settings.stampGoal}" /></label>
-          <label class="field">지급 투자금<input id="marketGrantAmount" class="input" type="number" min="1000" step="1000" inputmode="numeric" value="${settings.grantAmount}" /></label>
-          <label class="field">상품 목표 자산<input id="marketPrizeTarget" class="input" type="number" min="1000" step="1000" inputmode="numeric" value="${settings.prizeTarget}" /></label>
-        </div>
-        <button id="saveMarketSettings" type="button" class="primary-btn">보상 기준 저장</button>
-      </section>
-      <section class="panel section admin-panel-card admin-test-panel">
-        <div class="admin-section-head"><h2>테스트 스탬프</h2><span>운영 통계 제외</span></div>
-        ${state.adminTestMessage ? `<p class="success-text">${state.adminTestMessage}</p>` : ""}
-        <div class="test-tool-status">
-          <strong class="stamp ${testStampCount ? "on" : ""}">${icon("stamp")}</strong>
-          <span><b>테스트 학생 · ${testStampCount}/${settings.stampGoal}개</b><small>${testPortfolio?.grantedAt ? `${formatMoney(testPortfolio.cash)} ${settings.currencyName} 보유` : `투자금 지급까지 ${Math.max(settings.stampGoal - testStampCount, 0)}개`}</small></span>
-        </div>
-        <label class="field">스탬프를 찍을 부스
-          <select id="adminTestBooth" class="select">
-            ${state.db.booths.map((booth) => `<option value="${booth.id}" ${booth.id === nextTestBooth?.id ? "selected" : ""}>${booth.name} · ${booth.location}</option>`).join("")}
-          </select>
-        </label>
-        <div class="admin-test-actions">
-          <button id="adminTestStamp" type="button" class="primary-btn">테스트 스탬프 찍기</button>
-          <button id="adminOpenTestMarket" type="button" class="ghost-btn market-test-open">테스트 투자 화면 열기</button>
-          <button id="resetAdminTestStamps" type="button" class="ghost-btn" ${testUser ? "" : "disabled"}>테스트 기록 초기화</button>
-        </div>
+        <div class="stat"><span>참여자</span><strong>${regularUsers.length}</strong><small>관리자 제외</small></div>
+        <div class="stat ${pendingExchange.length ? "warn" : ""}"><span>교환 대기</span><strong>${pendingExchange.length}</strong><small>목표 ${GOAL_COUNT}개 달성</small></div>
       </section>
       <section class="panel section admin-panel-card">
         <div class="admin-section-head"><h2>인기 부스 TOP 5</h2><span>방문수 기준</span></div>
@@ -1175,7 +760,7 @@ function adminPanel() {
       <section class="panel section admin-panel-card">
         <div class="admin-section-head"><h2>운영 체크</h2><span>빠른 점검</span></div>
         <div class="check-row ${state.db.booths.every((booth) => booth.nfcTagId) ? "ok" : "warn"}"><strong>NFC 태그</strong><span>${state.db.booths.filter((booth) => booth.nfcTagId).length}/${state.db.booths.length}개 등록</span></div>
-        <div class="check-row ${pendingExchange.length ? "warn" : "ok"}"><strong>상품 교환</strong><span>${pendingExchange.length ? `${pendingExchange.length}명 처리 필요` : "대기자 없음"}</span></div>
+        <div class="check-row ${pendingExchange.length ? "warn" : "ok"}"><strong>음료 교환</strong><span>${pendingExchange.length ? `${pendingExchange.length}명 처리 필요` : "대기자 없음"}</span></div>
       </section>
     `;
   }
@@ -1244,13 +829,8 @@ function reviewRow(review) {
 }
 
 function userRow(user) {
-  const settings = state.db.marketSettings;
   const stampCount = repo.stampsForUser(user.id).length;
-  const progress = Math.min(100, Math.round((stampCount / settings.stampGoal) * 100));
-  const portfolio = repo.portfolioForUser(user.id);
-  const values = portfolio?.grantedAt ? portfolioValues(portfolio) : null;
-  const qualified = Boolean(portfolio?.qualifiedAt);
-  const status = user.exchangedAt ? "교환 완료" : qualified ? "교환 가능" : portfolio?.grantedAt ? "투자 중" : "스탬프 수집 중";
+  const progress = Math.min(100, Math.round((stampCount / GOAL_COUNT) * 100));
   return `
     <div class="table-row admin-row">
       <div class="row-main">
@@ -1258,8 +838,8 @@ function userRow(user) {
         <p class="subtitle">${user.studentNumber} · ${user.schoolId} · ${user.googleEmail || "Google 미연동"}</p>
       </div>
       <div class="mini-progress"><span style="width:${progress}%"></span></div>
-      <div class="row-metrics"><span>스탬프 ${stampCount}/${settings.stampGoal}</span><span>${values ? `자산 ${formatMoney(values.total)}원` : status}</span><span>${status}</span></div>
-      <button type="button" class="ghost-btn exchange-btn" data-exchange="${user.id}" ${!qualified || user.exchangedAt ? "disabled" : ""}>${user.exchangedAt ? "상품 교환 완료" : "상품 교환 완료 처리"}</button>
+      <div class="row-metrics"><span>스탬프 ${stampCount}/${GOAL_COUNT}</span><span>${user.exchangedAt ? "교환 완료" : stampCount >= GOAL_COUNT ? "교환 가능" : "진행 중"}</span></div>
+      <button type="button" class="ghost-btn exchange-btn" data-exchange="${user.id}" ${stampCount < GOAL_COUNT || user.exchangedAt ? "disabled" : ""}>${user.exchangedAt ? "교환 완료" : "음료 교환 완료 처리"}</button>
     </div>
   `;
 }
@@ -1274,30 +854,11 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
-  if (state.adminPreviewAdminId) {
-    return `
-      <nav class="bottom-nav admin-preview-nav">
-        <button class="nav-btn ${active === "market" ? "active" : ""}" data-route="market"><span class="nav-letter">투</span><span>투자</span></button>
-        <button class="nav-btn ${active === "wallet" ? "active" : ""}" data-route="wallet"><span class="nav-letter">원</span><span>자산</span></button>
-        <button class="nav-btn ${active === "stamps" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>스탬프</span></button>
-        <button class="nav-btn admin-return-nav" data-admin-preview-exit><span>${icon("admin")}</span><span>관리</span></button>
-      </nav>
-    `;
-  }
-  if (state.user?.role === "admin") {
-    return `
-      <nav class="bottom-nav admin-bottom-nav">
-        <button class="nav-btn ${active === "map" ? "active" : ""}" data-route="map"><span>${icon("map")}</span><span>지도</span></button>
-        <button class="nav-btn ${active === "admin" ? "active" : ""}" data-route="admin"><span>${icon("admin")}</span><span>관리</span></button>
-      </nav>
-    `;
-  }
   return `
     <nav class="bottom-nav">
       <button class="nav-btn ${active === "map" ? "active" : ""}" data-route="map"><span>${icon("map")}</span><span>지도</span></button>
-      <button class="nav-btn ${active === "market" ? "active" : ""}" data-route="market"><span class="nav-letter">투</span><span>투자</span></button>
-      <button class="nav-btn ${active === "wallet" ? "active" : ""}" data-route="wallet"><span class="nav-letter">원</span><span>자산</span></button>
       <button class="nav-btn ${active === "stamps" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>스탬프</span></button>
+      <button class="nav-btn ${active === "admin" ? "active" : ""}" data-route="admin"><span>${icon("admin")}</span><span>관리</span></button>
     </nav>
   `;
 }
@@ -1317,7 +878,7 @@ function bindEvents() {
     state.openMenu = null;
     render();
   };
-  document.querySelectorAll("button[data-route]").forEach((button) => {
+  document.querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
       closeMenus();
       state.searchOpen = false;
@@ -1445,25 +1006,6 @@ function bindEvents() {
     render();
   }));
   document.querySelector("#submitReview")?.addEventListener("click", submitReview);
-  document.querySelectorAll("[data-market-stock]").forEach((button) => button.addEventListener("click", () => {
-    state.marketStockId = button.dataset.marketStock;
-    state.marketQuantity = 1;
-    state.marketMessage = "";
-    render();
-  }));
-  document.querySelectorAll("[data-market-quantity]").forEach((button) => button.addEventListener("click", () => {
-    const next = Number(state.marketQuantity) + Number(button.dataset.marketQuantity);
-    state.marketQuantity = Math.min(99, Math.max(1, Math.floor(next || 1)));
-    state.marketMessage = "";
-    render();
-  }));
-  document.querySelector("#marketQuantity")?.addEventListener("change", (event) => {
-    state.marketQuantity = Math.min(99, Math.max(1, Math.floor(Number(event.target.value) || 1)));
-    state.marketMessage = "";
-    render();
-  });
-  document.querySelector("#marketBuy")?.addEventListener("click", () => marketTrade("buy"));
-  document.querySelector("#marketSell")?.addEventListener("click", () => marketTrade("sell"));
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
     state.adminTab = button.dataset.adminTab;
@@ -1475,11 +1017,6 @@ function bindEvents() {
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
-  document.querySelector("#saveMarketSettings")?.addEventListener("click", saveMarketSettings);
-  document.querySelector("#adminTestStamp")?.addEventListener("click", issueAdminTestStamp);
-  document.querySelector("#adminOpenTestMarket")?.addEventListener("click", enterAdminTestMarket);
-  document.querySelector("#resetAdminTestStamps")?.addEventListener("click", resetAdminTestStamps);
-  document.querySelectorAll("[data-admin-preview-exit]").forEach((button) => button.addEventListener("click", exitAdminTestMarket));
 }
 
 function closeMenus() {
@@ -1515,38 +1052,22 @@ function bindSheetDrag() {
   let startTranslate = 0;
   let currentTranslate = 0;
   let dragging = false;
-  let peekTarget = 0;
-  let midTarget = 0;
-  let paintFrame = 0;
-  let pendingTranslate = 0;
 
-  const measureTargets = () => {
-    peekTarget = Math.max(0, sheet.getBoundingClientRect().height - 132);
-    midTarget = Math.round(window.innerHeight * 0.34);
-  };
+  const peekTranslate = () => Math.max(0, sheet.getBoundingClientRect().height - 132);
+  const midTranslate = () => Math.round(window.innerHeight * 0.34);
   const translateForLevel = (level) => {
     if (level === "full") return 0;
-    if (level === "mid") return midTarget;
-    return peekTarget;
+    if (level === "mid") return midTranslate();
+    return peekTranslate();
   };
-  const clampTranslate = (value) => Math.min(peekTarget, Math.max(0, value));
-  const queuePaint = (translate) => {
-    pendingTranslate = translate;
-    if (paintFrame) return;
-    paintFrame = requestAnimationFrame(() => {
-      paintFrame = 0;
-      sheet.style.transform = `translateY(${pendingTranslate}px)`;
-    });
-  };
+  const clampTranslate = (value) => Math.min(peekTranslate(), Math.max(0, value));
 
   const finish = () => {
     if (!dragging) return;
-    if (paintFrame) cancelAnimationFrame(paintFrame);
-    paintFrame = 0;
     const targets = [
       ["full", 0],
-      ["mid", midTarget],
-      ["peek", peekTarget],
+      ["mid", midTranslate()],
+      ["peek", peekTranslate()],
     ];
     const [level] = targets.reduce((best, item) => (
       Math.abs(item[1] - currentTranslate) < Math.abs(best[1] - currentTranslate) ? item : best
@@ -1559,7 +1080,6 @@ function bindSheetDrag() {
   };
 
   handle.addEventListener("pointerdown", (event) => {
-    measureTargets();
     dragging = true;
     startY = event.clientY;
     startTranslate = translateForLevel(state.sheetLevel);
@@ -1570,7 +1090,7 @@ function bindSheetDrag() {
   handle.addEventListener("pointermove", (event) => {
     if (!dragging) return;
     currentTranslate = clampTranslate(startTranslate + event.clientY - startY);
-    queuePaint(currentTranslate);
+    sheet.style.transform = `translateY(${currentTranslate}px)`;
   });
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
@@ -1592,19 +1112,9 @@ function bindMapDrag() {
   let moved = false;
   let lastTap = { time: 0, x: 0, y: 0 };
   let lastTouchZoomAt = 0;
-  let transformFrame = 0;
-  let pendingTransform = "";
 
   const clamp = (value, max) => Math.min(max, Math.max(-max, value));
   const distance = ([first, second]) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
-  const queueTransform = (value) => {
-    pendingTransform = value;
-    if (transformFrame) return;
-    transformFrame = requestAnimationFrame(() => {
-      transformFrame = 0;
-      canvas.style.transform = pendingTransform;
-    });
-  };
   const zoomAt = (clientX, clientY) => {
     const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
     const rect = card.getBoundingClientRect();
@@ -1647,20 +1157,18 @@ function bindMapDrag() {
       const nextY = clamp(state.mapOffsetY, maxY);
       state.mapOffsetX = nextX;
       state.mapOffsetY = nextY;
-      queueTransform(`translate(${nextX}px, ${nextY}px) scale(${nextZoom})`);
+      canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${nextZoom})`;
       return;
     }
     const maxX = 72 * state.mapZoom;
     const maxY = 92 * state.mapZoom;
     const nextX = clamp(baseX + event.clientX - startX, maxX);
     const nextY = clamp(baseY + event.clientY - startY, maxY);
-    queueTransform(`translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`);
+    canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`;
   });
 
   const finish = (event) => {
     if (!dragging) return;
-    if (transformFrame) cancelAnimationFrame(transformFrame);
-    transformFrame = 0;
     pointers.delete(event.pointerId);
     if (pointers.size >= 1) {
       const [remaining] = pointers.values();
@@ -1713,7 +1221,6 @@ function bindMapDrag() {
 
 function resetLogin() {
   state.user = null;
-  state.adminPreviewAdminId = null;
   state.authStep = "google";
   state.pendingGoogle = null;
   state.authIntent = "student";
@@ -1817,7 +1324,6 @@ function finishAdminGoogleLogin(google) {
     role: "admin",
   });
   saveDb();
-  state.adminPreviewAdminId = null;
   state.user = admin;
   state.route = "admin";
   state.loginError = "";
@@ -1868,170 +1374,6 @@ function submitReview() {
   if (!content) return;
   if (!repo.hasStamp(state.user.id, state.selectedBoothId) || repo.hasReview(state.user.id, state.selectedBoothId)) return;
   state.db.reviews.push({ id: makeId(), userId: state.user.id, boothId: state.selectedBoothId, rating: state.reviewRating, content, createdAt: new Date().toISOString() });
-  saveDb();
-  render();
-}
-
-function marketTrade(type) {
-  const portfolio = ensurePortfolio(state.user.id);
-  if (!portfolio.grantedAt) {
-    state.marketMessage = "스탬프 목표를 달성하면 거래할 수 있습니다.";
-    render();
-    return;
-  }
-  if (portfolio.qualifiedAt) {
-    state.marketMessage = "상품 교환 자격을 달성해 자산이 고정되었습니다.";
-    render();
-    return;
-  }
-
-  const snapshot = marketSnapshot();
-  const stock = snapshot.find((item) => item.id === state.marketStockId) || snapshot[0];
-  const quantity = Math.min(99, Math.max(1, Math.floor(Number(state.marketQuantity) || 1)));
-  const amount = stock.price * quantity;
-  const owned = portfolio.holdings[stock.id] || 0;
-
-  if (type === "buy" && portfolio.cash < amount) {
-    state.marketMessage = "보유 현금이 부족합니다.";
-    render();
-    return;
-  }
-  if (type === "sell" && owned < quantity) {
-    state.marketMessage = "보유 수량이 부족합니다.";
-    render();
-    return;
-  }
-
-  if (type === "buy") {
-    portfolio.cash -= amount;
-    portfolio.holdings[stock.id] = owned + quantity;
-  } else {
-    portfolio.cash += amount;
-    portfolio.holdings[stock.id] = owned - quantity;
-  }
-  addMarketTransaction(state.user.id, type, {
-    stockId: stock.id,
-    quantity,
-    price: stock.price,
-    amount,
-  });
-  saveDb();
-  const qualified = syncMarketQualification(state.user.id);
-  state.marketMessage = qualified
-    ? "목표 자산을 달성했습니다. 상품 교환 자격이 확정되었습니다."
-    : `${stock.name} ${quantity}주를 ${type === "buy" ? "매수" : "매도"}했습니다.`;
-  render();
-}
-
-function saveMarketSettings() {
-  const stampGoal = Math.floor(Number(document.querySelector("#marketStampGoal")?.value));
-  const grantAmount = Math.floor(Number(document.querySelector("#marketGrantAmount")?.value));
-  const prizeTarget = Math.floor(Number(document.querySelector("#marketPrizeTarget")?.value));
-  if (!stampGoal || stampGoal < 1 || stampGoal > state.db.booths.length) {
-    state.adminMessage = `필요 스탬프 수는 1~${state.db.booths.length} 사이로 입력해주세요.`;
-    render();
-    return;
-  }
-  if (!grantAmount || grantAmount < 1000) {
-    state.adminMessage = "지급 투자금은 1,000원 이상으로 입력해주세요.";
-    render();
-    return;
-  }
-  if (!prizeTarget || prizeTarget <= grantAmount) {
-    state.adminMessage = "상품 목표 자산은 지급 투자금보다 크게 입력해주세요.";
-    render();
-    return;
-  }
-  state.db.marketSettings = {
-    ...state.db.marketSettings,
-    stampGoal,
-    grantAmount,
-    prizeTarget,
-  };
-  saveDb();
-  state.db.users.filter((user) => user.role !== "admin").forEach((user) => {
-    syncMarketReward(user.id);
-    syncMarketQualification(user.id);
-  });
-  state.adminMessage = "투자 보상 기준을 저장했습니다.";
-  saveDb();
-  render();
-}
-
-function ensureAdminTestUser() {
-  let user = state.db.users.find((item) => item.googleUid === ADMIN_TEST_USER_UID);
-  if (user) return user;
-  user = {
-    id: makeId(),
-    googleUid: ADMIN_TEST_USER_UID,
-    googleEmail: "test-student@pangyo.local",
-    studentNumber: "TEST-001",
-    schoolId: "admin-stamp-test",
-    name: "테스트 학생",
-    role: "user",
-    testOnly: true,
-    exchangedAt: null,
-  };
-  state.db.users.push(user);
-  return user;
-}
-
-function issueAdminTestStamp() {
-  if (state.user?.role !== "admin") return;
-  const boothId = document.querySelector("#adminTestBooth")?.value;
-  const booth = state.db.booths.find((item) => item.id === boothId);
-  if (!booth) return;
-  const testUser = ensureAdminTestUser();
-  const result = awardStamp(testUser.id, booth.id, "admin-test");
-  if (!result.awarded) {
-    state.adminTestMessage = `${booth.name} 스탬프는 이미 테스트했습니다.`;
-  } else if (result.rewardGranted) {
-    state.adminTestMessage = `${booth.name} 스탬프 획득 · ${formatMoney(state.db.marketSettings.grantAmount)} ${state.db.marketSettings.currencyName} 지급 완료`;
-  } else {
-    state.adminTestMessage = `${booth.name} 테스트 스탬프를 찍었습니다.`;
-  }
-  saveDb();
-  render();
-}
-
-function enterAdminTestMarket() {
-  if (state.user?.role !== "admin") return;
-  const adminId = state.user.id;
-  const testUser = ensureAdminTestUser();
-  saveDb();
-  state.adminPreviewAdminId = adminId;
-  state.user = testUser;
-  state.route = "market";
-  state.marketMessage = "";
-  render();
-}
-
-function exitAdminTestMarket() {
-  const admin = state.db.users.find((user) => user.id === state.adminPreviewAdminId && user.role === "admin");
-  state.adminPreviewAdminId = null;
-  if (!admin) {
-    resetLogin();
-    state.route = "login";
-    render();
-    return;
-  }
-  state.user = admin;
-  state.route = "admin";
-  state.adminTab = "dashboard";
-  state.marketMessage = "";
-  render();
-}
-
-function resetAdminTestStamps() {
-  if (state.user?.role !== "admin") return;
-  const testUser = state.db.users.find((item) => item.googleUid === ADMIN_TEST_USER_UID);
-  if (!testUser) return;
-  state.db.stamps = state.db.stamps.filter((stamp) => stamp.userId !== testUser.id);
-  state.db.reviews = state.db.reviews.filter((review) => review.userId !== testUser.id);
-  state.db.portfolios = state.db.portfolios.filter((portfolio) => portfolio.userId !== testUser.id);
-  state.db.marketTransactions = state.db.marketTransactions.filter((transaction) => transaction.userId !== testUser.id);
-  state.db.users = state.db.users.filter((user) => user.id !== testUser.id);
-  state.adminTestMessage = "테스트 학생의 스탬프와 투자 기록을 초기화했습니다.";
   saveDb();
   render();
 }
@@ -2102,18 +1444,15 @@ function deleteReview(id) {
 
 function completeExchange(id) {
   const user = state.db.users.find((item) => item.id === id);
-  const portfolio = repo.portfolioForUser(id);
-  if (!user || !portfolio?.qualifiedAt || user.exchangedAt) return;
   user.exchangedAt = new Date().toISOString();
-  addMarketTransaction(id, "exchange", { amount: portfolioValues(portfolio).total });
   saveDb();
   render();
 }
 
-function showStampPop(message = "스탬프 획득") {
+function showStampPop() {
   const pop = document.createElement("div");
   pop.className = "stamp-pop";
-  pop.textContent = message;
+  pop.textContent = "스탬프 획득";
   document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 1200);
 }
