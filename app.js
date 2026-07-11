@@ -58,6 +58,7 @@ const state = {
   loginError: "",
   adminMessage: "",
   adminTestMessage: "",
+  adminPreviewAdminId: null,
   marketStockId: "happy-tech",
   marketQuantity: 1,
   marketMessage: "",
@@ -849,6 +850,7 @@ function reviewView(review) {
 }
 
 function stampView() {
+  const adminPreview = Boolean(state.adminPreviewAdminId);
   const count = repo.stampsForUser(state.user.id).length;
   const total = state.db.booths.length;
   const settings = state.db.marketSettings;
@@ -858,8 +860,8 @@ function stampView() {
   return `
     <main class="screen stamp-screen">
       <header class="top-bar">
-        <button class="icon-btn" data-route="map">${icon("back")}</button>
-        <div class="top-title"><strong>스탬프 현황</strong><span>목표 ${settings.stampGoal}개 달성 시 투자금 지급</span></div>
+        ${adminPreview ? `<button class="icon-btn" data-admin-preview-exit title="관리자로 돌아가기">${icon("back")}</button>` : `<button class="icon-btn" data-route="map">${icon("back")}</button>`}
+        <div class="top-title"><strong>${adminPreview ? "테스트 스탬프" : "스탬프 현황"}</strong><span>목표 ${settings.stampGoal}개 달성 시 투자금 지급</span></div>
         <button class="icon-btn top-money-btn" data-route="market" title="투자">원</button>
       </header>
       <section class="panel stamp-reward-panel">
@@ -916,6 +918,7 @@ function marketGoalStrip(values, portfolio) {
 }
 
 function marketView() {
+  const adminPreview = Boolean(state.adminPreviewAdminId);
   const settings = state.db.marketSettings;
   const stampCount = repo.stampsForUser(state.user.id).length;
   const portfolio = repo.portfolioForUser(state.user.id) || ensurePortfolio(state.user.id);
@@ -931,8 +934,8 @@ function marketView() {
   return `
     <main class="screen market-screen">
       <header class="top-bar">
-        <button class="icon-btn" data-route="map">${icon("back")}</button>
-        <div class="top-title"><strong>판교마켓</strong><span>축제 가상 주식 투자</span></div>
+        ${adminPreview ? `<button class="icon-btn" data-admin-preview-exit title="관리자로 돌아가기">${icon("back")}</button>` : `<button class="icon-btn" data-route="map">${icon("back")}</button>`}
+        <div class="top-title"><strong>${adminPreview ? "관리자 투자 테스트" : "판교마켓"}</strong><span>${adminPreview ? "테스트 학생 포트폴리오" : "축제 가상 주식 투자"}</span></div>
         <button class="icon-btn top-money-btn" data-route="wallet" title="내 자산">원</button>
       </header>
       ${!portfolio.grantedAt ? `
@@ -1013,6 +1016,7 @@ function transactionRows(transactions, emptyText = "아직 거래 내역이 없�
 }
 
 function walletView() {
+  const adminPreview = Boolean(state.adminPreviewAdminId);
   const settings = state.db.marketSettings;
   const user = state.db.users.find((item) => item.id === state.user.id);
   const portfolio = repo.portfolioForUser(state.user.id) || ensurePortfolio(state.user.id);
@@ -1025,7 +1029,7 @@ function walletView() {
     <main class="screen wallet-screen">
       <header class="top-bar">
         <button class="icon-btn" data-route="market">${icon("back")}</button>
-        <div class="top-title"><strong>내 자산</strong><span>${settings.currencyName} 포트폴리오</span></div>
+        <div class="top-title"><strong>${adminPreview ? "테스트 자산" : "내 자산"}</strong><span>${settings.currencyName} 포트폴리오</span></div>
         <button class="icon-btn" data-route="stamps" title="스탬프">${icon("stamp")}</button>
       </header>
       <section class="wallet-hero ${portfolio.qualifiedAt ? "complete" : ""}">
@@ -1143,6 +1147,7 @@ function adminPanel() {
         </label>
         <div class="admin-test-actions">
           <button id="adminTestStamp" type="button" class="primary-btn">테스트 스탬프 찍기</button>
+          <button id="adminOpenTestMarket" type="button" class="ghost-btn market-test-open">테스트 투자 화면 열기</button>
           <button id="resetAdminTestStamps" type="button" class="ghost-btn" ${testUser ? "" : "disabled"}>테스트 기록 초기화</button>
         </div>
       </section>
@@ -1252,6 +1257,16 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
+  if (state.adminPreviewAdminId) {
+    return `
+      <nav class="bottom-nav admin-preview-nav">
+        <button class="nav-btn ${active === "market" ? "active" : ""}" data-route="market"><span class="nav-letter">투</span><span>투자</span></button>
+        <button class="nav-btn ${active === "wallet" ? "active" : ""}" data-route="wallet"><span class="nav-letter">원</span><span>자산</span></button>
+        <button class="nav-btn ${active === "stamps" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>스탬프</span></button>
+        <button class="nav-btn admin-return-nav" data-admin-preview-exit><span>${icon("admin")}</span><span>관리</span></button>
+      </nav>
+    `;
+  }
   if (state.user?.role === "admin") {
     return `
       <nav class="bottom-nav admin-bottom-nav">
@@ -1445,7 +1460,9 @@ function bindEvents() {
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
   document.querySelector("#saveMarketSettings")?.addEventListener("click", saveMarketSettings);
   document.querySelector("#adminTestStamp")?.addEventListener("click", issueAdminTestStamp);
+  document.querySelector("#adminOpenTestMarket")?.addEventListener("click", enterAdminTestMarket);
   document.querySelector("#resetAdminTestStamps")?.addEventListener("click", resetAdminTestStamps);
+  document.querySelectorAll("[data-admin-preview-exit]").forEach((button) => button.addEventListener("click", exitAdminTestMarket));
 }
 
 function closeMenus() {
@@ -1679,6 +1696,7 @@ function bindMapDrag() {
 
 function resetLogin() {
   state.user = null;
+  state.adminPreviewAdminId = null;
   state.authStep = "google";
   state.pendingGoogle = null;
   state.authIntent = "student";
@@ -1782,6 +1800,7 @@ function finishAdminGoogleLogin(google) {
     role: "admin",
   });
   saveDb();
+  state.adminPreviewAdminId = null;
   state.user = admin;
   state.route = "admin";
   state.loginError = "";
@@ -1955,6 +1974,34 @@ function issueAdminTestStamp() {
     state.adminTestMessage = `${booth.name} 테스트 스탬프를 찍었습니다.`;
   }
   saveDb();
+  render();
+}
+
+function enterAdminTestMarket() {
+  if (state.user?.role !== "admin") return;
+  const adminId = state.user.id;
+  const testUser = ensureAdminTestUser();
+  saveDb();
+  state.adminPreviewAdminId = adminId;
+  state.user = testUser;
+  state.route = "market";
+  state.marketMessage = "";
+  render();
+}
+
+function exitAdminTestMarket() {
+  const admin = state.db.users.find((user) => user.id === state.adminPreviewAdminId && user.role === "admin");
+  state.adminPreviewAdminId = null;
+  if (!admin) {
+    resetLogin();
+    state.route = "login";
+    render();
+    return;
+  }
+  state.user = admin;
+  state.route = "admin";
+  state.adminTab = "dashboard";
+  state.marketMessage = "";
   render();
 }
 

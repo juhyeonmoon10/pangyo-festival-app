@@ -114,6 +114,8 @@ async function run() {
 
   await page.evaluate(() => {
     state.adminTab = "dashboard";
+    state.db.marketSettings.prizeTarget = 120000;
+    saveDb();
     render();
   });
   await expectVisible(page, "#adminTestStamp", "admin stamp test tool");
@@ -131,6 +133,24 @@ async function run() {
   if (adminStampTest.stampCount !== 3 || !adminStampTest.testSourcesOnly || !adminStampTest.rewardGranted) {
     throw new Error(`admin stamp test failed: ${JSON.stringify(adminStampTest)}`);
   }
+  await page.click("#adminOpenTestMarket");
+  await expectVisible(page, ".market-stock-list", "admin market test");
+  await page.click("#marketBuy");
+  const adminMarketTest = await page.evaluate(() => {
+    const portfolio = repo.portfolioForUser(state.user.id);
+    return {
+      previewActive: Boolean(state.adminPreviewAdminId),
+      testUserActive: state.user.googleUid === ADMIN_TEST_USER_UID,
+      shares: Object.values(portfolio.holdings).reduce((sum, quantity) => sum + quantity, 0),
+    };
+  });
+  if (!adminMarketTest.previewActive || !adminMarketTest.testUserActive || adminMarketTest.shares !== 1) {
+    throw new Error(`admin market test failed: ${JSON.stringify(adminMarketTest)}`);
+  }
+  await page.click('[data-route="wallet"]');
+  await expectVisible(page, ".wallet-screen", "admin test wallet");
+  await page.locator("[data-admin-preview-exit]").last().click();
+  await expectVisible(page, ".admin-screen", "admin return");
   await page.click("#resetAdminTestStamps");
   const adminTestReset = await page.evaluate(() => ({
     userExists: state.db.users.some((item) => item.googleUid === ADMIN_TEST_USER_UID),
@@ -146,6 +166,7 @@ async function run() {
     trade,
     sold,
     adminStampTest,
+    adminMarketTest,
     adminTestReset,
     mobileLayout,
     errors,

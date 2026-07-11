@@ -3325,10 +3325,24 @@ button {
   min-width: 0;
 }
 
+.admin-test-actions .market-test-open {
+  color: #fff;
+  background: var(--text);
+}
+
+#resetAdminTestStamps {
+  grid-column: 1 / -1;
+}
+
 .admin-test-actions .ghost-btn:disabled {
   color: #9aa5b5;
   background: #e8edf3;
   cursor: not-allowed;
+}
+
+.admin-preview-nav .admin-return-nav {
+  color: var(--text);
+  background: #eef2f7;
 }
 
 @media (max-width: 390px) {
@@ -3351,6 +3365,10 @@ button {
 
   .admin-test-actions {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  #resetAdminTestStamps {
+    grid-column: auto;
   }
 }
 
