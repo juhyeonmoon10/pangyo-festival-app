@@ -2571,6 +2571,20 @@ button {
   opacity: 0.68;
 }
 
+/* Animate actual page changes only; repeated state updates stay lightweight. */
+.screen {
+  animation: none;
+}
+
+.app-shell.route-change .screen {
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.map-screen.sheet-full .map-stage {
+  filter: none;
+  opacity: 0.92;
+}
+
 .current-position-dot::after,
 .marker.selected::before {
   animation: none;

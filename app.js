@@ -228,8 +228,12 @@ function render() {
   renderInProgress = true;
   const app = document.querySelector("#app");
   try {
+    const hasRenderedRoute = Boolean(app.dataset.route);
     const previousRoute = app.dataset.route || state.route;
     const nextRoute = state.route;
+    const routeChanged = !hasRenderedRoute || previousRoute !== nextRoute;
+    app.classList.toggle("route-change", routeChanged);
+    app.classList.toggle("state-update", !routeChanged);
     if (state.route === "login") app.innerHTML = loginView();
     if (state.route === "map") app.innerHTML = mapView();
     if (state.route === "detail") app.innerHTML = detailView();
@@ -878,7 +882,7 @@ function bindEvents() {
     state.openMenu = null;
     render();
   };
-  document.querySelectorAll("[data-route]").forEach((button) => {
+  document.querySelectorAll("button[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
       closeMenus();
       state.searchOpen = false;
@@ -1052,22 +1056,38 @@ function bindSheetDrag() {
   let startTranslate = 0;
   let currentTranslate = 0;
   let dragging = false;
+  let peekTarget = 0;
+  let midTarget = 0;
+  let paintFrame = 0;
+  let pendingTranslate = 0;
 
-  const peekTranslate = () => Math.max(0, sheet.getBoundingClientRect().height - 132);
-  const midTranslate = () => Math.round(window.innerHeight * 0.34);
+  const measureTargets = () => {
+    peekTarget = Math.max(0, sheet.getBoundingClientRect().height - 132);
+    midTarget = Math.round(window.innerHeight * 0.34);
+  };
   const translateForLevel = (level) => {
     if (level === "full") return 0;
-    if (level === "mid") return midTranslate();
-    return peekTranslate();
+    if (level === "mid") return midTarget;
+    return peekTarget;
   };
-  const clampTranslate = (value) => Math.min(peekTranslate(), Math.max(0, value));
+  const clampTranslate = (value) => Math.min(peekTarget, Math.max(0, value));
+  const queuePaint = (translate) => {
+    pendingTranslate = translate;
+    if (paintFrame) return;
+    paintFrame = requestAnimationFrame(() => {
+      paintFrame = 0;
+      sheet.style.transform = `translateY(${pendingTranslate}px)`;
+    });
+  };
 
   const finish = () => {
     if (!dragging) return;
+    if (paintFrame) cancelAnimationFrame(paintFrame);
+    paintFrame = 0;
     const targets = [
       ["full", 0],
-      ["mid", midTranslate()],
-      ["peek", peekTranslate()],
+      ["mid", midTarget],
+      ["peek", peekTarget],
     ];
     const [level] = targets.reduce((best, item) => (
       Math.abs(item[1] - currentTranslate) < Math.abs(best[1] - currentTranslate) ? item : best
@@ -1080,6 +1100,7 @@ function bindSheetDrag() {
   };
 
   handle.addEventListener("pointerdown", (event) => {
+    measureTargets();
     dragging = true;
     startY = event.clientY;
     startTranslate = translateForLevel(state.sheetLevel);
@@ -1090,7 +1111,7 @@ function bindSheetDrag() {
   handle.addEventListener("pointermove", (event) => {
     if (!dragging) return;
     currentTranslate = clampTranslate(startTranslate + event.clientY - startY);
-    sheet.style.transform = `translateY(${currentTranslate}px)`;
+    queuePaint(currentTranslate);
   });
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
@@ -1112,9 +1133,19 @@ function bindMapDrag() {
   let moved = false;
   let lastTap = { time: 0, x: 0, y: 0 };
   let lastTouchZoomAt = 0;
+  let transformFrame = 0;
+  let pendingTransform = "";
 
   const clamp = (value, max) => Math.min(max, Math.max(-max, value));
   const distance = ([first, second]) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  const queueTransform = (value) => {
+    pendingTransform = value;
+    if (transformFrame) return;
+    transformFrame = requestAnimationFrame(() => {
+      transformFrame = 0;
+      canvas.style.transform = pendingTransform;
+    });
+  };
   const zoomAt = (clientX, clientY) => {
     const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
     const rect = card.getBoundingClientRect();
@@ -1157,18 +1188,20 @@ function bindMapDrag() {
       const nextY = clamp(state.mapOffsetY, maxY);
       state.mapOffsetX = nextX;
       state.mapOffsetY = nextY;
-      canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${nextZoom})`;
+      queueTransform(`translate(${nextX}px, ${nextY}px) scale(${nextZoom})`);
       return;
     }
     const maxX = 72 * state.mapZoom;
     const maxY = 92 * state.mapZoom;
     const nextX = clamp(baseX + event.clientX - startX, maxX);
     const nextY = clamp(baseY + event.clientY - startY, maxY);
-    canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`;
+    queueTransform(`translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`);
   });
 
   const finish = (event) => {
     if (!dragging) return;
+    if (transformFrame) cancelAnimationFrame(transformFrame);
+    transformFrame = 0;
     pointers.delete(event.pointerId);
     if (pointers.size >= 1) {
       const [remaining] = pointers.values();
