@@ -343,18 +343,25 @@ function icon(name) {
 
 let renderInProgress = false;
 let marketRefreshTimer = null;
+let lastMarketRefreshTick = null;
 
-function render() {
+function render(options = {}) {
   if (renderInProgress) return;
   renderInProgress = true;
   const app = document.querySelector("#app");
+  const preserveScroll = Boolean(options.preserveScroll);
+  const previousScroll = preserveScroll ? { x: window.scrollX, y: window.scrollY } : null;
   try {
     if (state.user && state.user.role !== "admin") {
       syncMarketReward(state.user.id);
       syncMarketQualification(state.user.id);
     }
+    const hasRenderedRoute = Boolean(app.dataset.route);
     const previousRoute = app.dataset.route || state.route;
     const nextRoute = state.route;
+    const routeChanged = !hasRenderedRoute || previousRoute !== nextRoute;
+    app.classList.toggle("route-change", routeChanged);
+    app.classList.toggle("state-update", !routeChanged);
     if (state.route === "login") app.innerHTML = loginView();
     if (state.route === "map") app.innerHTML = mapView();
     if (state.route === "market") app.innerHTML = marketView();
@@ -365,7 +372,11 @@ function render() {
     app.dataset.previousRoute = previousRoute;
     app.dataset.route = nextRoute;
     bindEvents();
+    if (["market", "wallet"].includes(state.route)) lastMarketRefreshTick = marketTick();
     scheduleMarketRefresh();
+    if (previousScroll) {
+      requestAnimationFrame(() => window.scrollTo(previousScroll.x, previousScroll.y));
+    }
   } finally {
     renderInProgress = false;
   }
@@ -374,13 +385,31 @@ function render() {
 function scheduleMarketRefresh() {
   if (marketRefreshTimer) clearTimeout(marketRefreshTimer);
   marketRefreshTimer = null;
-  if (!state.user || !["market", "wallet"].includes(state.route)) return;
+  if (document.hidden || !state.user || !["market", "wallet"].includes(state.route)) return;
   const delay = MARKET_TICK_MS - (Date.now() % MARKET_TICK_MS) + 40;
   marketRefreshTimer = setTimeout(() => {
     marketRefreshTimer = null;
-    if (["market", "wallet"].includes(state.route)) render();
+    if (document.hidden || !["market", "wallet"].includes(state.route)) return;
+    if (document.activeElement?.matches("input, textarea, select")) {
+      marketRefreshTimer = setTimeout(scheduleMarketRefresh, 600);
+      return;
+    }
+    const nextTick = marketTick();
+    if (nextTick !== lastMarketRefreshTick) render({ preserveScroll: true, reason: "market-tick" });
+    else scheduleMarketRefresh();
   }, delay);
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (marketRefreshTimer) clearTimeout(marketRefreshTimer);
+    marketRefreshTimer = null;
+    return;
+  }
+  if (!["market", "wallet"].includes(state.route)) return;
+  if (marketTick() !== lastMarketRefreshTick) render({ preserveScroll: true, reason: "visibility" });
+  else scheduleMarketRefresh();
+});
 
 function loginView() {
   const profileStep = state.authStep === "profile" && state.pendingGoogle;
@@ -1224,7 +1253,7 @@ function bindEvents() {
     state.openMenu = null;
     render();
   };
-  document.querySelectorAll("[data-route]").forEach((button) => {
+  document.querySelectorAll("button[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
       closeMenus();
       state.searchOpen = false;
@@ -1418,22 +1447,38 @@ function bindSheetDrag() {
   let startTranslate = 0;
   let currentTranslate = 0;
   let dragging = false;
+  let peekTarget = 0;
+  let midTarget = 0;
+  let paintFrame = 0;
+  let pendingTranslate = 0;
 
-  const peekTranslate = () => Math.max(0, sheet.getBoundingClientRect().height - 132);
-  const midTranslate = () => Math.round(window.innerHeight * 0.34);
+  const measureTargets = () => {
+    peekTarget = Math.max(0, sheet.getBoundingClientRect().height - 132);
+    midTarget = Math.round(window.innerHeight * 0.34);
+  };
   const translateForLevel = (level) => {
     if (level === "full") return 0;
-    if (level === "mid") return midTranslate();
-    return peekTranslate();
+    if (level === "mid") return midTarget;
+    return peekTarget;
   };
-  const clampTranslate = (value) => Math.min(peekTranslate(), Math.max(0, value));
+  const clampTranslate = (value) => Math.min(peekTarget, Math.max(0, value));
+  const queuePaint = (translate) => {
+    pendingTranslate = translate;
+    if (paintFrame) return;
+    paintFrame = requestAnimationFrame(() => {
+      paintFrame = 0;
+      sheet.style.transform = `translateY(${pendingTranslate}px)`;
+    });
+  };
 
   const finish = () => {
     if (!dragging) return;
+    if (paintFrame) cancelAnimationFrame(paintFrame);
+    paintFrame = 0;
     const targets = [
       ["full", 0],
-      ["mid", midTranslate()],
-      ["peek", peekTranslate()],
+      ["mid", midTarget],
+      ["peek", peekTarget],
     ];
     const [level] = targets.reduce((best, item) => (
       Math.abs(item[1] - currentTranslate) < Math.abs(best[1] - currentTranslate) ? item : best
@@ -1446,6 +1491,7 @@ function bindSheetDrag() {
   };
 
   handle.addEventListener("pointerdown", (event) => {
+    measureTargets();
     dragging = true;
     startY = event.clientY;
     startTranslate = translateForLevel(state.sheetLevel);
@@ -1456,7 +1502,7 @@ function bindSheetDrag() {
   handle.addEventListener("pointermove", (event) => {
     if (!dragging) return;
     currentTranslate = clampTranslate(startTranslate + event.clientY - startY);
-    sheet.style.transform = `translateY(${currentTranslate}px)`;
+    queuePaint(currentTranslate);
   });
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
@@ -1478,9 +1524,19 @@ function bindMapDrag() {
   let moved = false;
   let lastTap = { time: 0, x: 0, y: 0 };
   let lastTouchZoomAt = 0;
+  let transformFrame = 0;
+  let pendingTransform = "";
 
   const clamp = (value, max) => Math.min(max, Math.max(-max, value));
   const distance = ([first, second]) => Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  const queueTransform = (value) => {
+    pendingTransform = value;
+    if (transformFrame) return;
+    transformFrame = requestAnimationFrame(() => {
+      transformFrame = 0;
+      canvas.style.transform = pendingTransform;
+    });
+  };
   const zoomAt = (clientX, clientY) => {
     const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
     const rect = card.getBoundingClientRect();
@@ -1523,18 +1579,20 @@ function bindMapDrag() {
       const nextY = clamp(state.mapOffsetY, maxY);
       state.mapOffsetX = nextX;
       state.mapOffsetY = nextY;
-      canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${nextZoom})`;
+      queueTransform(`translate(${nextX}px, ${nextY}px) scale(${nextZoom})`);
       return;
     }
     const maxX = 72 * state.mapZoom;
     const maxY = 92 * state.mapZoom;
     const nextX = clamp(baseX + event.clientX - startX, maxX);
     const nextY = clamp(baseY + event.clientY - startY, maxY);
-    canvas.style.transform = `translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`;
+    queueTransform(`translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`);
   });
 
   const finish = (event) => {
     if (!dragging) return;
+    if (transformFrame) cancelAnimationFrame(transformFrame);
+    transformFrame = 0;
     pointers.delete(event.pointerId);
     if (pointers.size >= 1) {
       const [remaining] = pointers.values();
@@ -1757,7 +1815,8 @@ function marketTrade(type) {
     return;
   }
 
-  const stock = marketSnapshot().find((item) => item.id === state.marketStockId) || marketSnapshot()[0];
+  const snapshot = marketSnapshot();
+  const stock = snapshot.find((item) => item.id === state.marketStockId) || snapshot[0];
   const quantity = Math.min(99, Math.max(1, Math.floor(Number(state.marketQuantity) || 1)));
   const amount = stock.price * quantity;
   const owned = portfolio.holdings[stock.id] || 0;

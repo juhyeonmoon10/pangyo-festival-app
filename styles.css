@@ -2571,6 +2571,40 @@ button {
   opacity: 0.68;
 }
 
+/* Performance guardrails: animate navigation, not every state update. */
+.screen {
+  animation: none;
+}
+
+.app-shell.route-change .screen {
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.market-chart i {
+  animation: none;
+}
+
+.app-shell.route-change .market-chart i {
+  animation: market-bar-in 0.24s ease both;
+}
+
+.map-screen.sheet-full .map-stage {
+  filter: none;
+  opacity: 0.92;
+}
+
+.market-section,
+.trade-panel,
+.wallet-section,
+.stamp-screen .stat {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+.stamp-screen .stat {
+  contain-intrinsic-size: auto 84px;
+}
+
 /* Stamp-to-investment experience */
 .bottom-nav {
   grid-template-columns: repeat(4, minmax(0, 1fr));

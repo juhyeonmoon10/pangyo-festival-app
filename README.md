@@ -59,4 +59,4 @@ https://pangyo-festival-app.vercel.app/?nfc=NFC-G1-01
 
 ## 검증
 
-`tests/browser-smoke.cjs`는 모바일 Chrome에서 로그인, 잠긴 투자 화면, NFC 보상, 매수·매도, 목표 달성, 관리자 상품 교환과 재사용 방지를 확인합니다. 실행 시 Playwright와 Chrome 경로를 환경 변수로 제공합니다.
+`tests/browser-smoke.cjs`는 모바일 Chrome에서 로그인, 잠긴 투자 화면, NFC 보상, 매수·매도, 목표 달성, 관리자 상품 교환과 재사용 방지를 확인합니다. `tests/performance-smoke.cjs`는 반복 렌더, Long Task, 같은 화면의 불필요한 애니메이션, 시세 갱신 시 스크롤 보존을 검사합니다. 실행 시 Playwright와 Chrome 경로를 환경 변수로 제공합니다.
