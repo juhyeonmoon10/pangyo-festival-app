@@ -37,6 +37,9 @@ async function run() {
 
   await page.click('[data-route="market"]');
   await expectVisible(page, ".market-gate", "locked market");
+  await expectVisible(page, ".locked-market-preview", "locked market stock preview");
+  if (await page.locator(".locked-market-preview .market-stock-readonly").count() !== 5) throw new Error("locked market does not show all stocks");
+  if (await page.locator("#marketBuy").count()) throw new Error("buy action is visible before stamp reward");
   await page.screenshot({ path: path.join(__dirname, "market-locked-mobile.png"), fullPage: true });
 
   for (const tag of ["NFC-G1-01", "NFC-G1-02", "NFC-G1-03"]) {

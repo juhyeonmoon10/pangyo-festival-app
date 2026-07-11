@@ -2711,6 +2711,27 @@ button {
   font-size: 24px;
 }
 
+.market-gate.market-gate-compact {
+  min-height: 340px;
+  padding-block: 22px;
+}
+
+.locked-market-preview {
+  margin-top: 18px;
+}
+
+.market-stock-readonly {
+  cursor: default;
+}
+
+.locked-market-note {
+  margin: 10px 2px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .market-balance,
 .wallet-hero {
   padding: 18px;

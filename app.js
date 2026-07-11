@@ -939,13 +939,30 @@ function marketView() {
         <button class="icon-btn top-money-btn" data-route="wallet" title="내 자산">원</button>
       </header>
       ${!portfolio.grantedAt ? `
-        <section class="market-gate">
+        <section class="market-gate market-gate-compact">
           <span class="section-kicker">MARKET PASS</span>
           <h1>스탬프 ${settings.stampGoal}개로<br />투자를 시작하세요</h1>
           <p>현재 ${stampCount}개를 모았습니다.</p>
           <div class="progress-wrap"><div class="progress" style="width:${Math.min(100, (stampCount / settings.stampGoal) * 100)}%"></div></div>
           <strong>${formatMoney(settings.grantAmount)} ${settings.currencyName}</strong>
           <button type="button" class="primary-btn" data-route="stamps">스탬프 확인</button>
+        </section>
+        <section class="market-section locked-market-preview">
+          <div class="market-section-head"><div><span class="section-kicker">MARKET PREVIEW</span><h2>투자 종목 미리보기</h2></div><span>거래 전 조회 가능</span></div>
+          <div class="market-stock-list">
+            ${snapshot.map((stock) => {
+              const trend = marketTrend(stock);
+              return `
+                <article class="market-stock-row market-stock-readonly" style="--stock-color:${stock.color}">
+                  <span class="stock-symbol">${stock.symbol.slice(0, 1)}</span>
+                  <span class="stock-copy"><strong>${stock.name}</strong><small>${stock.description}</small></span>
+                  ${marketChart(stock)}
+                  <span class="stock-price"><strong>${formatMoney(stock.price)}원</strong><small class="${trend.className}">${trend.label}</small></span>
+                </article>
+              `;
+            }).join("")}
+          </div>
+          <p class="locked-market-note">스탬프 ${settings.stampGoal}개를 모으면 ${formatMoney(settings.grantAmount)} ${settings.currencyName}로 거래할 수 있습니다.</p>
         </section>
       ` : `
         <section class="market-balance">
