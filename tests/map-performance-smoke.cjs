@@ -123,6 +123,25 @@ async function run() {
   if (metrics.screenAnimation !== "none") throw new Error(`same-route animation is active: ${metrics.screenAnimation}`);
   if (metrics.bodyWidth > metrics.viewportWidth + 1) throw new Error("horizontal overflow detected");
 
+  await page.click('button[data-route="profile"]');
+  await page.click('button[data-route="login"]');
+  await page.click("#adminLogin");
+  await page.locator(".admin-screen").waitFor({ state: "visible" });
+  const adminCopy = await page.locator(".admin-screen").innerText();
+  if (adminCopy.includes("리뷰") || adminCopy.includes("음료 교환")) throw new Error("legacy P1 copy is exposed in the P0 admin screen");
+
+  await page.click('[data-toggle-menu="admin-tab"]');
+  await page.click('[data-admin-tab="booths"]');
+  await page.selectOption("#status-b1", "paused");
+  await page.click('[data-save-status="b1"]');
+  await page.locator(".success-text").filter({ hasText: "일시 중지" }).waitFor();
+
+  await page.click('[data-toggle-menu="admin-tab"]');
+  await page.click('[data-admin-tab="visits"]');
+  await page.selectOption("#manualBooth", "b2");
+  await page.click("#manualApproveStamp");
+  await page.locator(".admin-table").filter({ hasText: "수동 승인" }).waitFor();
+
   process.stdout.write(`${JSON.stringify(metrics, null, 2)}\n`);
   await browser.close();
 }

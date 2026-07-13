@@ -12,7 +12,7 @@ const BOOTH_STATUS = {
   preparing: { label: "준비 중", tone: "muted" },
   open: { label: "운영 중", tone: "success" },
   crowded: { label: "혼잡", tone: "warning" },
-  paused: { label: "브레이크", tone: "danger" },
+  paused: { label: "일시 중지", tone: "danger" },
   closed: { label: "마감", tone: "muted" },
 };
 
@@ -518,7 +518,6 @@ function profileView() {
 
 function sortedBooths(booths) {
   return [...booths].sort((a, b) => {
-    if (state.sort === "rating") return repo.avgRating(b.id) - repo.avgRating(a.id);
     return a.name.localeCompare(b.name, "ko");
   });
 }
@@ -758,11 +757,10 @@ function searchOverlay(booths) {
       <div class="search-screen-controls">
         ${choiceSelect({
           id: "search-sort",
-          label: state.sort === "rating" ? "별점순" : "이름순",
+          label: "이름순",
           caption: "정렬",
           options: [
             { label: "이름순", active: state.sort === "name", attr: `data-sort-option="name"` },
-            { label: "별점순", active: state.sort === "rating", attr: `data-sort-option="rating"` },
           ],
         })}
       </div>
@@ -825,14 +823,13 @@ function sheetClass() {
 function boothItem(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
   const selected = state.selectedBoothId === booth.id;
-  const avg = repo.avgRating(booth.id).toFixed(1);
   const visits = repo.boothVisits(booth.id);
   return `
     <button class="booth-item ${booth.category || "class"} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       <span class="booth-main">
         <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
         <span class="meta">${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}</span>
-        <span class="booth-stats"><i>${icon("star")} ${avg}</i><i>방문 ${visits}</i><i>${stamped ? "스탬프 완료" : "방문 전"}</i></span>
+        <span class="booth-stats"><i>방문 ${visits}</i><i>${stamped ? "방문 인증 완료" : "방문 전"}</i></span>
       </span>
       ${statusBadge(booth.status)}
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
@@ -842,15 +839,13 @@ function boothItem(booth) {
 
 function mapPreviewCard(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
-  const reviewed = repo.hasReview(state.user.id, booth.id);
-  const reviewState = !stamped ? "방문 후 리뷰 가능" : reviewed ? "리뷰 완료" : "리뷰 가능";
   return `
     <article class="map-preview-card">
       <div>
         <strong>${booth.name}</strong>
         <span>${booth.location} · ${formatOperatingHours(booth)} · 방문 ${repo.boothVisits(booth.id)}</span>
         ${statusBadge(booth.status)}
-        <span class="preview-status"><i class="${stamped ? "on" : ""}">${stamped ? "스탬프 획득" : "스탬프 미획득"}</i><i class="${stamped && !reviewed ? "on" : ""}">${reviewState}</i></span>
+        <span class="preview-status"><i class="${stamped ? "on" : ""}">${stamped ? "방문 인증 완료" : "방문 전"}</i></span>
       </div>
       <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
       <button type="button" class="preview-close-btn" data-clear-selection aria-label="선택 해제">×</button>
@@ -861,8 +856,6 @@ function mapPreviewCard(booth) {
 function detailView() {
   const booth = state.db.booths.find((item) => item.id === state.selectedBoothId) || state.db.booths[0];
   const stamped = repo.hasStamp(state.user.id, booth.id);
-  const reviewed = repo.hasReview(state.user.id, booth.id);
-  const reviews = state.db.reviews.filter((review) => review.boothId === booth.id);
   return `
     <main class="screen detail-screen">
       <header class="top-bar">
@@ -874,20 +867,18 @@ function detailView() {
         <div class="detail-status-row">${statusBadge(booth.status)}<span>${formatOperatingHours(booth)}</span></div>
         <div class="meta">${booth.clubName} · ${booth.floor}층 · ${booth.room}</div>
         <h1 class="title">${booth.name}</h1>
-        <div class="meta">${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 리뷰 ${reviews.length}개 · <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span></div>
+        <div class="meta"><span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span> ${stamped ? "방문 인증 완료" : "아직 방문하지 않았어요"}</div>
       </section>
       <section class="panel section">
         <h2>부스 소개</h2>
         <p class="subtitle">${booth.description}</p>
       </section>
       <section class="panel section">
-        <h2>리뷰 작성</h2>
-        ${!stamped ? `<p class="notice">부스를 방문해야 리뷰를 작성할 수 있습니다.</p>` : ""}
-        ${reviewed ? `<p class="notice">이미 이 부스에 리뷰를 작성했습니다.</p>` : reviewForm(stamped)}
-      </section>
-      <section class="panel section">
-        <h2>리뷰 목록</h2>
-        ${reviews.length ? reviews.map(reviewView).join("") : `<p class="subtitle">아직 리뷰가 없습니다.</p>`}
+        <h2>방문 인증</h2>
+        ${stamped
+          ? `<p class="success-text">이 부스의 방문 기록이 축제 패스에 저장됐습니다.</p>`
+          : `<p class="notice">부스의 NFC 태그를 인식해 방문을 인증하세요. 인식되지 않으면 운영자에게 수동 승인을 요청할 수 있습니다.</p>`}
+        <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" data-nfc="${booth.nfcTagId}">${stamped ? "인증 결과 다시 확인" : "NFC 방문 인증"}</button>
       </section>
       ${bottomNav("map")}
     </main>
@@ -943,7 +934,7 @@ function adminView() {
   const tabs = [
     ["dashboard", "현황"],
     ["booths", "부스/NFC"],
-    ["reviews", "리뷰"],
+    ["visits", "방문 기록"],
     ["users", "참여자"],
   ];
   const currentTab = tabs.find(([id]) => id === state.adminTab) || tabs[0];
@@ -951,7 +942,7 @@ function adminView() {
     <main class="screen admin-screen">
       <header class="top-bar">
         <button class="icon-btn" data-route="map">${icon("back")}</button>
-        <div class="top-title"><strong>관리자 패널</strong><span>부스, NFC, 리뷰, 교환 현황 관리</span></div>
+        <div class="top-title"><strong>관리자 패널</strong><span>부스 운영, NFC, 방문 승인 관리</span></div>
         <button class="icon-btn" data-route="login">G</button>
       </header>
       <nav class="admin-tabs selector-bar">
@@ -974,13 +965,9 @@ function adminView() {
 
 function adminPanel() {
   const regularUsers = state.db.users.filter((user) => user.role !== "admin");
-  const achievedUsers = regularUsers.filter((user) => repo.stampsForUser(user.id).length >= GOAL_COUNT);
-  const pendingExchange = achievedUsers.filter((user) => !user.exchangedAt);
   const totalVisits = state.db.stamps.length;
-  const totalReviews = state.db.reviews.length;
-  const reviewAverage = totalReviews
-    ? state.db.reviews.reduce((sum, review) => sum + Number(review.rating), 0) / totalReviews
-    : 0;
+  const activeBooths = state.db.booths.filter((booth) => ["open", "crowded"].includes(booth.status)).length;
+  const attentionBooths = state.db.booths.filter((booth) => ["crowded", "paused"].includes(booth.status)).length;
 
   if (state.adminTab === "dashboard") {
     const top = [...state.db.booths].sort((a, b) => repo.boothVisits(b.id) - repo.boothVisits(a.id)).slice(0, 5);
@@ -988,22 +975,22 @@ function adminPanel() {
       <section class="admin-hero">
         <span class="admin-eyebrow">Festival Control</span>
         <h1>운영 현황</h1>
-        <p>방문 인증, 리뷰, 음료 교환 대상을 한 화면에서 확인합니다.</p>
+        <p>부스 운영 상태와 NFC 방문 인증 현황을 확인합니다.</p>
       </section>
       <section class="stats-grid admin-stats">
         <div class="stat"><span>총 방문 인증</span><strong>${totalVisits}</strong><small>스탬프 발급 수</small></div>
-        <div class="stat"><span>총 리뷰</span><strong>${totalReviews}</strong><small>평균 ${reviewAverage.toFixed(1)}점</small></div>
+        <div class="stat"><span>운영 중 부스</span><strong>${activeBooths}</strong><small>혼잡 포함</small></div>
         <div class="stat"><span>참여자</span><strong>${regularUsers.length}</strong><small>관리자 제외</small></div>
-        <div class="stat ${pendingExchange.length ? "warn" : ""}"><span>교환 대기</span><strong>${pendingExchange.length}</strong><small>목표 ${GOAL_COUNT}개 달성</small></div>
+        <div class="stat ${attentionBooths ? "warn" : ""}"><span>확인 필요</span><strong>${attentionBooths}</strong><small>혼잡·일시중지</small></div>
       </section>
       <section class="panel section admin-panel-card">
         <div class="admin-section-head"><h2>인기 부스 TOP 5</h2><span>방문수 기준</span></div>
-        ${top.map((booth, index) => `<div class="rank-row"><b>${index + 1}</b><span><strong>${booth.name}</strong><small>${booth.location}</small></span><em>방문 ${repo.boothVisits(booth.id)} · ${repo.avgRating(booth.id).toFixed(1)}점</em></div>`).join("")}
+        ${top.map((booth, index) => `<div class="rank-row"><b>${index + 1}</b><span><strong>${booth.name}</strong><small>${booth.location}</small></span><em>방문 ${repo.boothVisits(booth.id)}</em></div>`).join("")}
       </section>
       <section class="panel section admin-panel-card">
         <div class="admin-section-head"><h2>운영 체크</h2><span>빠른 점검</span></div>
         <div class="check-row ${state.db.booths.every((booth) => booth.nfcTagId) ? "ok" : "warn"}"><strong>NFC 태그</strong><span>${state.db.booths.filter((booth) => booth.nfcTagId).length}/${state.db.booths.length}개 등록</span></div>
-        <div class="check-row ${pendingExchange.length ? "warn" : "ok"}"><strong>음료 교환</strong><span>${pendingExchange.length ? `${pendingExchange.length}명 처리 필요` : "대기자 없음"}</span></div>
+        <div class="check-row ${attentionBooths ? "warn" : "ok"}"><strong>부스 상태</strong><span>${attentionBooths ? `${attentionBooths}개 확인 필요` : "모두 정상"}</span></div>
       </section>
     `;
   }
@@ -1024,9 +1011,21 @@ function adminPanel() {
       <section class="admin-table section">${state.db.booths.map(boothAdminRow).join("")}</section>
     `;
   }
-  if (state.adminTab === "reviews") {
-    if (!state.db.reviews.length) return adminEmpty("아직 리뷰가 없습니다.", "스탬프를 받은 사용자가 리뷰를 작성하면 여기에 표시됩니다.");
-    return `<section class="admin-table">${state.db.reviews.map(reviewRow).join("")}</section>`;
+  if (state.adminTab === "visits") {
+    return `
+      <section class="panel admin-panel-card">
+        <div class="admin-section-head"><h2>수동 방문 승인</h2><span>테스트용 로컬 기록</span></div>
+        ${state.adminMessage ? `<p class="success-text">${state.adminMessage}</p>` : ""}
+        ${regularUsers.length ? `
+          <div class="input-stack admin-form-grid">
+            <select id="manualUser" class="select">${regularUsers.map((user) => `<option value="${user.id}">${user.name} · ${user.studentNumber}</option>`).join("")}</select>
+            <select id="manualBooth" class="select">${state.db.booths.map((booth) => `<option value="${booth.id}">${booth.name} · ${booth.location}</option>`).join("")}</select>
+            <button id="manualApproveStamp" type="button" class="primary-btn">수동 승인 기록</button>
+          </div>
+        ` : `<p class="notice">먼저 학생 계정으로 로그인한 기록이 필요합니다.</p>`}
+      </section>
+      ${state.db.stamps.length ? `<section class="admin-table section">${[...state.db.stamps].reverse().map(visitRow).join("")}</section>` : adminEmpty("아직 방문 기록이 없습니다.", "NFC 인식 또는 수동 승인 후 여기에 표시됩니다.")}
+    `;
   }
   if (!regularUsers.length) return adminEmpty("아직 참여자가 없습니다.", "사용자가 로그인하고 학생 정보를 등록하면 여기에 표시됩니다.");
   return `<section class="admin-table">${regularUsers.map(userRow).join("")}</section>`;
@@ -1034,19 +1033,22 @@ function adminPanel() {
 
 function boothAdminRow(booth) {
   const visits = repo.boothVisits(booth.id);
-  const rating = repo.avgRating(booth.id).toFixed(1);
   return `
     <div class="table-row admin-row">
       <div class="row-main">
         <strong>${booth.name}</strong>
         <p class="subtitle">${booth.floor}층 · ${booth.location}</p>
       </div>
-      <div class="row-metrics"><span>방문 ${visits}</span><span>평점 ${rating}</span></div>
+      <div class="row-metrics"><span>방문 ${visits}</span>${statusBadge(booth.status)}</div>
+      <label class="field compact-field">운영 상태
+        <select class="select" id="status-${booth.id}">${Object.entries(BOOTH_STATUS).map(([value, info]) => `<option value="${value}" ${booth.status === value ? "selected" : ""}>${info.label}</option>`).join("")}</select>
+      </label>
       <label class="field compact-field">NFC 태그 ID
         <input class="input" id="nfc-${booth.id}" value="${booth.nfcTagId}" />
       </label>
       <div class="row-actions">
         <button type="button" class="ghost-btn" data-save-nfc="${booth.id}">태그 저장</button>
+        <button type="button" class="ghost-btn" data-save-status="${booth.id}">상태 저장</button>
         <button type="button" class="ghost-btn" data-test-nfc="${booth.id}">인식 테스트</button>
         <button type="button" class="danger-btn" data-delete-booth="${booth.id}">삭제</button>
       </div>
@@ -1073,16 +1075,24 @@ function reviewRow(review) {
 
 function userRow(user) {
   const stampCount = repo.stampsForUser(user.id).length;
-  const progress = Math.min(100, Math.round((stampCount / GOAL_COUNT) * 100));
   return `
     <div class="table-row admin-row">
       <div class="row-main">
         <strong>${user.name}</strong>
         <p class="subtitle">${user.studentNumber} · ${user.schoolId} · ${user.googleEmail || "Google 미연동"}</p>
       </div>
-      <div class="mini-progress"><span style="width:${progress}%"></span></div>
-      <div class="row-metrics"><span>스탬프 ${stampCount}/${GOAL_COUNT}</span><span>${user.exchangedAt ? "교환 완료" : stampCount >= GOAL_COUNT ? "교환 가능" : "진행 중"}</span></div>
-      <button type="button" class="ghost-btn exchange-btn" data-exchange="${user.id}" ${stampCount < GOAL_COUNT || user.exchangedAt ? "disabled" : ""}>${user.exchangedAt ? "교환 완료" : "음료 교환 완료 처리"}</button>
+      <div class="row-metrics"><span>방문 인증 ${stampCount}개</span><span>활성 사용자</span></div>
+    </div>
+  `;
+}
+
+function visitRow(stamp) {
+  const booth = state.db.booths.find((item) => item.id === stamp.boothId);
+  const user = state.db.users.find((item) => item.id === stamp.userId);
+  return `
+    <div class="table-row admin-row">
+      <div class="row-main"><strong>${booth?.name || "삭제된 부스"}</strong><p class="subtitle">${user?.name || "알 수 없음"} · ${stamp.method === "manual" ? "수동 승인" : "NFC"}</p></div>
+      <div class="row-metrics"><span>${formatTime(stamp.createdAt)}</span><span>${booth?.location || "위치 없음"}</span></div>
     </div>
   `;
 }
@@ -1276,7 +1286,9 @@ function bindEvents() {
   document.querySelector("#addBooth")?.addEventListener("click", addBooth);
   document.querySelectorAll("[data-delete-booth]").forEach((button) => button.addEventListener("click", () => deleteBooth(button.dataset.deleteBooth)));
   document.querySelectorAll("[data-save-nfc]").forEach((button) => button.addEventListener("click", () => saveNfcTag(button.dataset.saveNfc)));
+  document.querySelectorAll("[data-save-status]").forEach((button) => button.addEventListener("click", () => saveBoothStatus(button.dataset.saveStatus)));
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
+  document.querySelector("#manualApproveStamp")?.addEventListener("click", manualApproveStamp);
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
 }
@@ -1721,6 +1733,40 @@ function saveNfcTag(id) {
   booth.nfcTagId = next;
   saveDb();
   state.adminMessage = `${booth.name} NFC 태그가 저장되었습니다.`;
+  render();
+}
+
+function saveBoothStatus(id) {
+  const booth = state.db.booths.find((item) => item.id === id);
+  const select = document.getElementById(`status-${id}`);
+  if (!booth || !select || !BOOTH_STATUS[select.value]) return;
+  booth.status = select.value;
+  saveDb();
+  state.adminMessage = `${booth.name} 상태를 ${statusInfo(booth.status).label}(으)로 변경했습니다.`;
+  render();
+}
+
+function manualApproveStamp() {
+  const userId = document.getElementById("manualUser")?.value;
+  const boothId = document.getElementById("manualBooth")?.value;
+  const user = state.db.users.find((item) => item.id === userId && item.role !== "admin");
+  const booth = state.db.booths.find((item) => item.id === boothId);
+  if (!user || !booth) return;
+  if (repo.hasStamp(user.id, booth.id)) {
+    state.adminMessage = `${user.name} 학생은 이미 ${booth.name} 방문 인증을 완료했습니다.`;
+    render();
+    return;
+  }
+  state.db.stamps.push({
+    id: makeId(),
+    eventId: EVENT.id,
+    userId: user.id,
+    boothId: booth.id,
+    method: "manual",
+    createdAt: new Date().toISOString(),
+  });
+  saveDb();
+  state.adminMessage = `${user.name} 학생의 ${booth.name} 방문을 수동 승인했습니다.`;
   render();
 }
 
