@@ -61,6 +61,79 @@ const state = {
   pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
 };
 
+const HISTORY_KEY = "pangyo-festival-navigation-v1";
+const actionLocks = new Set();
+let navigationIndex = 0;
+
+function navigationSnapshot() {
+  return {
+    key: HISTORY_KEY,
+    index: navigationIndex,
+    route: state.route,
+    floor: state.floor,
+    selectedBoothId: state.selectedBoothId,
+    sheetLevel: state.sheetLevel,
+    searchOpen: state.searchOpen,
+    adminTab: state.adminTab,
+  };
+}
+
+function writeNavigationHistory(mode = "push") {
+  try {
+    if (mode === "push") navigationIndex += 1;
+    history[mode === "replace" ? "replaceState" : "pushState"](navigationSnapshot(), "");
+  } catch {
+    // Local file previews can restrict History API writes in some browsers.
+  }
+}
+
+function navigateTo(route, { replace = false } = {}) {
+  const changed = state.route !== route;
+  state.route = route;
+  render();
+  writeNavigationHistory(replace || !changed ? "replace" : "push");
+}
+
+function initializeNavigation() {
+  const current = history.state;
+  if (current?.key === HISTORY_KEY) navigationIndex = Number(current.index) || 0;
+  writeNavigationHistory("replace");
+  window.addEventListener("popstate", (event) => {
+    const snapshot = event.state;
+    if (!snapshot || snapshot.key !== HISTORY_KEY) return;
+    navigationIndex = Number(snapshot.index) || 0;
+    if (!state.user && snapshot.route !== "login") {
+      state.route = "login";
+      state.searchOpen = false;
+      state.selectedBoothId = null;
+      writeNavigationHistory("replace");
+      render();
+      return;
+    }
+    state.route = snapshot.route || "home";
+    state.floor = Number(snapshot.floor) || 1;
+    state.selectedBoothId = snapshot.selectedBoothId || null;
+    state.sheetLevel = snapshot.sheetLevel || "peek";
+    state.sheetOpen = state.sheetLevel !== "peek";
+    state.searchOpen = Boolean(snapshot.searchOpen);
+    state.adminTab = snapshot.adminTab || "dashboard";
+    closeMenus();
+    render();
+    if (state.searchOpen) focusSearchInput();
+  });
+}
+
+async function runActionOnce(key, action) {
+  if (actionLocks.has(key)) return false;
+  actionLocks.add(key);
+  try {
+    await action();
+    return true;
+  } finally {
+    actionLocks.delete(key);
+  }
+}
+
 function readStorage(key) {
   try {
     return localStorage.getItem(key);
@@ -360,8 +433,8 @@ function googleForm() {
       <p class="subtitle">현재는 구글 계정 인증 UI 틀만 적용되어 있습니다. 버튼을 누르면 인증 완료로 처리되고 바로 지도 화면으로 이동합니다.</p>
       ${state.pendingNfcTag ? `<p class="success-text">NFC 태그 인식됨: ${state.pendingNfcTag}</p>` : ""}
       ${state.loginError ? `<p class="error-text">${state.loginError}</p>` : ""}
-      <button id="googleLogin" type="button" class="primary-btn google-btn">G 구글 계정으로 계속</button>
-      <button id="adminLogin" type="button" class="ghost-btn">관리자 모드로 계속</button>
+      <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "로그인 확인 중..." : "G 구글 계정으로 계속"}</button>
+      <button id="adminLogin" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>관리자 모드로 계속</button>
     </div>
   `;
 }
@@ -859,7 +932,7 @@ function detailView() {
   return `
     <main class="screen detail-screen">
       <header class="top-bar">
-        <button class="icon-btn" data-route="map">${icon("back")}</button>
+        <button class="icon-btn" data-history-back="map" aria-label="지도 화면으로 돌아가기">${icon("back")}</button>
         <div class="top-title"><strong>부스 상세</strong><span>${booth.location}</span></div>
         <button class="icon-btn" data-nfc="${booth.nfcTagId}" title="NFC 테스트">NFC</button>
       </header>
@@ -1138,26 +1211,37 @@ function bindEvents() {
       closeMenus();
       state.searchOpen = false;
       if (button.dataset.route === "admin" && state.user?.role !== "admin") {
-        state.route = "login";
         state.loginError = "관리자 계정으로 로그인해야 접근할 수 있습니다.";
-        render();
+        navigateTo("login", { replace: true });
         return;
       }
-      state.route = button.dataset.route;
-      if (state.route === "login") resetLogin();
-      render();
+      if (button.dataset.route === "login") {
+        resetLogin();
+        navigateTo("login", { replace: true });
+        return;
+      }
+      navigateTo(button.dataset.route);
     });
   });
-  document.querySelector("#googleLogin")?.addEventListener("click", () => startGoogleLogin("student"));
+  document.querySelectorAll("[data-history-back]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const fallback = button.dataset.historyBack || "home";
+      if (navigationIndex > 0) history.back();
+      else navigateTo(fallback, { replace: true });
+    });
+  });
+  document.querySelector("#googleLogin")?.addEventListener("click", () => runActionOnce("google-login", () => startGoogleLogin("student")));
   document.querySelector("#profileSubmit")?.addEventListener("click", completeProfile);
   document.querySelector("#backToGoogle")?.addEventListener("click", () => {
     resetLogin();
     render();
   });
-  document.querySelector("#adminLogin")?.addEventListener("click", adminLogin);
+  document.querySelector("#adminLogin")?.addEventListener("click", () => runActionOnce("admin-login", adminLogin));
   document.querySelectorAll("[data-floor]").forEach((button) => button.addEventListener("click", () => {
+    const nextFloor = Number(button.dataset.floor);
+    if (state.floor === nextFloor) return;
     closeMenus();
-    state.floor = Number(button.dataset.floor);
+    state.floor = nextFloor;
     state.sheetOpen = false;
     state.sheetLevel = "peek";
     state.mapZoom = 1;
@@ -1165,6 +1249,7 @@ function bindEvents() {
     state.mapOffsetY = 0;
     state.searchOpen = false;
     render();
+    writeNavigationHistory("push");
   }));
   document.querySelector("#sheetToggle")?.addEventListener("click", () => {
     if (state.sheetLevel === "peek") {
@@ -1198,9 +1283,14 @@ function bindEvents() {
     openSearchScreen();
   });
   document.querySelector("#closeSearchScreen")?.addEventListener("click", () => {
+    state.search = "";
     state.searchOpen = false;
     closeMenus();
-    render();
+    if (history.state?.key === HISTORY_KEY && history.state.searchOpen && navigationIndex > 0) history.back();
+    else {
+      render();
+      writeNavigationHistory("replace");
+    }
   });
   bindMapDrag();
   bindSheetDrag();
@@ -1249,7 +1339,11 @@ function bindEvents() {
     state.mapZoom = 1;
     state.mapOffsetX = 0;
     state.mapOffsetY = 0;
-    render();
+    if (history.state?.key === HISTORY_KEY && history.state.selectedBoothId && navigationIndex > 0) history.back();
+    else {
+      render();
+      writeNavigationHistory("replace");
+    }
   });
   document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
     goDetail(button.dataset.listSelect);
@@ -1261,14 +1355,18 @@ function bindEvents() {
       state.mapZoom = 1;
       state.mapOffsetX = 0;
       state.mapOffsetY = 0;
-      render();
+      if (history.state?.key === HISTORY_KEY && history.state.selectedBoothId && navigationIndex > 0) history.back();
+      else {
+        render();
+        writeNavigationHistory("replace");
+      }
     });
   });
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", (event) => {
     event.stopPropagation();
     goDetail(button.dataset.detail);
   }));
-  document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => nfcAdapter.scan(button.dataset.nfc)));
+  document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => runActionOnce(`nfc:${button.dataset.nfc}`, () => nfcAdapter.scan(button.dataset.nfc))));
   document.querySelector("#clearScanResult")?.addEventListener("click", () => {
     state.scanResult = null;
     render();
@@ -1282,13 +1380,14 @@ function bindEvents() {
     closeMenus();
     state.adminTab = button.dataset.adminTab;
     render();
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
   }));
-  document.querySelector("#addBooth")?.addEventListener("click", addBooth);
+  document.querySelector("#addBooth")?.addEventListener("click", () => runActionOnce("admin:add-booth", addBooth));
   document.querySelectorAll("[data-delete-booth]").forEach((button) => button.addEventListener("click", () => deleteBooth(button.dataset.deleteBooth)));
-  document.querySelectorAll("[data-save-nfc]").forEach((button) => button.addEventListener("click", () => saveNfcTag(button.dataset.saveNfc)));
-  document.querySelectorAll("[data-save-status]").forEach((button) => button.addEventListener("click", () => saveBoothStatus(button.dataset.saveStatus)));
+  document.querySelectorAll("[data-save-nfc]").forEach((button) => button.addEventListener("click", () => runActionOnce(`admin:nfc:${button.dataset.saveNfc}`, () => saveNfcTag(button.dataset.saveNfc))));
+  document.querySelectorAll("[data-save-status]").forEach((button) => button.addEventListener("click", () => runActionOnce(`admin:status:${button.dataset.saveStatus}`, () => saveBoothStatus(button.dataset.saveStatus))));
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
-  document.querySelector("#manualApproveStamp")?.addEventListener("click", manualApproveStamp);
+  document.querySelector("#manualApproveStamp")?.addEventListener("click", () => runActionOnce("admin:manual-approve", manualApproveStamp));
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
 }
@@ -1298,9 +1397,11 @@ function closeMenus() {
 }
 
 function openSearchScreen() {
+  if (state.searchOpen) return;
   state.searchOpen = true;
   closeMenus();
   render();
+  writeNavigationHistory("push");
   focusSearchInput();
 }
 
@@ -1532,13 +1633,16 @@ function resetLogin() {
   state.openMenu = null;
 }
 
-function startGoogleLogin(intent = "student") {
+async function startGoogleLogin(intent = "student") {
+  if (state.loginBusy) return;
   state.authIntent = intent;
   state.loginError = "";
-  state.loginBusy = false;
+  state.loginBusy = true;
+  render();
   try {
-    state.pendingGoogle = authProvider.signInWithGoogle();
+    state.pendingGoogle = await authProvider.signInWithGoogle();
     if (intent === "admin") {
+      state.loginBusy = false;
       finishAdminGoogleLogin(state.pendingGoogle);
       return;
     }
@@ -1558,10 +1662,10 @@ function startGoogleLogin(intent = "student") {
     saveDb();
     state.user = user;
     state.authStep = "google";
-    state.route = "home";
+    state.loginBusy = false;
     state.loginError = "";
     state.openMenu = null;
-    render();
+    navigateTo("home", { replace: true });
     consumePendingNfc();
   } catch (error) {
     state.loginBusy = false;
@@ -1603,8 +1707,8 @@ function completeProfile() {
   });
   saveDb();
   state.user = user;
-  state.route = "home";
   state.loginError = "";
+  navigateTo("home", { replace: true });
   consumePendingNfc();
 }
 
@@ -1628,10 +1732,9 @@ function finishAdminGoogleLogin(google) {
   });
   saveDb();
   state.user = admin;
-  state.route = "admin";
   state.loginError = "";
   state.openMenu = null;
-  render();
+  navigateTo("admin", { replace: true });
 }
 
 function consumePendingNfc() {
@@ -1642,21 +1745,23 @@ function consumePendingNfc() {
 }
 
 function goDetail(id) {
+  if (state.route === "detail" && state.selectedBoothId === id) return;
   state.selectedBoothId = id;
-  state.route = "detail";
   state.searchOpen = false;
   state.sheetOpen = false;
   state.sheetLevel = "peek";
   state.openMenu = null;
-  render();
+  navigateTo("detail");
 }
 
 function selectMapBooth(id) {
+  if (state.selectedBoothId === id) return;
   state.selectedBoothId = id;
   state.searchOpen = false;
   if (state.sheetLevel === "full") setSheetLevel("mid");
   state.openMenu = null;
   render();
+  writeNavigationHistory("push");
 }
 
 function focusMapOnBooth(id, targetZoom = state.mapZoom) {
@@ -1775,8 +1880,7 @@ function testNfcTag(id) {
   if (!booth) return;
   state.adminMessage = `${booth.name} 태그 인식 테스트 완료`;
   state.selectedBoothId = id;
-  state.route = "detail";
-  render();
+  navigateTo("detail");
 }
 
 function deleteReview(id) {
@@ -1795,10 +1899,13 @@ function completeExchange(id) {
 function showStampPop() {
   const pop = document.createElement("div");
   pop.className = "stamp-pop";
+  pop.setAttribute("role", "status");
+  pop.setAttribute("aria-live", "polite");
   pop.textContent = "스탬프 획득";
   document.body.appendChild(pop);
-  setTimeout(() => pop.remove(), 1200);
+  setTimeout(() => pop.remove(), 900);
 }
 
+initializeNavigation();
 if (state.pendingNfcTag) nfcAdapter.scan(state.pendingNfcTag);
 else render();

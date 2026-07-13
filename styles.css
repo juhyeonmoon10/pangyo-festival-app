@@ -64,11 +64,9 @@ button {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(16px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -3666,4 +3664,132 @@ button {
   background: rgba(255, 255, 255, 0.92);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
+}
+
+/* Mobile QA hardening: stable touch targets and narrow-screen wrapping. */
+.p0-header > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.p0-header h1 {
+  word-break: keep-all;
+}
+
+.p0-header .icon-btn {
+  flex: 0 0 48px;
+  width: 48px;
+}
+
+.map-screen .top-bar {
+  grid-template-columns: 48px minmax(0, 1fr) 48px 48px;
+  gap: 8px;
+}
+
+.map-screen .icon-btn,
+.admin-screen .icon-btn {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+}
+
+.map-screen .floor-tabs {
+  height: 54px;
+}
+
+.floor-tab {
+  height: 44px;
+  min-height: 44px;
+}
+
+.map-stage {
+  inset: 118px 0 0;
+}
+
+.map-context-bar {
+  height: 44px;
+}
+
+.map-context-bar button {
+  height: 44px;
+  min-height: 44px;
+}
+
+.map-legend {
+  top: 57px;
+}
+
+.map-card {
+  top: 88px;
+}
+
+.sheet-handle {
+  height: 44px;
+  min-height: 44px;
+}
+
+.preview-detail-btn,
+.preview-close-btn {
+  min-height: 44px;
+}
+
+.preview-detail-btn {
+  min-width: 44px;
+}
+
+.preview-close-btn {
+  width: 44px;
+  min-width: 44px;
+}
+
+.clear-search-btn,
+.search-screen-input .clear-search-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+.choice-trigger,
+.choice-option,
+.search-screen-controls .choice-trigger {
+  min-height: 44px;
+}
+
+.admin-screen .section,
+.admin-table > .table-row {
+  contain-intrinsic-size: auto 240px;
+}
+
+@media (max-width: 340px) {
+  .home-screen .p0-header {
+    gap: 8px;
+  }
+
+  .home-screen .p0-header h1 {
+    font-size: 22px;
+    line-height: 29px;
+  }
+
+  .map-screen .top-bar {
+    grid-template-columns: 48px minmax(0, 1fr) 48px 48px;
+    gap: 5px;
+  }
+
+  .map-screen .top-title {
+    padding-inline: 8px;
+  }
+}
+
+.bottom-nav {
+  position: fixed;
+  left: max(8px, calc(50% - 232px));
+  right: max(8px, calc(50% - 232px));
+  animation: none;
+}
+
+.detail-screen,
+.stamp-screen,
+.admin-screen {
+  padding-bottom: calc(92px + env(safe-area-inset-bottom));
 }
