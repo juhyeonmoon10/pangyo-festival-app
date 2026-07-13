@@ -3471,7 +3471,7 @@ button {
 .search-screen {
   position: absolute;
   inset: 0;
-  z-index: 90;
+  z-index: 120;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 12px;
@@ -3577,9 +3577,34 @@ button {
   min-height: 0;
   overflow-y: auto;
   display: grid;
+  grid-auto-rows: max-content;
   align-content: start;
   gap: 10px;
   padding: 0 0 92px;
+  overscroll-behavior: contain;
+}
+
+.search-result-list .booth-item {
+  min-height: 104px;
+  height: auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.search-result-list .booth-item > .stamp {
+  display: none;
+}
+
+.search-result-list .booth-main {
+  align-content: center;
+}
+
+.search-result-list .meta {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .admin-tabs.selector-bar {

@@ -45,6 +45,12 @@ async function run() {
   await page.locator(".search-result-meta strong").filter({ hasText: "8개 결과" }).waitFor();
   const composedQuery = await page.locator("#searchScreenInput").inputValue();
   if (composedQuery !== "1학년") throw new Error(`Korean query changed to ${composedQuery}`);
+  const searchItemHeight = await page.locator(".search-result-list .booth-item").first().evaluate((item) => item.getBoundingClientRect().height);
+  if (searchItemHeight < 72) throw new Error(`search result card collapsed to ${searchItemHeight}px`);
+  if (screenshotDir) {
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(screenshotDir, "search-korean-320.png"), fullPage: true });
+  }
   await page.click("#clearSearchScreen");
   await page.click("#closeSearchScreen");
 
