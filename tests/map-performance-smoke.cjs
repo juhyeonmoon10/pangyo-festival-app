@@ -67,6 +67,14 @@ async function run() {
   await page.click('button[data-route="map"]');
   await page.evaluate(() => document.querySelector('button[data-route="map"]')?.click());
 
+  await page.locator("[data-map-select]").first().click();
+  await page.locator(".map-preview-card").waitFor({ state: "visible" });
+  const previewFilter = await page.locator(".map-canvas").evaluate((element) => getComputedStyle(element).filter);
+  if (previewFilter === "none") throw new Error("map preview background blur is missing");
+  if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "map-preview-blur-320.png"), fullPage: true });
+  await page.locator("#mapCard").click({ position: { x: 12, y: 12 } });
+  if (await page.locator(".map-preview-card").count()) throw new Error("map preview did not close after backdrop tap");
+
   const metrics = await page.evaluate(() => ({
     renderCount: window.__renderCount,
     maxRenderMs: Math.max(0, ...window.__renderDurations),
@@ -78,6 +86,7 @@ async function run() {
     bodyWidth: document.body.scrollWidth,
     viewportWidth: document.documentElement.clientWidth,
   }));
+  metrics.previewFilter = previewFilter;
 
   if (metrics.renderCount > 26) throw new Error(`repeated render listeners detected: ${metrics.renderCount}`);
   if (!metrics.mapVisible || metrics.route !== "map") throw new Error(`map route was lost: ${JSON.stringify(metrics)}`);

@@ -3613,7 +3613,6 @@ button {
 .map-screen .icon-btn,
 .map-screen .floor-tabs,
 .map-chip,
-.map-preview-card,
 .search-screen,
 .bottom-nav,
 .choice-trigger,
@@ -3629,6 +3628,17 @@ button {
 }
 
 .map-card.has-preview .map-canvas {
-  filter: none;
-  opacity: 0.68;
+  -webkit-filter: blur(2.2px) saturate(0.82) brightness(0.9);
+  filter: blur(2.2px) saturate(0.82) brightness(0.9);
+  opacity: 0.78;
+}
+
+.map-card.has-preview::after {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.map-preview-card {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
