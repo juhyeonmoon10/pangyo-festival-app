@@ -1,5 +1,20 @@
 const DB_KEY = "pangyo-festival-db-v3";
 const GOAL_COUNT = 5;
+const EVENT = {
+  id: "event-2026",
+  name: "2026 판교고 연말 축제",
+  startsAt: "2026-12-18T00:00:00.000Z",
+  endsAt: "2026-12-18T06:00:00.000Z",
+  status: "rehearsal",
+};
+
+const BOOTH_STATUS = {
+  preparing: { label: "준비 중", tone: "muted" },
+  open: { label: "운영 중", tone: "success" },
+  crowded: { label: "혼잡", tone: "warning" },
+  paused: { label: "브레이크", tone: "danger" },
+  closed: { label: "마감", tone: "muted" },
+};
 
 const FLOORS = [
   { floor: 1, label: "1층", caption: "시설" },
@@ -42,6 +57,7 @@ const state = {
   loginBusy: false,
   loginError: "",
   adminMessage: "",
+  scanResult: null,
   pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
 };
 
@@ -86,10 +102,16 @@ function makeClassBooths(grade, floor) {
     const klass = index + 1;
     return {
       id: `g${grade}-${klass}`,
+      eventId: EVENT.id,
+      clubName: `${grade}학년 ${klass}반`,
       name: `${grade}학년 ${klass}반 부스`,
       floor,
+      room: `${grade}-${klass}`,
       location: `${floor}층 ${grade}-${klass} 교실`,
       description: "동아리/학급 부스 종류는 추후 확정되는 대로 업데이트할 예정입니다.",
+      status: index === 5 ? "crowded" : index === 7 ? "paused" : "open",
+      opensAt: EVENT.startsAt,
+      closesAt: EVENT.endsAt,
       nfcTagId: `NFC-G${grade}-${String(klass).padStart(2, "0")}`,
       x,
       y,
@@ -100,6 +122,20 @@ function makeClassBooths(grade, floor) {
 }
 
 const seed = {
+  event: {
+    ...EVENT,
+    emergencyMode: false,
+  },
+  announcements: [
+    {
+      id: "notice-1",
+      eventId: EVENT.id,
+      severity: "info",
+      title: "축제 준비 중이에요",
+      body: "현재 화면은 개인 UI 테스트 버전입니다. 실제 행사 정보는 운영진 확정 후 반영됩니다.",
+      publishedAt: "2026-07-13T00:00:00.000Z",
+    },
+  ],
   users: [
     {
       id: "u-admin",
@@ -113,11 +149,11 @@ const seed = {
     },
   ],
   booths: [
-    { id: "b1", name: "보건실", floor: 1, location: "1층 보건실", description: "축제 중 몸이 불편할 때 방문할 수 있는 응급 지원 공간입니다.", nfcTagId: "NFC-HEALTH-101", x: 17, y: 32, favorite: false, category: "facility" },
-    { id: "b2", name: "학생회 안내소", floor: 1, location: "1층 중앙 현관", description: "축제 안내, 분실물 문의, 음료 교환 문의를 도와주는 운영 부스입니다.", nfcTagId: "NFC-INFO-102", x: 50, y: 43, favorite: true, category: "facility" },
-    { id: "b3", name: "행정실", floor: 1, location: "1층 행정실", description: "축제 운영 문의와 긴급 연락을 처리하는 관리 공간입니다.", nfcTagId: "NFC-OFFICE-103", x: 46, y: 40, favorite: false, category: "facility" },
-    { id: "b4", name: "시청각실", floor: 1, location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다.", nfcTagId: "NFC-STUDIO-104", x: 84, y: 50, favorite: false, category: "facility" },
-    { id: "b5", name: "상담실", floor: 1, location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다.", nfcTagId: "NFC-STORE-105", x: 31, y: 31, favorite: false, category: "facility" },
+    { id: "b1", eventId: EVENT.id, clubName: "보건 지원", name: "보건실", floor: 1, room: "보건실", location: "1층 보건실", description: "축제 중 몸이 불편할 때 방문할 수 있는 응급 지원 공간입니다.", status: "open", opensAt: EVENT.startsAt, closesAt: EVENT.endsAt, nfcTagId: "NFC-HEALTH-101", x: 17, y: 32, favorite: false, category: "facility" },
+    { id: "b2", eventId: EVENT.id, clubName: "학생회", name: "학생회 안내소", floor: 1, room: "중앙 현관", location: "1층 중앙 현관", description: "축제 안내와 분실물 문의를 도와주는 운영 부스입니다.", status: "open", opensAt: EVENT.startsAt, closesAt: EVENT.endsAt, nfcTagId: "NFC-INFO-102", x: 50, y: 43, favorite: true, category: "facility" },
+    { id: "b3", eventId: EVENT.id, clubName: "행사 운영", name: "행정실", floor: 1, room: "행정실", location: "1층 행정실", description: "축제 운영 문의와 긴급 연락을 처리하는 관리 공간입니다.", status: "preparing", opensAt: EVENT.startsAt, closesAt: EVENT.endsAt, nfcTagId: "NFC-OFFICE-103", x: 46, y: 40, favorite: false, category: "facility" },
+    { id: "b4", eventId: EVENT.id, clubName: "방송부", name: "시청각실", floor: 1, room: "시청각실", location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다.", status: "paused", opensAt: EVENT.startsAt, closesAt: EVENT.endsAt, nfcTagId: "NFC-STUDIO-104", x: 84, y: 50, favorite: false, category: "facility" },
+    { id: "b5", eventId: EVENT.id, clubName: "학생 지원", name: "상담실", floor: 1, room: "상담실", location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다.", status: "closed", opensAt: EVENT.startsAt, closesAt: EVENT.endsAt, nfcTagId: "NFC-STORE-105", x: 31, y: 31, favorite: false, category: "facility" },
     ...makeClassBooths(1, 2),
     ...makeClassBooths(2, 3),
     ...makeClassBooths(3, 4),
@@ -146,12 +182,24 @@ function loadDb() {
     b4: { legacyName: "방송실", name: "시청각실", location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다." },
     b5: { legacyName: "매점", name: "상담실", location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다." },
   };
-  db.booths = db.booths.map((booth) => {
+  db.event = { ...seed.event, ...(db.event || {}) };
+  db.announcements = Array.isArray(db.announcements) ? db.announcements : structuredClone(seed.announcements);
+  db.booths = (Array.isArray(db.booths) ? db.booths : structuredClone(seed.booths)).map((booth) => {
     const update = legacyFacilityUpdates[booth.id];
-    if (!update || booth.name !== update.legacyName) return booth;
-    return { ...booth, name: update.name, location: update.location, description: update.description };
+    const migrated = update && booth.name === update.legacyName
+      ? { ...booth, name: update.name, location: update.location, description: update.description }
+      : booth;
+    return {
+      eventId: EVENT.id,
+      clubName: migrated.category === "class" ? migrated.name.replace(" 부스", "") : "행사 운영",
+      room: migrated.location?.replace(/^\d층\s*/, "") || "위치 미정",
+      status: "open",
+      opensAt: EVENT.startsAt,
+      closesAt: EVENT.endsAt,
+      ...migrated,
+    };
   });
-  db.users = db.users.map((user) => ({
+  db.users = (Array.isArray(db.users) ? db.users : []).map((user) => ({
     googleUid: user.googleUid || user.id,
     googleEmail: user.googleEmail || "",
     schoolId: user.schoolId || user.studentNumber,
@@ -159,6 +207,12 @@ function loadDb() {
     exchangedAt: null,
     ...user,
   }));
+  db.stamps = (Array.isArray(db.stamps) ? db.stamps : []).map((stamp) => ({
+    eventId: EVENT.id,
+    method: "nfc",
+    ...stamp,
+  }));
+  db.reviews = Array.isArray(db.reviews) ? db.reviews : [];
   return db;
 }
 
@@ -190,7 +244,9 @@ const nfcAdapter = {
   async scan(tagId) {
     const booth = state.db.booths.find((item) => item.nfcTagId === tagId);
     if (!booth) {
-      state.loginError = `등록되지 않은 NFC 태그입니다: ${tagId}`;
+      state.scanResult = { type: "error", title: "등록되지 않은 태그예요", body: "태그 정보를 확인하거나 운영자에게 보여 주세요." };
+      state.route = state.user ? "scan" : "login";
+      state.loginError = state.user ? "" : "등록되지 않은 NFC 태그입니다.";
       render();
       return;
     }
@@ -200,22 +256,52 @@ const nfcAdapter = {
       render();
       return;
     }
-    if (!repo.hasStamp(state.user.id, booth.id)) {
-      state.db.stamps.push({ id: makeId(), userId: state.user.id, boothId: booth.id, createdAt: new Date().toISOString() });
+    if (!["open", "crowded"].includes(booth.status)) {
+      state.scanResult = { type: "blocked", boothId: booth.id, title: "지금은 적립할 수 없어요", body: `${booth.name}은(는) ${statusInfo(booth.status).label} 상태예요. 운영자에게 문의해 주세요.` };
+      state.route = "scan";
+      render();
+      return;
+    }
+    const existing = repo.hasStamp(state.user.id, booth.id);
+    const earnedAt = new Date().toISOString();
+    if (!existing) {
+      state.db.stamps.push({ id: makeId(), eventId: EVENT.id, userId: state.user.id, boothId: booth.id, method: "nfc", createdAt: earnedAt });
       saveDb();
       showStampPop();
     }
-    goDetail(booth.id);
+    state.scanResult = {
+      type: existing ? "duplicate" : "success",
+      boothId: booth.id,
+      title: existing ? "이미 방문한 부스예요" : "스탬프를 적립했어요",
+      body: existing ? "기존 방문 기록을 그대로 유지했어요." : `${formatTime(earnedAt)}에 방문 기록이 저장됐어요.`,
+    };
+    state.route = "scan";
+    render();
   },
 };
 
+function statusInfo(status) {
+  return BOOTH_STATUS[status] || BOOTH_STATUS.preparing;
+}
+
+function formatTime(value) {
+  return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(new Date(value));
+}
+
+function formatOperatingHours(booth) {
+  return `${formatTime(booth.opensAt)}–${formatTime(booth.closesAt)}`;
+}
+
 function icon(name) {
   const icons = {
+    home: "⌂",
     map: "⌖",
+    scan: "N",
     stamp: "印",
     star: "★",
     back: "‹",
     admin: "⚙",
+    user: "●",
     heart: "♥",
   };
   return icons[name] || "";
@@ -235,9 +321,12 @@ function render() {
     app.classList.toggle("route-change", routeChanged);
     app.classList.toggle("state-update", !routeChanged);
     if (state.route === "login") app.innerHTML = loginView();
+    if (state.route === "home") app.innerHTML = homeView();
     if (state.route === "map") app.innerHTML = mapView();
+    if (state.route === "scan") app.innerHTML = scanView();
     if (state.route === "detail") app.innerHTML = detailView();
     if (state.route === "stamps") app.innerHTML = stampView();
+    if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
     app.dataset.previousRoute = previousRoute;
     app.dataset.route = nextRoute;
@@ -293,6 +382,137 @@ function profileForm() {
         <button id="backToGoogle" type="button" class="ghost-btn">구글 계정 다시 선택</button>
       </div>
     </div>
+  `;
+}
+
+function homeView() {
+  const stamps = repo.stampsForUser(state.user.id);
+  const available = state.db.booths.filter((booth) => ["open", "crowded"].includes(booth.status));
+  const crowded = state.db.booths.filter((booth) => booth.status === "crowded").length;
+  const notice = state.db.announcements[0];
+  return `
+    <main class="screen p0-page home-screen">
+      <header class="p0-header">
+        <div>
+          <span class="eyebrow">${state.db.event.status === "rehearsal" ? "UI TEST MODE" : "ORBIT"}</span>
+          <h1>${state.user?.name || "학생"}님, 안녕하세요</h1>
+          <p>${state.db.event.name}</p>
+        </div>
+        <button class="icon-btn" data-route="profile" aria-label="내 정보">${icon("user")}</button>
+      </header>
+      ${state.db.event.emergencyMode ? emergencyBanner() : ""}
+      ${notice ? noticeBanner(notice) : ""}
+      <section class="home-summary" aria-label="축제 현황">
+        <div><span>방문</span><strong>${stamps.length}</strong><small>개 부스</small></div>
+        <div><span>운영 중</span><strong>${available.length}</strong><small>개 부스</small></div>
+        <div><span>혼잡</span><strong>${crowded}</strong><small>개 부스</small></div>
+      </section>
+      <section class="p0-section">
+        <div class="section-heading"><div><span>빠른 시작</span><h2>지금 무엇을 할까요?</h2></div></div>
+        <div class="quick-actions">
+          <button type="button" data-route="map"><b>${icon("map")}</b><span><strong>부스 찾기</strong><small>층과 교실로 찾아보세요</small></span></button>
+          <button type="button" data-route="scan"><b>${icon("scan")}</b><span><strong>NFC 방문 인증</strong><small>태그 결과를 확인하세요</small></span></button>
+        </div>
+      </section>
+      <section class="p0-section">
+        <div class="section-heading"><div><span>추천 부스</span><h2>현재 이용 가능해요</h2></div><button data-route="map">전체 보기</button></div>
+        <div class="home-booth-list">${available.slice(0, 3).map(homeBoothCard).join("")}</div>
+      </section>
+      ${bottomNav("home")}
+    </main>
+  `;
+}
+
+function noticeBanner(notice) {
+  return `
+    <section class="notice-banner ${notice.severity}" role="status">
+      <span>공지</span>
+      <div><strong>${notice.title}</strong><p>${notice.body}</p><small>${formatTime(notice.publishedAt)} 게시</small></div>
+    </section>
+  `;
+}
+
+function emergencyBanner() {
+  return `
+    <section class="emergency-banner" role="alert">
+      <strong>비상 모드가 켜졌어요</strong>
+      <p>방문 적립이 제한됩니다. 현장 운영자의 안내를 따라 주세요.</p>
+    </section>
+  `;
+}
+
+function homeBoothCard(booth) {
+  return `
+    <button type="button" class="home-booth-card" data-list-select="${booth.id}">
+      <span><strong>${booth.name}</strong><small>${booth.clubName} · ${booth.location}</small></span>
+      ${statusBadge(booth.status)}
+    </button>
+  `;
+}
+
+function statusBadge(status) {
+  const info = statusInfo(status);
+  return `<span class="status-badge ${info.tone}"><i aria-hidden="true"></i>${info.label}</span>`;
+}
+
+function scanView() {
+  const sample = state.db.booths.find((booth) => booth.status === "open");
+  const result = state.scanResult;
+  const resultBooth = result?.boothId ? state.db.booths.find((booth) => booth.id === result.boothId) : null;
+  return `
+    <main class="screen p0-page scan-screen">
+      <header class="p0-header compact">
+        <div><span class="eyebrow">NFC</span><h1>방문 인증</h1><p>태그를 휴대전화 뒷면에 가까이 대세요.</p></div>
+      </header>
+      <section class="demo-boundary"><strong>UI 테스트 모드</strong><span>현재 기록은 이 브라우저에만 저장돼요.</span></section>
+      ${state.db.event.emergencyMode ? emergencyBanner() : ""}
+      <section class="scan-pad ${result ? `has-result ${result.type}` : ""}">
+        ${result ? `
+          <div class="scan-result-icon">${result.type === "success" ? "✓" : result.type === "duplicate" ? "↻" : "!"}</div>
+          <span>${resultBooth?.location || "NFC 확인"}</span>
+          <h2>${result.title}</h2>
+          <p>${result.body}</p>
+          ${resultBooth ? `<button type="button" class="primary-btn" data-detail="${resultBooth.id}">부스 상세 보기</button>` : ""}
+          <button type="button" class="ghost-btn" id="clearScanResult">다른 태그 확인</button>
+        ` : `
+          <div class="nfc-waves" aria-hidden="true"><i></i><i></i><b>N</b></div>
+          <span>태그 대기 중</span>
+          <h2>NFC 태그를 인식하면<br />결과가 여기에 표시돼요</h2>
+          <p>NFC를 읽지 못하면 부스 운영자에게 수동 승인을 요청하세요.</p>
+          ${sample ? `<button type="button" class="ghost-btn" data-nfc="${sample.nfcTagId}">샘플 태그 테스트</button>` : ""}
+        `}
+      </section>
+      <section class="manual-help">
+        <span>인식되지 않나요?</span>
+        <strong>운영자에게 수동 승인을 요청하세요</strong>
+        <p>실서비스에서는 운영자가 담당 부스와 단기 학생 코드를 확인한 뒤 승인합니다.</p>
+      </section>
+      ${bottomNav("scan")}
+    </main>
+  `;
+}
+
+function profileView() {
+  const stampCount = repo.stampsForUser(state.user.id).length;
+  return `
+    <main class="screen p0-page profile-screen">
+      <header class="p0-header compact">
+        <div><span class="eyebrow">MY ORBIT</span><h1>내 정보</h1><p>현재 로그인과 기록은 데모 상태예요.</p></div>
+      </header>
+      <section class="profile-card">
+        <div class="profile-avatar">${(state.user.name || "학").slice(0, 1)}</div>
+        <div><strong>${state.user.name}</strong><span>${state.user.googleEmail || "학교 계정 미연결"}</span></div>
+        <em>${state.user.role === "admin" ? "관리자 데모" : "학생 데모"}</em>
+      </section>
+      <section class="profile-list">
+        <div><span>행사</span><strong>${state.db.event.name}</strong></div>
+        <div><span>방문 기록</span><strong>${stampCount}개</strong></div>
+        <div><span>저장 위치</span><strong>이 브라우저</strong></div>
+      </section>
+      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">관리자 데모 열기</button>` : ""}
+      <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
+      ${bottomNav("profile")}
+    </main>
   `;
 }
 
@@ -425,7 +645,7 @@ function mapPlanMarkup(plan, booths) {
       const visited = repo.hasStamp(state.user.id, booth.id);
       const selected = state.selectedBoothId === booth.id;
       return `
-        <button type="button" class="plan-room ${item.type} booth-room ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}">
+        <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${booth.name}, ${statusInfo(booth.status).label}" title="${booth.name}">
           <span>${item.label}</span>
           <small>${booth.category === "class" ? "부스" : "안내"}</small>
           <i class="room-state" aria-hidden="true"></i>
@@ -447,13 +667,13 @@ function mapView() {
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
       <header class="top-bar">
-        <button class="icon-btn" data-route="stamps" title="스탬프">${icon("stamp")}</button>
+        <button class="icon-btn" data-route="home" title="홈" aria-label="홈">${icon("home")}</button>
         <div class="top-title"><strong>판교고 축제 맵</strong><span>${floorInfo.label} · ${floorInfo.caption} · ${state.user?.name || ""}님</span></div>
         <button class="icon-btn map-search-action ${state.search ? "has-query" : ""}" id="mapSearchBtn" type="button" aria-label="부스 검색">
           <span>⌕</span>
           ${state.search ? `<b>${booths.length}</b>` : ""}
         </button>
-        <button class="icon-btn" data-route="${state.user?.role === "admin" ? "admin" : "login"}" title="계정">${state.user?.role === "admin" ? icon("admin") : "G"}</button>
+        <button class="icon-btn" data-route="profile" title="내 정보" aria-label="내 정보">${state.user?.role === "admin" ? icon("admin") : icon("user")}</button>
       </header>
       <nav class="floor-tabs" aria-label="층 선택">
         ${FLOORS.map(({ floor, label, caption }) => `
@@ -575,7 +795,7 @@ function choiceSelect({ id, label, caption = "", options }) {
 }
 
 function markerClass(booth) {
-  const classes = ["marker", booth.category || "class"];
+  const classes = ["marker", booth.category || "class", `status-${booth.status}`];
   if (booth.favorite) classes.push("favorite");
   if (repo.hasStamp(state.user.id, booth.id)) classes.push("visited");
   return classes.join(" ");
@@ -596,10 +816,10 @@ function boothItem(booth) {
     <button class="booth-item ${booth.category || "class"} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       <span class="booth-main">
         <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
-        <span class="meta">${booth.location}</span>
+        <span class="meta">${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}</span>
         <span class="booth-stats"><i>${icon("star")} ${avg}</i><i>방문 ${visits}</i><i>${stamped ? "스탬프 완료" : "방문 전"}</i></span>
       </span>
-      <span class="booth-state ${stamped ? "on" : ""}">${stamped ? "완료" : "대기"}</span>
+      ${statusBadge(booth.status)}
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
     </button>
   `;
@@ -613,7 +833,8 @@ function mapPreviewCard(booth) {
     <article class="map-preview-card">
       <div>
         <strong>${booth.name}</strong>
-        <span>${booth.location} · ${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 방문 ${repo.boothVisits(booth.id)}</span>
+        <span>${booth.location} · ${formatOperatingHours(booth)} · 방문 ${repo.boothVisits(booth.id)}</span>
+        ${statusBadge(booth.status)}
         <span class="preview-status"><i class="${stamped ? "on" : ""}">${stamped ? "스탬프 획득" : "스탬프 미획득"}</i><i class="${stamped && !reviewed ? "on" : ""}">${reviewState}</i></span>
       </div>
       <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
@@ -635,7 +856,8 @@ function detailView() {
         <button class="icon-btn" data-nfc="${booth.nfcTagId}" title="NFC 테스트">NFC</button>
       </header>
       <section class="detail-hero">
-        <div class="meta">${booth.floor}층 · ${booth.location}</div>
+        <div class="detail-status-row">${statusBadge(booth.status)}<span>${formatOperatingHours(booth)}</span></div>
+        <div class="meta">${booth.clubName} · ${booth.floor}층 · ${booth.room}</div>
         <h1 class="title">${booth.name}</h1>
         <div class="meta">${icon("star")} ${repo.avgRating(booth.id).toFixed(1)} · 리뷰 ${reviews.length}개 · <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span></div>
       </section>
@@ -676,24 +898,26 @@ function reviewView(review) {
 function stampView() {
   const count = repo.stampsForUser(state.user.id).length;
   const total = state.db.booths.length;
-  const remain = Math.max(GOAL_COUNT - count, 0);
-  const percent = Math.min((count / GOAL_COUNT) * 100, 100);
-  const user = state.db.users.find((item) => item.id === state.user.id);
+  const percent = Math.min((count / Math.max(total, 1)) * 100, 100);
   return `
-    <main class="screen stamp-screen">
-      <header class="top-bar">
-        <button class="icon-btn" data-route="map">${icon("back")}</button>
-        <div class="top-title"><strong>스탬프 현황</strong><span>목표 ${GOAL_COUNT}개 달성 시 음료 교환</span></div>
-        <button class="icon-btn" data-route="admin">${icon("admin")}</button>
+    <main class="screen p0-page stamp-screen">
+      <header class="p0-header compact">
+        <div><span class="eyebrow">FESTIVAL PASS</span><h1>나의 축제 패스</h1><p>내가 방문한 부스를 한눈에 확인하세요.</p></div>
       </header>
-      <section class="panel">
+      <section class="pass-summary">
         <h1 class="title">현재 ${count}개 획득</h1>
         <p class="subtitle">전체 ${total}개 중 ${count}개를 모았습니다.</p>
         <div class="progress-wrap"><div class="progress" style="width:${percent}%"></div></div>
-        <p class="notice">${remain ? `목표까지 ${remain}개 남았습니다.` : user?.exchangedAt ? "음료 교환 완료" : "음료수 교환 가능"}</p>
+        <p class="pass-note">실제 계정·서버 연결 전까지 이 기기에만 저장돼요.</p>
       </section>
-      <section class="section stats-grid">
-        ${state.db.booths.map((booth) => `<div class="stat"><strong class="stamp ${repo.hasStamp(state.user.id, booth.id) ? "on" : ""}">${icon("stamp")}</strong><span>${booth.name}</span></div>`).join("")}
+      <section class="p0-section">
+        <div class="section-heading"><div><span>방문 목록</span><h2>${count ? "기록된 부스" : "아직 방문 기록이 없어요"}</h2></div></div>
+        <div class="pass-list">
+          ${state.db.booths.map((booth) => {
+            const stamp = state.db.stamps.find((item) => item.userId === state.user.id && item.boothId === booth.id);
+            return `<button type="button" class="pass-row ${stamp ? "earned" : ""}" data-list-select="${booth.id}"><span class="stamp ${stamp ? "on" : ""}">${icon("stamp")}</span><span><strong>${booth.name}</strong><small>${booth.location}${stamp ? ` · ${formatTime(stamp.createdAt)}` : " · 미방문"}</small></span></button>`;
+          }).join("")}
+        </div>
       </section>
       ${bottomNav("stamps")}
     </main>
@@ -859,10 +1083,12 @@ function adminEmpty(title, body) {
 
 function bottomNav(active) {
   return `
-    <nav class="bottom-nav">
-      <button class="nav-btn ${active === "map" ? "active" : ""}" data-route="map"><span>${icon("map")}</span><span>지도</span></button>
-      <button class="nav-btn ${active === "stamps" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>스탬프</span></button>
-      <button class="nav-btn ${active === "admin" ? "active" : ""}" data-route="admin"><span>${icon("admin")}</span><span>관리</span></button>
+    <nav class="bottom-nav" aria-label="주요 메뉴">
+      <button class="nav-btn ${active === "home" ? "active" : ""}" data-route="home"><span>${icon("home")}</span><span>홈</span></button>
+      <button class="nav-btn ${active === "map" ? "active" : ""}" data-route="map"><span>${icon("map")}</span><span>부스</span></button>
+      <button class="nav-btn scan-nav ${active === "scan" ? "active" : ""}" data-route="scan"><span>${icon("scan")}</span><span>NFC</span></button>
+      <button class="nav-btn ${active === "stamps" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>패스</span></button>
+      <button class="nav-btn ${active === "profile" ? "active" : ""}" data-route="profile"><span>${icon("user")}</span><span>내 정보</span></button>
     </nav>
   `;
 }
@@ -1005,6 +1231,10 @@ function bindEvents() {
     goDetail(button.dataset.detail);
   }));
   document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => nfcAdapter.scan(button.dataset.nfc)));
+  document.querySelector("#clearScanResult")?.addEventListener("click", () => {
+    state.scanResult = null;
+    render();
+  });
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {
     state.reviewRating = Number(button.dataset.rating);
     render();
@@ -1288,7 +1518,7 @@ function startGoogleLogin(intent = "student") {
     saveDb();
     state.user = user;
     state.authStep = "google";
-    state.route = "map";
+    state.route = "home";
     state.loginError = "";
     state.openMenu = null;
     render();
@@ -1333,7 +1563,7 @@ function completeProfile() {
   });
   saveDb();
   state.user = user;
-  state.route = "map";
+  state.route = "home";
   state.loginError = "";
   consumePendingNfc();
 }
@@ -1422,10 +1652,16 @@ function addBooth() {
   }
   state.db.booths.push({
     id: makeId(),
+    eventId: EVENT.id,
+    clubName: name,
     name,
     floor: Number(document.querySelector("#boothFloor").value),
+    room: document.querySelector("#boothLocation").value.trim() || "위치 미정",
     location: document.querySelector("#boothLocation").value.trim(),
     description: document.querySelector("#boothDesc").value.trim(),
+    status: "preparing",
+    opensAt: EVENT.startsAt,
+    closesAt: EVENT.endsAt,
     nfcTagId,
     x: 28 + Math.floor(Math.random() * 42),
     y: 30 + Math.floor(Math.random() * 38),

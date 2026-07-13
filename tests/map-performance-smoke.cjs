@@ -1,19 +1,28 @@
 const path = require("path");
+const fs = require("fs");
 const { pathToFileURL } = require("url");
 
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || "playwright");
 const chromePath = process.env.CHROME_PATH;
+const screenshotDir = process.env.SCREENSHOT_DIR;
 
 if (!chromePath) throw new Error("CHROME_PATH is required");
 
 async function run() {
   const browser = await chromium.launch({ headless: true, executablePath: chromePath });
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const page = await browser.newPage({ viewport: { width: 320, height: 740 } });
   page.setDefaultTimeout(8000);
   await page.addInitScript(() => localStorage.clear());
   await page.goto(pathToFileURL(path.join(__dirname, "..", "index.html")).href, { waitUntil: "load" });
   await page.click("#googleLogin");
+  await page.locator(".home-screen").waitFor({ state: "visible" });
+  if (screenshotDir) {
+    fs.mkdirSync(screenshotDir, { recursive: true });
+    await page.screenshot({ path: path.join(screenshotDir, "home-320.png"), fullPage: true });
+  }
+  await page.click('button[data-route="map"]');
   await page.locator(".map-screen").waitFor({ state: "visible" });
+  if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "map-320.png"), fullPage: true });
 
   await page.evaluate(() => {
     window.__renderCount = 0;
@@ -28,9 +37,35 @@ async function run() {
     };
   });
 
-  for (let index = 0; index < 12; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     await page.evaluate(() => document.querySelector('button[data-route="map"]')?.click());
   }
+
+  for (const route of ["home", "scan", "stamps", "profile", "map"]) {
+    await page.click(`button[data-route="${route}"]`);
+    const overflow = await page.evaluate(() => ({
+      route: state.route,
+      bodyWidth: document.body.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      navItems: document.querySelectorAll(".bottom-nav .nav-btn").length,
+    }));
+    if (overflow.route !== route) throw new Error(`route failed: ${JSON.stringify(overflow)}`);
+    if (overflow.bodyWidth > overflow.viewportWidth + 1) throw new Error(`horizontal overflow on ${route}`);
+    if (overflow.navItems !== 5) throw new Error(`bottom navigation count is ${overflow.navItems}`);
+  }
+
+  await page.click('button[data-route="scan"]');
+  await page.click('button[data-nfc]');
+  await page.locator(".scan-pad.success").waitFor({ state: "visible" });
+  if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "nfc-success-320.png"), fullPage: true });
+  await page.click("#clearScanResult");
+  await page.click('button[data-nfc]');
+  await page.locator(".scan-pad.duplicate").waitFor({ state: "visible" });
+  await page.click('button[data-route="stamps"]');
+  const earnedPassRows = await page.locator(".pass-row.earned").count();
+  if (earnedPassRows !== 1) throw new Error(`festival pass has ${earnedPassRows} earned rows`);
+  await page.click('button[data-route="map"]');
+  await page.evaluate(() => document.querySelector('button[data-route="map"]')?.click());
 
   const metrics = await page.evaluate(() => ({
     renderCount: window.__renderCount,
@@ -44,7 +79,7 @@ async function run() {
     viewportWidth: document.documentElement.clientWidth,
   }));
 
-  if (metrics.renderCount > 14) throw new Error(`repeated render listeners detected: ${metrics.renderCount}`);
+  if (metrics.renderCount > 26) throw new Error(`repeated render listeners detected: ${metrics.renderCount}`);
   if (!metrics.mapVisible || metrics.route !== "map") throw new Error(`map route was lost: ${JSON.stringify(metrics)}`);
   if (metrics.screenAnimation !== "none") throw new Error(`same-route animation is active: ${metrics.screenAnimation}`);
   if (metrics.bodyWidth > metrics.viewportWidth + 1) throw new Error("horizontal overflow detected");
