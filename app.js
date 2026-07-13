@@ -516,16 +516,30 @@ function profileView() {
   `;
 }
 
-function visibleBooths() {
-  let booths = state.db.booths.filter((booth) => booth.floor === state.floor);
-  if (state.search.trim()) {
-    const term = state.search.trim().toLowerCase();
-    booths = booths.filter((booth) => `${booth.name} ${booth.location}`.toLowerCase().includes(term));
-  }
-  return booths.sort((a, b) => {
+function sortedBooths(booths) {
+  return [...booths].sort((a, b) => {
     if (state.sort === "rating") return repo.avgRating(b.id) - repo.avgRating(a.id);
     return a.name.localeCompare(b.name, "ko");
   });
+}
+
+function matchesBoothSearch(booth) {
+  if (!state.search.trim()) return true;
+  const term = state.search.trim().toLowerCase();
+  return `${booth.name} ${booth.clubName} ${booth.location}`.toLowerCase().includes(term);
+}
+
+function visibleBooths() {
+  const booths = state.db.booths.filter((booth) => booth.floor === state.floor && matchesBoothSearch(booth));
+  return sortedBooths(booths);
+}
+
+function searchResults() {
+  let booths = state.db.booths;
+  if (state.search.trim()) {
+    booths = booths.filter(matchesBoothSearch);
+  }
+  return sortedBooths(booths);
 }
 
 function mapPlanForFloor(floor) {
@@ -658,6 +672,7 @@ function mapPlanMarkup(plan, booths) {
 
 function mapView() {
   const booths = visibleBooths();
+  const globalSearchResults = searchResults();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const plan = mapPlanForFloor(state.floor);
   const placedBoothIds = new Set(plan.rooms.map((item) => boothForPlanRoom(item, booths)?.id).filter(Boolean));
@@ -671,7 +686,7 @@ function mapView() {
         <div class="top-title"><strong>판교고 축제 맵</strong><span>${floorInfo.label} · ${floorInfo.caption} · ${state.user?.name || ""}님</span></div>
         <button class="icon-btn map-search-action ${state.search ? "has-query" : ""}" id="mapSearchBtn" type="button" aria-label="부스 검색">
           <span>⌕</span>
-          ${state.search ? `<b>${booths.length}</b>` : ""}
+          ${state.search ? `<b>${globalSearchResults.length}</b>` : ""}
         </button>
         <button class="icon-btn" data-route="profile" title="내 정보" aria-label="내 정보">${state.user?.role === "admin" ? icon("admin") : icon("user")}</button>
       </header>
@@ -723,7 +738,7 @@ function mapView() {
         </div>
         <div class="booth-list">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
       </section>
-      ${state.searchOpen ? searchOverlay(booths) : ""}
+      ${state.searchOpen ? searchOverlay(globalSearchResults) : ""}
       ${bottomNav("map")}
     </main>
   `;
@@ -1179,11 +1194,24 @@ function bindEvents() {
   });
   bindMapDrag();
   bindSheetDrag();
-  document.querySelector("#searchScreenInput")?.addEventListener("input", (event) => {
-    state.search = event.target.value;
+  const searchInput = document.querySelector("#searchScreenInput");
+  const commitSearch = (value) => {
+    if (state.search === value) return;
+    state.search = value;
     state.searchOpen = true;
     render();
     focusSearchInput();
+  };
+  searchInput?.addEventListener("compositionstart", () => {
+    searchInput.dataset.composing = "true";
+  });
+  searchInput?.addEventListener("compositionend", (event) => {
+    delete searchInput.dataset.composing;
+    commitSearch(event.target.value);
+  });
+  searchInput?.addEventListener("input", (event) => {
+    if (event.isComposing || searchInput.dataset.composing === "true") return;
+    commitSearch(event.target.value);
   });
   document.querySelector("#clearEmptySearch")?.addEventListener("click", () => {
     state.search = "";
