@@ -31,6 +31,8 @@
 
 자세한 차이는 [P0_GAP_AUDIT.md](./P0_GAP_AUDIT.md)에 기록합니다.
 
+실제 서버 연결 전 DB·권한·NFC·API 계약은 [SERVER_DB_API_DESIGN.md](./SERVER_DB_API_DESIGN.md)에 정리합니다.
+
 ## 로컬 실행
 
 정적 웹앱이므로 `index.html`을 브라우저로 열 수 있습니다.

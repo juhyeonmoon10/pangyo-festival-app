@@ -25,17 +25,26 @@ async function run() {
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "map-320.png"), fullPage: true });
 
   await page.click("#mapSearchBtn");
-  await page.locator("#searchScreenInput").evaluate((input) => {
+  const stableSearchDom = await page.locator("#searchScreenInput").evaluate((input) => {
+    const mapCard = document.querySelector("#mapCard");
     input.value = "1";
     input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "1", inputType: "insertText" }));
+    return {
+      inputPreserved: document.querySelector("#searchScreenInput") === input,
+      mapPreserved: document.querySelector("#mapCard") === mapCard,
+      inputConnected: input.isConnected,
+    };
   });
+  if (!stableSearchDom.inputPreserved || !stableSearchDom.mapPreserved || !stableSearchDom.inputConnected) {
+    throw new Error(`Search replaced stable DOM: ${JSON.stringify(stableSearchDom)}`);
+  }
   const compositionState = await page.locator("#searchScreenInput").evaluate((input) => {
     input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "ㅎ" }));
     input.value = "1ㅎ";
     input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "ㅎ", inputType: "insertCompositionText", isComposing: true }));
-    return { connected: input.isConnected, stateSearch: state.search };
+    return { connected: input.isConnected, preserved: document.querySelector("#searchScreenInput") === input, stateSearch: state.search };
   });
-  if (!compositionState.connected || compositionState.stateSearch !== "1") {
+  if (!compositionState.connected || !compositionState.preserved || compositionState.stateSearch !== "1") {
     throw new Error(`Korean composition was interrupted: ${JSON.stringify(compositionState)}`);
   }
   await page.locator("#searchScreenInput").evaluate((input) => {
@@ -45,6 +54,21 @@ async function run() {
   await page.locator(".search-result-meta strong").filter({ hasText: "8개 결과" }).waitFor();
   const composedQuery = await page.locator("#searchScreenInput").inputValue();
   if (composedQuery !== "1학년") throw new Error(`Korean query changed to ${composedQuery}`);
+
+  for (const query of ["1학년1반", "1학년 1반", "1학년   1반"]) {
+    const preserved = await page.locator("#searchScreenInput").evaluate((input, nextQuery) => {
+      input.value = nextQuery;
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, data: nextQuery, inputType: "insertText" }));
+      return document.querySelector("#searchScreenInput") === input && input.isConnected;
+    }, query);
+    if (!preserved) throw new Error(`Search input was replaced for query: ${query}`);
+    await page.locator(".search-result-meta strong").filter({ hasText: "1개 결과" }).waitFor();
+    const firstResult = await page.locator("#searchResultList .booth-item strong").first().innerText();
+    if (!firstResult.includes("1학년 1반 부스")) {
+      throw new Error(`Whitespace-insensitive search failed for ${query}: ${firstResult}`);
+    }
+  }
+
   const searchItemHeight = await page.locator(".search-result-list .booth-item").first().evaluate((item) => item.getBoundingClientRect().height);
   if (searchItemHeight < 72) throw new Error(`search result card collapsed to ${searchItemHeight}px`);
   if (screenshotDir) {

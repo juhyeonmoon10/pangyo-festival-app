@@ -10,6 +10,7 @@ const viewports = [
   { name: "320", width: 320, height: 740 },
   { name: "390", width: 390, height: 844 },
   { name: "430", width: 430, height: 932 },
+  { name: "757-in-app", width: 757, height: 802 },
 ];
 
 if (!chromePath) throw new Error("CHROME_PATH is required");
@@ -126,8 +127,64 @@ async function run() {
     await page.click('button[data-route="map"]');
     await page.locator(".map-screen").waitFor({ state: "visible" });
     await assertBottomNav("map");
+    const sheetGeometry = await page.evaluate(() => {
+      const sheet = document.querySelector("#sheet")?.getBoundingClientRect();
+      const handle = document.querySelector("#sheetToggle")?.getBoundingClientRect();
+      const grip = document.querySelector(".sheet-grip")?.getBoundingClientRect();
+      const nav = document.querySelector(".bottom-nav")?.getBoundingClientRect();
+      const sheetPosition = document.querySelector("#sheet")
+        ? getComputedStyle(document.querySelector("#sheet")).position
+        : null;
+      return sheet && handle && grip && nav ? {
+        sheetPosition,
+        sheetHeight: sheet.height,
+        handleHeight: handle.height,
+        handleBottom: handle.bottom,
+        navTop: nav.top,
+        gap: nav.top - handle.bottom,
+        gripInside: grip.top >= sheet.top && grip.bottom <= sheet.bottom,
+        gripWidth: grip.width,
+      } : null;
+    });
+    ensure(sheetGeometry, `${viewport.name}: 부스 목록 핸들 또는 하단 탭바가 없음`);
+    ensure(sheetGeometry.sheetPosition === "fixed", `${viewport.name}: 부스 목록이 화면 기준으로 고정되지 않음 ${JSON.stringify(sheetGeometry)}`);
+    ensure(sheetGeometry.sheetHeight >= 42 && sheetGeometry.handleHeight >= 42, `${viewport.name}: 기본 화면 핸들 바 높이가 부족함 ${JSON.stringify(sheetGeometry)}`);
+    ensure(sheetGeometry.gripInside && sheetGeometry.gripWidth >= 40, `${viewport.name}: 기본 화면에서 핸들 표시가 잘림 ${JSON.stringify(sheetGeometry)}`);
+    ensure(sheetGeometry.gap >= 0 && sheetGeometry.gap <= 8, `${viewport.name}: 핸들이 하단 탭바 바로 위에 있지 않음 ${JSON.stringify(sheetGeometry)}`);
     await capture("03-map");
     steps.push(await layout("map"));
+
+    await page.click("#sheetToggle");
+    ensure(await page.evaluate(() => state.sheetLevel) === "mid", `${viewport.name}: 부스 목록 중간 펼침 실패`);
+    const sheetListLayout = await page.locator(".sheet .booth-item").first().evaluate((item) => {
+      const meta = item.querySelector(".meta");
+      const status = item.querySelector(".status-badge");
+      return {
+        itemHeight: item.getBoundingClientRect().height,
+        itemClipped: item.scrollHeight > item.clientHeight + 1,
+        metaVisible: Boolean(meta && meta.getBoundingClientRect().height > 0),
+        statusVisible: Boolean(status && status.getBoundingClientRect().height > 0),
+      };
+    });
+    ensure(sheetListLayout.itemHeight >= 84, `${viewport.name}: 부스 카드가 너무 낮음 ${JSON.stringify(sheetListLayout)}`);
+    ensure(!sheetListLayout.itemClipped && sheetListLayout.metaVisible && sheetListLayout.statusVisible, `${viewport.name}: 부스 카드 정보가 잘림 ${JSON.stringify(sheetListLayout)}`);
+    await capture("03b-sheet-mid");
+    await page.click("#sheetToggle");
+    ensure(await page.evaluate(() => state.sheetLevel) === "full", `${viewport.name}: 부스 목록 전체 펼침 실패`);
+    const fullSheetGeometry = await page.evaluate(() => {
+      const sheet = document.querySelector("#sheet")?.getBoundingClientRect();
+      const nav = document.querySelector(".bottom-nav")?.getBoundingClientRect();
+      return sheet && nav ? {
+        top: sheet.top,
+        bottomGap: nav.top - sheet.bottom,
+      } : null;
+    });
+    ensure(fullSheetGeometry, `${viewport.name}: 전체 펼침 위치를 측정할 수 없음`);
+    ensure(fullSheetGeometry.top <= 130, `${viewport.name}: 전체 펼침이 충분히 올라오지 않음 ${JSON.stringify(fullSheetGeometry)}`);
+    ensure(fullSheetGeometry.bottomGap >= 0 && fullSheetGeometry.bottomGap <= 8, `${viewport.name}: 펼친 목록이 하단 탭바에 붙지 않음 ${JSON.stringify(fullSheetGeometry)}`);
+    await capture("03c-sheet-full");
+    await page.click("#sheetToggle");
+    ensure(await page.evaluate(() => state.sheetLevel) === "peek", `${viewport.name}: 부스 목록 접기 실패`);
 
     await page.click("#mapSearchBtn");
     await page.locator("#searchScreenInput").waitFor({ state: "visible" });
@@ -167,30 +224,43 @@ async function run() {
     await capture("07-nfc-ready");
     steps.push(await layout("nfc-ready"));
     await page.evaluate(() => {
-      const button = document.querySelector("button[data-nfc]");
+      const button = document.querySelector('[data-nfc-test="NFC-G1-01"]');
       button.click();
       button.click();
       button.click();
     });
     await page.locator(".scan-pad.success").waitFor({ state: "visible" });
+    await page.waitForFunction(() => state.db.stamps.length === 1);
     await capture("08-nfc-success", 1000);
     const stampCountAfterSuccess = await page.evaluate(() => state.db.stamps.length);
-    await page.click("#clearScanResult");
+
+    await page.click('[data-nfc-test="NFC-G1-02"]');
+    await page.waitForFunction(() => state.db.stamps.length === 2 && state.scanResult?.type === "success");
+    const stampCountAfterSecond = await page.evaluate(() => state.db.stamps.length);
+    await capture("08b-nfc-second-success", 520);
+
     await page.evaluate(() => {
-      const button = document.querySelector("button[data-nfc]");
+      const button = document.querySelector('[data-nfc-test="NFC-G1-01"]');
       button.click();
       button.click();
     });
-    await page.locator(".scan-pad.duplicate").waitFor({ state: "visible" });
+    await page.waitForFunction(() => state.scanResult?.type === "duplicate");
     await capture("09-nfc-duplicate", 520);
     const stampCountAfterDuplicate = await page.evaluate(() => state.db.stamps.length);
-    ensure(stampCountAfterSuccess === 1 && stampCountAfterDuplicate === 1, `${viewport.name}: NFC 중복 클릭 방지가 실패함`);
+    ensure(stampCountAfterSuccess === 1 && stampCountAfterSecond === 2 && stampCountAfterDuplicate === 2, `${viewport.name}: NFC 연속 적립 또는 중복 방지가 실패함`);
+
+    await page.click("#resetNfcTestStamps");
+    await page.waitForFunction(() => state.db.stamps.length === 0 && state.nfcTestMessage.includes("2개"));
+    await capture("09b-nfc-reset", 320);
+    await page.click('[data-nfc-test="NFC-G1-02"]');
+    await page.waitForFunction(() => state.db.stamps.length === 1 && state.scanResult?.type === "success");
     await page.goBack();
     await page.locator(".map-screen").waitFor({ state: "visible" });
 
     await page.click('button[data-route="stamps"]');
     await page.locator(".stamp-screen").waitFor({ state: "visible" });
     await assertBottomNav("pass");
+    ensure(await page.locator(".pass-row.earned").count() === 1, `${viewport.name}: NFC 초기화 후 패스 기록이 즉시 갱신되지 않음`);
     await capture("10-pass");
     steps.push(await layout("pass"));
 
@@ -272,6 +342,7 @@ async function run() {
       steps,
       errors,
       stampCountAfterSuccess,
+      stampCountAfterSecond,
       stampCountAfterDuplicate,
       adminScrollReady,
       renderPerformance,
@@ -282,7 +353,7 @@ async function run() {
   fs.writeFileSync(path.join(outputDir, "report.json"), JSON.stringify(report, null, 2));
   for (const result of report) {
     const smallTargets = result.steps.reduce((sum, step) => sum + step.undersizedTargets.length, 0);
-    process.stdout.write(`${result.viewport.name}px: errors=${result.errors.length}, smallTargets=${smallTargets}, stamps=${result.stampCountAfterSuccess}->${result.stampCountAfterDuplicate}, renderMax=${result.renderPerformance.maxMs.toFixed(2)}ms\n`);
+    process.stdout.write(`${result.viewport.name}px: errors=${result.errors.length}, smallTargets=${smallTargets}, stamps=${result.stampCountAfterSuccess}->${result.stampCountAfterSecond}->${result.stampCountAfterDuplicate}, renderMax=${result.renderPerformance.maxMs.toFixed(2)}ms\n`);
   }
   await browser.close();
 }

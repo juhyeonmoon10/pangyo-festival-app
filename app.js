@@ -58,6 +58,7 @@ const state = {
   loginError: "",
   adminMessage: "",
   scanResult: null,
+  nfcTestMessage: "",
   pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
 };
 
@@ -168,6 +169,16 @@ const authProvider = {
 function makeId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
 }
 
 function makeClassBooths(grade, floor) {
@@ -315,6 +326,7 @@ const repo = {
 
 const nfcAdapter = {
   async scan(tagId) {
+    state.nfcTestMessage = "";
     const booth = state.db.booths.find((item) => item.nfcTagId === tagId);
     if (!booth) {
       state.scanResult = { type: "error", title: "등록되지 않은 태그예요", body: "태그 정보를 확인하거나 운영자에게 보여 주세요." };
@@ -528,10 +540,17 @@ function statusBadge(status) {
   return `<span class="status-badge ${info.tone}"><i aria-hidden="true"></i>${info.label}</span>`;
 }
 
+function nfcTestBooths() {
+  return ["g1-1", "g1-2"]
+    .map((boothId) => state.db.booths.find((booth) => booth.id === boothId))
+    .filter(Boolean);
+}
+
 function scanView() {
-  const sample = state.db.booths.find((booth) => booth.status === "open");
   const result = state.scanResult;
   const resultBooth = result?.boothId ? state.db.booths.find((booth) => booth.id === result.boothId) : null;
+  const testBooths = nfcTestBooths();
+  const completedTests = testBooths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   return `
     <main class="screen p0-page scan-screen">
       <header class="p0-header compact">
@@ -552,8 +571,28 @@ function scanView() {
           <span>태그 대기 중</span>
           <h2>NFC 태그를 인식하면<br />결과가 여기에 표시돼요</h2>
           <p>NFC를 읽지 못하면 부스 운영자에게 수동 승인을 요청하세요.</p>
-          ${sample ? `<button type="button" class="ghost-btn" data-nfc="${sample.nfcTagId}">샘플 태그 테스트</button>` : ""}
         `}
+      </section>
+      <section class="nfc-test-panel" aria-labelledby="nfcTestTitle">
+        <div class="nfc-test-head">
+          <span><strong id="nfcTestTitle">모의 NFC 태그</strong><small>실제 NFC와 같은 적립 로직을 사용합니다.</small></span>
+          <b>${completedTests}/${testBooths.length}</b>
+        </div>
+        <div class="nfc-test-grid">
+          ${testBooths.map((booth) => {
+            const stamped = repo.hasStamp(state.user.id, booth.id);
+            const tagLabel = booth.nfcTagId.replace(/^NFC-/, "");
+            return `
+              <button type="button" class="nfc-test-tag ${stamped ? "completed" : ""}" data-nfc="${escapeHtml(booth.nfcTagId)}" data-nfc-test="${escapeHtml(booth.nfcTagId)}">
+                <span>${escapeHtml(tagLabel)}</span>
+                <strong>${escapeHtml(booth.clubName)}</strong>
+                <small>${stamped ? "인증 완료 · 다시 누르면 중복 확인" : "눌러서 태그 인식"}</small>
+              </button>
+            `;
+          }).join("")}
+        </div>
+        <button type="button" class="nfc-test-reset" id="resetNfcTestStamps" ${completedTests ? "" : "disabled"}>테스트 스탬프 초기화</button>
+        ${state.nfcTestMessage ? `<p class="nfc-test-message" role="status" aria-live="polite">${escapeHtml(state.nfcTestMessage)}</p>` : ""}
       </section>
       <section class="manual-help">
         <span>인식되지 않나요?</span>
@@ -595,10 +634,18 @@ function sortedBooths(booths) {
   });
 }
 
+function normalizeSearchText(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ko-KR")
+    .replace(/[\s\u200B-\u200D\uFEFF]+/gu, "");
+}
+
 function matchesBoothSearch(booth) {
-  if (!state.search.trim()) return true;
-  const term = state.search.trim().toLowerCase();
-  return `${booth.name} ${booth.clubName} ${booth.location}`.toLowerCase().includes(term);
+  const term = normalizeSearchText(state.search);
+  if (!term) return true;
+  const searchableText = normalizeSearchText(`${booth.name} ${booth.clubName} ${booth.location}`);
+  return searchableText.includes(term);
 }
 
 function visibleBooths() {
@@ -608,7 +655,7 @@ function visibleBooths() {
 
 function searchResults() {
   let booths = state.db.booths;
-  if (state.search.trim()) {
+  if (normalizeSearchText(state.search)) {
     booths = booths.filter(matchesBoothSearch);
   }
   return sortedBooths(booths);
@@ -751,6 +798,8 @@ function mapView() {
   const floatingBooths = booths.filter((booth) => !placedBoothIds.has(booth.id));
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
+  const sheetHint = state.sheetLevel === "full" ? "탭해서 지도 보기" : "탭해서 전체 목록 보기";
+  const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : "부스 목록 펼치기";
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
       <header class="top-bar">
@@ -795,7 +844,7 @@ function mapView() {
         </div>
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
-        <button class="sheet-handle" id="sheetToggle" aria-label="부스 목록 열기">
+        <button class="sheet-handle" id="sheetToggle" aria-label="${sheetHandleLabel}">
           <span class="sheet-grip"></span>
           <span class="sheet-snap-dots" aria-hidden="true">
             ${["peek", "mid", "full"].map((level) => `<i class="${state.sheetLevel === level || (level === "mid" && state.sheetOpen && state.sheetLevel !== "full") ? "active" : ""}"></i>`).join("")}
@@ -806,7 +855,7 @@ function mapView() {
             <strong>${floorInfo.label} 부스</strong>
             <small>${booths.length}개 · ${stampedCount}개 방문</small>
           </span>
-          <small class="sheet-hint">탭해서 목록 펼치기</small>
+          <small class="sheet-hint">${sheetHint}</small>
         </div>
         <div class="booth-list">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
       </section>
@@ -823,8 +872,8 @@ function searchOverlay(booths) {
         <button class="icon-btn" id="closeSearchScreen" type="button" aria-label="검색 닫기">${icon("back")}</button>
         <div class="search-screen-input ${state.search ? "has-clear" : ""}">
           <span aria-hidden="true">⌕</span>
-          <input id="searchScreenInput" class="input" placeholder="부스 이름이나 위치 검색" value="${state.search}" />
-          ${state.search ? `<button id="clearSearchScreen" type="button" class="clear-search-btn" aria-label="검색어 지우기">×</button>` : ""}
+          <input id="searchScreenInput" class="input" placeholder="부스 이름이나 위치 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" />
+          <button id="clearSearchScreen" type="button" class="clear-search-btn" aria-label="검색어 지우기" ${state.search ? "" : "hidden"}>×</button>
         </div>
       </header>
       <div class="search-screen-controls">
@@ -837,15 +886,37 @@ function searchOverlay(booths) {
           ],
         })}
       </div>
-      <div class="search-result-meta">
-        <strong>${booths.length}개 결과</strong>
-        <span>${state.search ? `"${state.search}"` : "전체 부스"}</span>
+      <div class="search-result-meta" aria-live="polite">
+        <strong id="searchResultCount">${booths.length}개 결과</strong>
+        <span id="searchResultQuery">${state.search ? `"${escapeHtml(state.search)}"` : "전체 부스"}</span>
       </div>
-      <div class="search-result-list">
+      <div class="search-result-list" id="searchResultList">
         ${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}
       </div>
     </section>
   `;
+}
+
+function updateSearchOverlay() {
+  const input = document.querySelector("#searchScreenInput");
+  const resultList = document.querySelector("#searchResultList");
+  if (!input || !resultList) return;
+
+  const booths = searchResults();
+  const inputShell = input.closest(".search-screen-input");
+  const clearButton = document.querySelector("#clearSearchScreen");
+  const resultCount = document.querySelector("#searchResultCount");
+  const resultQuery = document.querySelector("#searchResultQuery");
+
+  inputShell?.classList.toggle("has-clear", Boolean(state.search));
+  if (clearButton) clearButton.hidden = !state.search;
+  if (resultCount) resultCount.textContent = `${booths.length}개 결과`;
+  if (resultQuery) resultQuery.textContent = state.search ? `"${state.search}"` : "전체 부스";
+  resultList.innerHTML = booths.length
+    ? booths.map(boothItem).join("")
+    : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`;
+  resultList.scrollTop = 0;
+  bindBoothListButtons(resultList);
 }
 
 function mapEmptyCard() {
@@ -1191,6 +1262,14 @@ function bottomNav(active) {
   `;
 }
 
+function bindBoothListButtons(root = document) {
+  root.querySelectorAll("[data-list-select]").forEach((button) => {
+    if (button.dataset.listSelectBound === "true") return;
+    button.dataset.listSelectBound = "true";
+    button.addEventListener("click", () => goDetail(button.dataset.listSelect));
+  });
+}
+
 function bindEvents() {
   document.querySelectorAll(".choice-select").forEach((root) => {
     root.addEventListener("click", (event) => event.stopPropagation());
@@ -1299,8 +1378,7 @@ function bindEvents() {
     if (state.search === value) return;
     state.search = value;
     state.searchOpen = true;
-    render();
-    focusSearchInput();
+    updateSearchOverlay();
   };
   searchInput?.addEventListener("compositionstart", () => {
     searchInput.dataset.composing = "true";
@@ -1321,8 +1399,9 @@ function bindEvents() {
   document.querySelector("#clearSearchScreen")?.addEventListener("click", () => {
     state.search = "";
     state.searchOpen = true;
-    render();
-    focusSearchInput();
+    if (searchInput) searchInput.value = "";
+    updateSearchOverlay();
+    searchInput?.focus();
   });
   document.querySelectorAll("[data-sort-option]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
@@ -1345,9 +1424,7 @@ function bindEvents() {
       writeNavigationHistory("replace");
     }
   });
-  document.querySelectorAll("[data-list-select]").forEach((button) => button.addEventListener("click", () => {
-    goDetail(button.dataset.listSelect);
-  }));
+  bindBoothListButtons();
   document.querySelectorAll("[data-clear-selection]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -1371,6 +1448,7 @@ function bindEvents() {
     state.scanResult = null;
     render();
   });
+  document.querySelector("#resetNfcTestStamps")?.addEventListener("click", resetNfcTestStamps);
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {
     state.reviewRating = Number(button.dataset.rating);
     render();
@@ -1424,30 +1502,34 @@ function bindSheetDrag() {
   const sheet = document.querySelector("#sheet");
   if (!handle || !sheet) return;
   let startY = 0;
-  let startTranslate = 0;
-  let currentTranslate = 0;
+  let startHeight = 0;
+  let currentHeight = 0;
   let dragging = false;
-  let peekTarget = 0;
-  let midTarget = 0;
+  let moved = false;
+  let peekHeight = 0;
+  let midHeight = 0;
+  let fullHeight = 0;
   let paintFrame = 0;
-  let pendingTranslate = 0;
+  let pendingHeight = 0;
 
   const measureTargets = () => {
-    peekTarget = Math.max(0, sheet.getBoundingClientRect().height - 132);
-    midTarget = Math.round(window.innerHeight * 0.34);
+    peekHeight = Number.parseFloat(getComputedStyle(sheet).getPropertyValue("--sheet-peek-height")) || 44;
+    midHeight = Math.min(320, Math.max(220, window.innerHeight * 0.38));
+    const navTop = document.querySelector(".bottom-nav")?.getBoundingClientRect().top || window.innerHeight - 72;
+    fullHeight = Math.max(midHeight, navTop - 122);
   };
-  const translateForLevel = (level) => {
-    if (level === "full") return 0;
-    if (level === "mid") return midTarget;
-    return peekTarget;
+  const heightForLevel = (level) => {
+    if (level === "full") return fullHeight;
+    if (level === "mid") return midHeight;
+    return peekHeight;
   };
-  const clampTranslate = (value) => Math.min(peekTarget, Math.max(0, value));
-  const queuePaint = (translate) => {
-    pendingTranslate = translate;
+  const clampHeight = (value) => Math.min(fullHeight, Math.max(peekHeight, value));
+  const queuePaint = (height) => {
+    pendingHeight = height;
     if (paintFrame) return;
     paintFrame = requestAnimationFrame(() => {
       paintFrame = 0;
-      sheet.style.transform = `translateY(${pendingTranslate}px)`;
+      sheet.style.height = `${pendingHeight}px`;
     });
   };
 
@@ -1455,34 +1537,38 @@ function bindSheetDrag() {
     if (!dragging) return;
     if (paintFrame) cancelAnimationFrame(paintFrame);
     paintFrame = 0;
-    const targets = [
-      ["full", 0],
-      ["mid", midTarget],
-      ["peek", peekTarget],
-    ];
-    const [level] = targets.reduce((best, item) => (
-      Math.abs(item[1] - currentTranslate) < Math.abs(best[1] - currentTranslate) ? item : best
-    ), targets[0]);
-    setSheetLevel(level);
     dragging = false;
     sheet.classList.remove("dragging");
-    sheet.style.transform = "";
+    sheet.style.height = "";
+    if (!moved) return;
+    const targets = [
+      ["full", fullHeight],
+      ["mid", midHeight],
+      ["peek", peekHeight],
+    ];
+    const [level] = targets.reduce((best, item) => (
+      Math.abs(item[1] - currentHeight) < Math.abs(best[1] - currentHeight) ? item : best
+    ), targets[0]);
+    setSheetLevel(level);
     render();
   };
 
   handle.addEventListener("pointerdown", (event) => {
     measureTargets();
     dragging = true;
+    moved = false;
     startY = event.clientY;
-    startTranslate = translateForLevel(state.sheetLevel);
-    currentTranslate = startTranslate;
+    startHeight = heightForLevel(state.sheetLevel);
+    currentHeight = startHeight;
     sheet.classList.add("dragging");
     handle.setPointerCapture?.(event.pointerId);
   });
   handle.addEventListener("pointermove", (event) => {
     if (!dragging) return;
-    currentTranslate = clampTranslate(startTranslate + event.clientY - startY);
-    queuePaint(currentTranslate);
+    if (!moved && Math.abs(event.clientY - startY) < 4) return;
+    moved = true;
+    currentHeight = clampHeight(startHeight - (event.clientY - startY));
+    queuePaint(currentHeight);
   });
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
@@ -1872,6 +1958,22 @@ function manualApproveStamp() {
   });
   saveDb();
   state.adminMessage = `${user.name} 학생의 ${booth.name} 방문을 수동 승인했습니다.`;
+  render();
+}
+
+function resetNfcTestStamps() {
+  if (!state.user) return;
+  const testBoothIds = new Set(nfcTestBooths().map((booth) => booth.id));
+  const before = state.db.stamps.length;
+  state.db.stamps = state.db.stamps.filter((stamp) => (
+    stamp.userId !== state.user.id || !testBoothIds.has(stamp.boothId)
+  ));
+  const removed = before - state.db.stamps.length;
+  if (removed) saveDb();
+  state.scanResult = null;
+  state.nfcTestMessage = removed
+    ? `테스트 스탬프 ${removed}개를 초기화했어요.`
+    : "초기화할 테스트 스탬프가 없어요.";
   render();
 }
 
