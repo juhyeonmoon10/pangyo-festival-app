@@ -5,6 +5,7 @@ const { pathToFileURL } = require("url");
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || "playwright");
 const chromePath = process.env.CHROME_PATH;
 const screenshotDir = process.env.SCREENSHOT_DIR;
+const appUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
 
 if (!chromePath) throw new Error("CHROME_PATH is required");
 
@@ -13,7 +14,7 @@ async function run() {
   const page = await browser.newPage({ viewport: { width: 320, height: 740 } });
   page.setDefaultTimeout(8000);
   await page.addInitScript(() => localStorage.clear());
-  await page.goto(pathToFileURL(path.join(__dirname, "..", "index.html")).href, { waitUntil: "load" });
+  await page.goto(appUrl, { waitUntil: "load" });
   await page.click("#googleLogin");
   await page.locator(".home-screen").waitFor({ state: "visible" });
   if (screenshotDir) {
@@ -109,11 +110,11 @@ async function run() {
   }
 
   await page.click('button[data-route="scan"]');
-  await page.click('button[data-nfc]');
+  await page.click('button[data-nfc-token]');
   await page.locator(".scan-pad.success").waitFor({ state: "visible" });
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "nfc-success-320.png"), fullPage: true });
   await page.click("#clearScanResult");
-  await page.click('button[data-nfc]');
+  await page.click('button[data-nfc-token]');
   await page.locator(".scan-pad.duplicate").waitFor({ state: "visible" });
   await page.click('button[data-route="stamps"]');
   const earnedPassRows = await page.locator(".pass-row.earned").count();
@@ -165,6 +166,32 @@ async function run() {
   await page.selectOption("#manualBooth", "b2");
   await page.click("#manualApproveStamp");
   await page.locator(".admin-table").filter({ hasText: "수동 승인" }).waitFor();
+
+  const verifyNfcEntryUrl = async (entryUrl, expectedBoothId, label) => {
+    const entryPage = await browser.newPage({ viewport: { width: 320, height: 740 } });
+    entryPage.setDefaultTimeout(8000);
+    await entryPage.addInitScript(() => localStorage.clear());
+    await entryPage.goto(entryUrl, { waitUntil: "load" });
+    await entryPage.locator(".login-screen").waitFor({ state: "visible" });
+    if (entryPage.url().includes("?nfc=") || entryPage.url().includes("#t=")) {
+      throw new Error(`${label} NFC token was not removed from the address`);
+    }
+    await entryPage.click("#googleLogin");
+    await entryPage.locator(".scan-pad.success").waitFor({ state: "visible" });
+    const claim = await entryPage.evaluate(() => ({
+      stampCount: state.db.stamps.length,
+      boothId: state.db.stamps[0]?.boothId,
+      pendingClaim: state.pendingNfcClaim,
+    }));
+    if (claim.stampCount !== 1 || claim.boothId !== expectedBoothId || claim.pendingClaim) {
+      throw new Error(`${label} NFC URL claim failed: ${JSON.stringify(claim)}`);
+    }
+    await entryPage.close();
+  };
+
+  await verifyNfcEntryUrl(`${appUrl}?nfc=NFC-G1-01`, "g1-1", "legacy query");
+  const fragmentToken = `mock-v1.${Buffer.from("NFC-G1-02", "utf8").toString("base64url")}`;
+  await verifyNfcEntryUrl(`${appUrl}#t=${fragmentToken}`, "g1-2", "fragment token");
 
   process.stdout.write(`${JSON.stringify(metrics, null, 2)}\n`);
   await browser.close();

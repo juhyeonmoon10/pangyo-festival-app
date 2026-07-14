@@ -482,6 +482,27 @@ https://pangyo-festival-app.vercel.app/nfc#t=<32-byte-random-base64url>
 - 중요 보상은 스탬프 수만으로 즉시 지급하지 않고 운영자 검증 단계를 둔다.
 - 능동형 리더나 운영자 단말이 도입되기 전까지 정적 태그 복제 가능성을 운영 문서에 명시한다.
 
+### 8.6 현재 개인 앱의 연동 경계
+
+현재 정적 개인 앱은 `STAMP_GATEWAY_MODE="mock"`로 실행한다. 화면과 NFC 어댑터는 태그 ID가 아니라 다음 요청 객체만 스탬프 게이트웨이에 전달한다.
+
+```json
+{
+  "eventId": "event-2026",
+  "nfcToken": "opaque-token",
+  "idempotencyKey": "uuid"
+}
+```
+
+- `mockStampGateway`는 로컬 UI와 중복·재시도 동작 검증 전용이며 보안 구현이 아니다.
+- 모의 토큰은 테스트용 태그 ID에서 생성되지만, 스탬프와 멱등성 레코드에는 토큰 원문을 저장하지 않는다.
+- 기존 샘플 태그의 `?nfc=NFC-G1-01` 형식은 모의 토큰으로 변환해 호환하고 주소창에서 즉시 제거한다.
+- 새 태그 형식은 `/nfc#t=<opaque-token>`을 읽고 주소에서 제거한 뒤 메모리에만 보관한다. 개인 Vercel 배포에서는 `vercel.json`이 `/nfc`를 `index.html`로 rewrite한다.
+- 같은 `idempotencyKey`와 같은 토큰의 재요청은 최초 응답을 재사용하고 스탬프를 추가하지 않는다.
+- 같은 `idempotencyKey`를 다른 토큰에 사용하면 `IDEMPOTENCY_KEY_REUSED`로 거부한다.
+- 실제 서버 연결 시 `STAMP_GATEWAY_MODE`를 `http`로 전환하면 `createHttpStampGateway`가 `POST /api/v1/events/{eventId}/stamps/nfc` 계약을 사용한다.
+- 모의 게이트웨이의 검증은 클라이언트 안에 있으므로 실제 권한·토큰·동시성 보호를 대신하지 않는다.
+
 ## 9. 스탬프 transaction과 동시성
 
 NFC와 수동 승인은 같은 내부 서비스 함수 `claimStamp`를 사용해야 한다.

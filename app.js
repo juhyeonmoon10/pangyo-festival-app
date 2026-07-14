@@ -1,5 +1,7 @@
 const DB_KEY = "pangyo-festival-db-v3";
 const GOAL_COUNT = 5;
+const STAMP_GATEWAY_MODE = "mock";
+const MOCK_NFC_TOKEN_PREFIX = "mock-v1.";
 const EVENT = {
   id: "event-2026",
   name: "2026 판교고 연말 축제",
@@ -59,7 +61,7 @@ const state = {
   adminMessage: "",
   scanResult: null,
   nfcTestMessage: "",
-  pendingNfcTag: new URLSearchParams(window.location.search).get("nfc") || "",
+  pendingNfcClaim: null,
 };
 
 const HISTORY_KEY = "pangyo-festival-navigation-v1";
@@ -181,6 +183,65 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function encodeBase64Url(value) {
+  const bytes = new TextEncoder().encode(String(value));
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function decodeBase64Url(value) {
+  const padded = String(value).replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function mockNfcTokenForTagId(tagId) {
+  return `${MOCK_NFC_TOKEN_PREFIX}${encodeBase64Url(tagId)}`;
+}
+
+function tagIdFromMockNfcToken(token) {
+  if (!String(token).startsWith(MOCK_NFC_TOKEN_PREFIX)) return null;
+  try {
+    return decodeBase64Url(String(token).slice(MOCK_NFC_TOKEN_PREFIX.length));
+  } catch {
+    return null;
+  }
+}
+
+function createNfcClaim(nfcToken, source = "ui") {
+  return {
+    nfcToken: String(nfcToken || ""),
+    idempotencyKey: makeId(),
+    source,
+  };
+}
+
+function readInitialNfcClaim() {
+  const url = new URL(window.location.href);
+  const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  const fragmentToken = fragment.get("t");
+  const legacyTagId = url.searchParams.get("nfc");
+  if (!fragmentToken && !legacyTagId) return null;
+
+  fragment.delete("t");
+  url.searchParams.delete("nfc");
+  url.hash = fragment.toString() ? `#${fragment.toString()}` : "";
+  try {
+    history.replaceState(history.state, "", url.href);
+  } catch {
+    // Local file previews can restrict History API writes.
+  }
+
+  return createNfcClaim(
+    fragmentToken || mockNfcTokenForTagId(legacyTagId),
+    fragmentToken ? "tag-url" : "legacy-tag-url",
+  );
+}
+
+state.pendingNfcClaim = readInitialNfcClaim();
+
 function makeClassBooths(grade, floor) {
   return classPositions.map(([x, y], index) => {
     const klass = index + 1;
@@ -243,6 +304,7 @@ const seed = {
     ...makeClassBooths(3, 4),
   ],
   stamps: [],
+  idempotencyRecords: [],
   reviews: [],
 };
 
@@ -294,8 +356,10 @@ function loadDb() {
   db.stamps = (Array.isArray(db.stamps) ? db.stamps : []).map((stamp) => ({
     eventId: EVENT.id,
     method: "nfc",
+    status: "active",
     ...stamp,
   }));
+  db.idempotencyRecords = Array.isArray(db.idempotencyRecords) ? db.idempotencyRecords : [];
   db.reviews = Array.isArray(db.reviews) ? db.reviews : [];
   return db;
 }
@@ -311,57 +375,280 @@ const repo = {
     return list.reduce((sum, review) => sum + Number(review.rating), 0) / list.length;
   },
   hasStamp(userId, boothId) {
-    return state.db.stamps.some((stamp) => stamp.userId === userId && stamp.boothId === boothId);
+    return state.db.stamps.some((stamp) => stamp.userId === userId && stamp.boothId === boothId && stamp.status !== "revoked");
   },
   hasReview(userId, boothId) {
     return state.db.reviews.some((review) => review.userId === userId && review.boothId === boothId);
   },
   boothVisits(boothId) {
-    return state.db.stamps.filter((stamp) => stamp.boothId === boothId).length;
+    return state.db.stamps.filter((stamp) => stamp.boothId === boothId && stamp.status !== "revoked").length;
   },
   stampsForUser(userId) {
-    return state.db.stamps.filter((stamp) => stamp.userId === userId);
+    return state.db.stamps.filter((stamp) => stamp.userId === userId && stamp.status !== "revoked");
   },
 };
 
-const nfcAdapter = {
-  async scan(tagId) {
-    state.nfcTestMessage = "";
-    const booth = state.db.booths.find((item) => item.nfcTagId === tagId);
-    if (!booth) {
-      state.scanResult = { type: "error", title: "등록되지 않은 태그예요", body: "태그 정보를 확인하거나 운영자에게 보여 주세요." };
-      state.route = state.user ? "scan" : "login";
-      state.loginError = state.user ? "" : "등록되지 않은 NFC 태그입니다.";
-      render();
-      return;
+function cloneData(value) {
+  return globalThis.structuredClone ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+}
+
+function mockTokenFingerprint(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `mock-fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function nfcFailure(code, message, options = {}) {
+  return {
+    ok: false,
+    status: options.status ?? 422,
+    code,
+    message,
+    retryable: Boolean(options.retryable),
+    boothId: options.boothId || null,
+    requestId: options.requestId || makeId(),
+  };
+}
+
+const mockStampGateway = {
+  async claimNfc({ eventId, userId, nfcToken, idempotencyKey }) {
+    const requestId = makeId();
+    if (!userId) return nfcFailure("AUTH_REQUIRED", "로그인이 필요합니다.", { status: 401, requestId });
+    if (!/^[A-Za-z0-9._:-]{8,128}$/.test(String(idempotencyKey || ""))) {
+      return nfcFailure("INVALID_IDEMPOTENCY_KEY", "요청 식별자가 올바르지 않습니다.", { status: 400, requestId });
     }
-    if (!state.user) {
-      state.pendingNfcTag = tagId;
-      state.loginError = "NFC 태그가 인식되었습니다. 먼저 로그인하면 스탬프가 자동으로 찍힙니다.";
-      render();
-      return;
+
+    const scope = `nfc:${eventId}`;
+    const tokenFingerprint = mockTokenFingerprint(nfcToken);
+    const previous = state.db.idempotencyRecords.find((record) => (
+      record.actorId === userId
+      && record.scope === scope
+      && record.idempotencyKey === idempotencyKey
+    ));
+    if (previous) {
+      if (previous.tokenFingerprint !== tokenFingerprint) {
+        return nfcFailure("IDEMPOTENCY_KEY_REUSED", "같은 요청 식별자를 다른 태그에 다시 사용할 수 없습니다.", { status: 409, requestId });
+      }
+      return { ...cloneData(previous.response), replayed: true };
+    }
+
+    const finish = (response) => {
+      state.db.idempotencyRecords.push({
+        id: makeId(),
+        actorId: userId,
+        scope,
+        idempotencyKey,
+        tokenFingerprint,
+        boothId: response.boothId || null,
+        response: cloneData(response),
+        createdAt: new Date().toISOString(),
+      });
+      saveDb();
+      return { ...response, replayed: false };
+    };
+
+    if (eventId !== state.db.event.id) {
+      return finish(nfcFailure("EVENT_NOT_FOUND", "현재 행사와 일치하지 않는 요청입니다.", { status: 404, requestId }));
+    }
+    if (typeof nfcToken !== "string" || !nfcToken || nfcToken.length > 512) {
+      return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그입니다.", { requestId }));
+    }
+
+    const tagId = tagIdFromMockNfcToken(nfcToken);
+    const booth = tagId
+      ? state.db.booths.find((item) => item.eventId === eventId && item.nfcTagId === tagId)
+      : null;
+    if (!booth) {
+      return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그입니다.", { requestId }));
+    }
+    if (state.db.event.emergencyMode) {
+      return finish(nfcFailure("EMERGENCY_MODE", "비상 모드에서는 NFC 적립이 잠시 중지됩니다.", { status: 503, boothId: booth.id, requestId }));
+    }
+    if (!["active", "rehearsal"].includes(state.db.event.status)) {
+      return finish(nfcFailure("EVENT_NOT_ACTIVE", "현재 행사가 방문 적립 가능한 상태가 아닙니다.", { boothId: booth.id, requestId }));
     }
     if (!["open", "crowded"].includes(booth.status)) {
-      state.scanResult = { type: "blocked", boothId: booth.id, title: "지금은 적립할 수 없어요", body: `${booth.name}은(는) ${statusInfo(booth.status).label} 상태예요. 운영자에게 문의해 주세요.` };
-      state.route = "scan";
-      render();
-      return;
+      return finish(nfcFailure("BOOTH_NOT_OPEN", `${booth.name}은(는) ${statusInfo(booth.status).label} 상태예요.`, { boothId: booth.id, requestId }));
     }
-    const existing = repo.hasStamp(state.user.id, booth.id);
+
+    const existing = state.db.stamps.find((stamp) => (
+      stamp.eventId === eventId
+      && stamp.userId === userId
+      && stamp.boothId === booth.id
+      && stamp.status !== "revoked"
+    ));
+    if (existing) {
+      return finish({
+        ok: true,
+        status: 200,
+        result: "ALREADY_EARNED",
+        boothId: booth.id,
+        stampId: existing.id,
+        earnedAt: existing.earnedAt || existing.createdAt,
+        requestId,
+      });
+    }
+
     const earnedAt = new Date().toISOString();
-    if (!existing) {
-      state.db.stamps.push({ id: makeId(), eventId: EVENT.id, userId: state.user.id, boothId: booth.id, method: "nfc", createdAt: earnedAt });
-      saveDb();
-      showStampPop();
-    }
-    state.scanResult = {
-      type: existing ? "duplicate" : "success",
+    const stamp = {
+      id: makeId(),
+      eventId,
+      userId,
       boothId: booth.id,
-      title: existing ? "이미 방문한 부스예요" : "스탬프를 적립했어요",
-      body: existing ? "기존 방문 기록을 그대로 유지했어요." : `${formatTime(earnedAt)}에 방문 기록이 저장됐어요.`,
+      method: "nfc",
+      status: "active",
+      idempotencyKey,
+      requestId,
+      earnedAt,
+      createdAt: earnedAt,
     };
+    state.db.stamps.push(stamp);
+    return finish({
+      ok: true,
+      status: 201,
+      result: "EARNED",
+      boothId: booth.id,
+      stampId: stamp.id,
+      earnedAt,
+      requestId,
+    });
+  },
+};
+
+function createHttpStampGateway() {
+  return {
+    async claimNfc({ eventId, nfcToken, idempotencyKey }) {
+      let response;
+      try {
+        response = await fetch(`/api/v1/events/${encodeURIComponent(eventId)}/stamps/nfc`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Idempotency-Key": idempotencyKey,
+          },
+          body: JSON.stringify({ token: nfcToken }),
+        });
+      } catch {
+        return nfcFailure("NETWORK_ERROR", "네트워크 연결을 확인한 뒤 같은 요청으로 다시 시도해 주세요.", { status: 0, retryable: true });
+      }
+
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch {
+        return nfcFailure("INVALID_SERVER_RESPONSE", "서버 응답을 확인할 수 없습니다.", { status: response.status, retryable: response.status >= 500 });
+      }
+      if (!response.ok) {
+        return nfcFailure(
+          payload.error?.code || "STAMP_REQUEST_FAILED",
+          payload.error?.message || "방문 인증을 처리하지 못했습니다.",
+          {
+            status: response.status,
+            retryable: Boolean(payload.error?.retryable),
+            requestId: payload.meta?.requestId,
+          },
+        );
+      }
+
+      const stamp = payload.data?.stamp || {};
+      return {
+        ok: true,
+        status: response.status,
+        result: payload.data?.result || "EARNED",
+        boothId: stamp.boothId || null,
+        stampId: stamp.id || null,
+        earnedAt: stamp.earnedAt || null,
+        requestId: payload.meta?.requestId || response.headers.get("X-Request-Id") || makeId(),
+        replayed: false,
+      };
+    },
+  };
+}
+
+const stampGateway = STAMP_GATEWAY_MODE === "http" ? createHttpStampGateway() : mockStampGateway;
+
+const NFC_ERROR_TITLES = {
+  NFC_TAG_INVALID: "등록되지 않은 태그예요",
+  NFC_TAG_DISABLED: "사용 중지된 태그예요",
+  NFC_TAG_EXPIRED: "사용 기간이 지난 태그예요",
+  BOOTH_NOT_OPEN: "지금은 적립할 수 없어요",
+  EVENT_NOT_ACTIVE: "행사가 운영 중이 아니에요",
+  EMERGENCY_MODE: "방문 적립이 잠시 중지됐어요",
+  IDEMPOTENCY_KEY_REUSED: "요청을 다시 확인해 주세요",
+  NETWORK_ERROR: "네트워크 연결이 불안정해요",
+};
+
+const nfcAdapter = {
+  async scan(claim) {
+    state.nfcTestMessage = "";
+    const request = {
+      nfcToken: String(claim?.nfcToken || ""),
+      idempotencyKey: claim?.idempotencyKey || makeId(),
+      source: claim?.source || "ui",
+    };
+    if (!request.nfcToken) {
+      state.scanResult = { type: "error", title: "태그 정보를 읽지 못했어요", body: "다시 인식하거나 운영자에게 수동 승인을 요청하세요." };
+      state.route = state.user ? "scan" : "login";
+      render();
+      return nfcFailure("NFC_TAG_INVALID", "태그 정보가 비어 있습니다.");
+    }
+    if (!state.user) {
+      state.pendingNfcClaim = request;
+      state.route = "login";
+      state.loginError = "NFC 태그가 인식되었습니다. 로그인하면 같은 요청 식별자로 자동 적립을 이어갑니다.";
+      render();
+      return { ok: false, queued: true };
+    }
+
+    const result = await stampGateway.claimNfc({
+      eventId: state.db.event.id,
+      userId: state.user.id,
+      nfcToken: request.nfcToken,
+      idempotencyKey: request.idempotencyKey,
+    });
+    const booth = result.boothId ? state.db.booths.find((item) => item.id === result.boothId) : null;
+
+    if (result.code === "AUTH_REQUIRED") {
+      state.pendingNfcClaim = request;
+      state.user = null;
+      state.route = "login";
+      state.loginError = "로그인이 만료되었습니다. 다시 로그인하면 방문 인증을 이어갑니다.";
+      render();
+      return result;
+    }
+
+    if (result.ok) {
+      state.pendingNfcClaim = null;
+      const duplicate = result.result === "ALREADY_EARNED";
+      if (!duplicate && !result.replayed) showStampPop();
+      state.scanResult = {
+        type: duplicate ? "duplicate" : "success",
+        boothId: result.boothId,
+        title: duplicate ? "이미 방문한 부스예요" : "스탬프를 적립했어요",
+        body: duplicate
+          ? "기존 방문 기록을 그대로 유지했어요."
+          : result.replayed
+            ? "같은 요청의 기존 성공 결과를 다시 불러왔어요."
+            : `${formatTime(result.earnedAt)}에 방문 기록이 저장됐어요.`,
+      };
+    } else {
+      state.pendingNfcClaim = result.retryable ? request : null;
+      const blocked = ["BOOTH_NOT_OPEN", "EVENT_NOT_ACTIVE", "EMERGENCY_MODE"].includes(result.code);
+      state.scanResult = {
+        type: blocked ? "blocked" : "error",
+        boothId: result.boothId,
+        title: NFC_ERROR_TITLES[result.code] || "방문 인증을 처리하지 못했어요",
+        body: result.message,
+        retryable: Boolean(result.retryable),
+      };
+    }
     state.route = "scan";
     render();
+    return result;
   },
 };
 
@@ -443,7 +730,7 @@ function googleForm() {
       <div class="auth-step">1단계</div>
       <h2>구글 계정 인증</h2>
       <p class="subtitle">현재는 구글 계정 인증 UI 틀만 적용되어 있습니다. 버튼을 누르면 인증 완료로 처리되고 바로 지도 화면으로 이동합니다.</p>
-      ${state.pendingNfcTag ? `<p class="success-text">NFC 태그 인식됨: ${state.pendingNfcTag}</p>` : ""}
+      ${state.pendingNfcClaim ? `<p class="success-text">NFC 태그 인식됨 · 로그인 후 자동 적립 대기 중</p>` : ""}
       ${state.loginError ? `<p class="error-text">${state.loginError}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "로그인 확인 중..." : "G 구글 계정으로 계속"}</button>
       <button id="adminLogin" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>관리자 모드로 계속</button>
@@ -565,6 +852,7 @@ function scanView() {
           <h2>${result.title}</h2>
           <p>${result.body}</p>
           ${resultBooth ? `<button type="button" class="primary-btn" data-detail="${resultBooth.id}">부스 상세 보기</button>` : ""}
+          ${result.retryable ? `<button type="button" class="primary-btn" id="retryNfcClaim">같은 요청으로 다시 시도</button>` : ""}
           <button type="button" class="ghost-btn" id="clearScanResult">다른 태그 확인</button>
         ` : `
           <div class="nfc-waves" aria-hidden="true"><i></i><i></i><b>N</b></div>
@@ -573,9 +861,9 @@ function scanView() {
           <p>NFC를 읽지 못하면 부스 운영자에게 수동 승인을 요청하세요.</p>
         `}
       </section>
-      <section class="nfc-test-panel" aria-labelledby="nfcTestTitle">
+      ${STAMP_GATEWAY_MODE === "mock" ? `<section class="nfc-test-panel" aria-labelledby="nfcTestTitle">
         <div class="nfc-test-head">
-          <span><strong id="nfcTestTitle">모의 NFC 태그</strong><small>실제 NFC와 같은 적립 로직을 사용합니다.</small></span>
+          <span><strong id="nfcTestTitle">모의 NFC 태그</strong><small>서버 API와 같은 토큰·재시도 계약을 테스트합니다.</small></span>
           <b>${completedTests}/${testBooths.length}</b>
         </div>
         <div class="nfc-test-grid">
@@ -583,7 +871,7 @@ function scanView() {
             const stamped = repo.hasStamp(state.user.id, booth.id);
             const tagLabel = booth.nfcTagId.replace(/^NFC-/, "");
             return `
-              <button type="button" class="nfc-test-tag ${stamped ? "completed" : ""}" data-nfc="${escapeHtml(booth.nfcTagId)}" data-nfc-test="${escapeHtml(booth.nfcTagId)}">
+              <button type="button" class="nfc-test-tag ${stamped ? "completed" : ""}" data-nfc-token="${escapeHtml(mockNfcTokenForTagId(booth.nfcTagId))}" data-nfc-source="mock-panel" data-nfc-test="${escapeHtml(booth.nfcTagId)}">
                 <span>${escapeHtml(tagLabel)}</span>
                 <strong>${escapeHtml(booth.clubName)}</strong>
                 <small>${stamped ? "인증 완료 · 다시 누르면 중복 확인" : "눌러서 태그 인식"}</small>
@@ -593,7 +881,7 @@ function scanView() {
         </div>
         <button type="button" class="nfc-test-reset" id="resetNfcTestStamps" ${completedTests ? "" : "disabled"}>테스트 스탬프 초기화</button>
         ${state.nfcTestMessage ? `<p class="nfc-test-message" role="status" aria-live="polite">${escapeHtml(state.nfcTestMessage)}</p>` : ""}
-      </section>
+      </section>` : ""}
       <section class="manual-help">
         <span>인식되지 않나요?</span>
         <strong>운영자에게 수동 승인을 요청하세요</strong>
@@ -1000,12 +1288,15 @@ function mapPreviewCard(booth) {
 function detailView() {
   const booth = state.db.booths.find((item) => item.id === state.selectedBoothId) || state.db.booths[0];
   const stamped = repo.hasStamp(state.user.id, booth.id);
+  const mockNfcToken = STAMP_GATEWAY_MODE === "mock" ? mockNfcTokenForTagId(booth.nfcTagId) : "";
   return `
     <main class="screen detail-screen">
       <header class="top-bar">
         <button class="icon-btn" data-history-back="map" aria-label="지도 화면으로 돌아가기">${icon("back")}</button>
         <div class="top-title"><strong>부스 상세</strong><span>${booth.location}</span></div>
-        <button class="icon-btn" data-nfc="${booth.nfcTagId}" title="NFC 테스트">NFC</button>
+        ${mockNfcToken
+          ? `<button class="icon-btn" data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-shortcut" title="NFC 모의 테스트">NFC</button>`
+          : `<span class="icon-btn" aria-hidden="true"></span>`}
       </header>
       <section class="detail-hero">
         <div class="detail-status-row">${statusBadge(booth.status)}<span>${formatOperatingHours(booth)}</span></div>
@@ -1022,7 +1313,7 @@ function detailView() {
         ${stamped
           ? `<p class="success-text">이 부스의 방문 기록이 축제 패스에 저장됐습니다.</p>`
           : `<p class="notice">부스의 NFC 태그를 인식해 방문을 인증하세요. 인식되지 않으면 운영자에게 수동 승인을 요청할 수 있습니다.</p>`}
-        <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" data-nfc="${booth.nfcTagId}">${stamped ? "인증 결과 다시 확인" : "NFC 방문 인증"}</button>
+        <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" ${mockNfcToken ? `data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-action"` : "disabled"}>${mockNfcToken ? (stamped ? "인증 결과 다시 확인" : "NFC 모의 방문 인증") : "NFC 태그를 스캔해 주세요"}</button>
       </section>
       ${bottomNav("map")}
     </main>
@@ -1443,9 +1734,17 @@ function bindEvents() {
     event.stopPropagation();
     goDetail(button.dataset.detail);
   }));
-  document.querySelectorAll("[data-nfc]").forEach((button) => button.addEventListener("click", () => runActionOnce(`nfc:${button.dataset.nfc}`, () => nfcAdapter.scan(button.dataset.nfc))));
+  document.querySelectorAll("[data-nfc-token]").forEach((button) => button.addEventListener("click", () => {
+    const claim = createNfcClaim(button.dataset.nfcToken, button.dataset.nfcSource || "ui");
+    runActionOnce("nfc-claim", () => nfcAdapter.scan(claim));
+  }));
+  document.querySelector("#retryNfcClaim")?.addEventListener("click", () => {
+    if (!state.pendingNfcClaim) return;
+    runActionOnce("nfc-claim", () => nfcAdapter.scan(state.pendingNfcClaim));
+  });
   document.querySelector("#clearScanResult")?.addEventListener("click", () => {
     state.scanResult = null;
+    state.pendingNfcClaim = null;
     render();
   });
   document.querySelector("#resetNfcTestStamps")?.addEventListener("click", resetNfcTestStamps);
@@ -1824,10 +2123,9 @@ function finishAdminGoogleLogin(google) {
 }
 
 function consumePendingNfc() {
-  if (!state.pendingNfcTag || !state.user) return;
-  const tagId = state.pendingNfcTag;
-  state.pendingNfcTag = "";
-  nfcAdapter.scan(tagId);
+  if (!state.pendingNfcClaim || !state.user) return;
+  const claim = state.pendingNfcClaim;
+  nfcAdapter.scan(claim);
 }
 
 function goDetail(id) {
@@ -1907,6 +2205,7 @@ function addBooth() {
 function deleteBooth(id) {
   state.db.booths = state.db.booths.filter((booth) => booth.id !== id);
   state.db.stamps = state.db.stamps.filter((stamp) => stamp.boothId !== id);
+  state.db.idempotencyRecords = state.db.idempotencyRecords.filter((record) => record.boothId !== id);
   state.db.reviews = state.db.reviews.filter((review) => review.boothId !== id);
   saveDb();
   render();
@@ -1948,13 +2247,16 @@ function manualApproveStamp() {
     render();
     return;
   }
+  const earnedAt = new Date().toISOString();
   state.db.stamps.push({
     id: makeId(),
     eventId: EVENT.id,
     userId: user.id,
     boothId: booth.id,
     method: "manual",
-    createdAt: new Date().toISOString(),
+    status: "active",
+    earnedAt,
+    createdAt: earnedAt,
   });
   saveDb();
   state.adminMessage = `${user.name} 학생의 ${booth.name} 방문을 수동 승인했습니다.`;
@@ -1967,6 +2269,9 @@ function resetNfcTestStamps() {
   const before = state.db.stamps.length;
   state.db.stamps = state.db.stamps.filter((stamp) => (
     stamp.userId !== state.user.id || !testBoothIds.has(stamp.boothId)
+  ));
+  state.db.idempotencyRecords = state.db.idempotencyRecords.filter((record) => (
+    record.actorId !== state.user.id || !testBoothIds.has(record.boothId)
   ));
   const removed = before - state.db.stamps.length;
   if (removed) saveDb();
@@ -2009,5 +2314,5 @@ function showStampPop() {
 }
 
 initializeNavigation();
-if (state.pendingNfcTag) nfcAdapter.scan(state.pendingNfcTag);
+if (state.pendingNfcClaim) nfcAdapter.scan(state.pendingNfcClaim);
 else render();

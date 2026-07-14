@@ -252,6 +252,44 @@ async function run() {
     await page.click("#resetNfcTestStamps");
     await page.waitForFunction(() => state.db.stamps.length === 0 && state.nfcTestMessage.includes("2개"));
     await capture("09b-nfc-reset", 320);
+
+    const idempotencyContract = await page.evaluate(async () => {
+      const idempotencyKey = makeId();
+      const request = {
+        eventId: state.db.event.id,
+        userId: state.user.id,
+        nfcToken: mockNfcTokenForTagId("NFC-G1-01"),
+        idempotencyKey,
+      };
+      const first = await stampGateway.claimNfc(request);
+      const countAfterFirst = state.db.stamps.length;
+      const replay = await stampGateway.claimNfc(request);
+      const countAfterReplay = state.db.stamps.length;
+      const conflict = await stampGateway.claimNfc({
+        ...request,
+        nfcToken: mockNfcTokenForTagId("NFC-G1-02"),
+      });
+      return {
+        first,
+        replay,
+        conflict,
+        countAfterFirst,
+        countAfterReplay,
+        countAfterConflict: state.db.stamps.length,
+      };
+    });
+    ensure(idempotencyContract.first.result === "EARNED", `${viewport.name}: 최초 멱등성 요청이 적립되지 않음`);
+    ensure(idempotencyContract.replay.result === "EARNED" && idempotencyContract.replay.replayed, `${viewport.name}: 같은 멱등성 키 재시도 결과가 재사용되지 않음`);
+    ensure(idempotencyContract.conflict.code === "IDEMPOTENCY_KEY_REUSED", `${viewport.name}: 다른 태그의 멱등성 키 재사용이 거부되지 않음`);
+    ensure(
+      idempotencyContract.countAfterFirst === 1
+      && idempotencyContract.countAfterReplay === 1
+      && idempotencyContract.countAfterConflict === 1,
+      `${viewport.name}: 멱등성 재시도 중 스탬프 수가 변경됨`,
+    );
+    await page.evaluate(() => resetNfcTestStamps());
+    await page.waitForFunction(() => state.db.stamps.length === 0);
+
     await page.click('[data-nfc-test="NFC-G1-02"]');
     await page.waitForFunction(() => state.db.stamps.length === 1 && state.scanResult?.type === "success");
     await page.goBack();
