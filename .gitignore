@@ -1,2 +1,5 @@
 tests/*.png
 artifacts/
+.env
+.env.*
+!.env.example
