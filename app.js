@@ -1,7 +1,22 @@
 const DB_KEY = "pangyo-festival-db-v3";
+const SESSION_KEY = "pangyo-festival-demo-session-v1";
+// Everything a demo visitor earns. Cleared when the app is closed, unlike the booth setup.
+const SESSION_FIELDS = ["users", "stamps", "idempotencyRecords", "reviews"];
 const GOAL_COUNT = 5;
-const STAMP_GATEWAY_MODE = "mock";
+const MAP_ZOOM_MIN = 0.9;
+const MAP_ZOOM_MAX = 1.6;
+const MAP_ZOOM_STEP = 0.2;
+const STAMP_GATEWAY_MODE = new URL(location.href).searchParams.get("demo") === "1" || readStorage("festival-demo-mode") === "1" ? "mock" : "supabase";
+const isServerMode = () => STAMP_GATEWAY_MODE === "supabase";
+let festivalAccount = null;
+let serverCompletedBooths = [];
+// Server-mode caches. Keys are DB booth enum values, never local booth ids.
+let serverMyReviews = null;
+const serverReviews = new Map();
+const serverAdmin = { busy: false, boothId: null, minutes: 240, result: null };
 const MOCK_NFC_TOKEN_PREFIX = "mock-v1.";
+const ADMIN_ONLY_NFC_SOURCES = new Set(["mock-panel", "detail-shortcut", "detail-action"]);
+const CLUB_CATALOG_VERSION = 1;
 const EVENT = {
   id: "event-2026",
   name: "2026 판교고 연말 축제",
@@ -52,7 +67,11 @@ const state = {
   searchOpen: false,
   sort: "name",
   adminTab: "dashboard",
-  reviewRating: 5,
+  reviewRating: 0,
+  reviewDraft: "",
+  reviewBusy: false,
+  reviewPickerOpen: false,
+  stampTrailExpanded: false,
   authStep: "google",
   pendingGoogle: null,
   authIntent: "student",
@@ -78,6 +97,7 @@ function navigationSnapshot() {
     sheetLevel: state.sheetLevel,
     searchOpen: state.searchOpen,
     adminTab: state.adminTab,
+    reviewPickerOpen: state.reviewPickerOpen,
   };
 }
 
@@ -95,6 +115,7 @@ function navigateTo(route, { replace = false } = {}) {
   state.route = route;
   render();
   writeNavigationHistory(replace || !changed ? "replace" : "push");
+  if (route === "reviews") festivalWeb.loadReviewContents();
 }
 
 function initializeNavigation() {
@@ -120,6 +141,12 @@ function initializeNavigation() {
     state.sheetOpen = state.sheetLevel !== "peek";
     state.searchOpen = Boolean(snapshot.searchOpen);
     state.adminTab = snapshot.adminTab || "dashboard";
+    state.reviewPickerOpen = Boolean(snapshot.reviewPickerOpen);
+    if (state.route === "detail" && state.selectedBoothId) {
+      const draft = festivalWeb.draft(state.selectedBoothId);
+      state.reviewDraft = draft.content;
+      state.reviewRating = festivalWeb.ownReview(state.selectedBoothId)?.rating || draft.rating;
+    }
     closeMenus();
     render();
     if (state.searchOpen) focusSearchInput();
@@ -148,6 +175,25 @@ function readStorage(key) {
 function writeStorage(key, value) {
   try {
     localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Demo progress lives in session storage so closing the app clears it. Booth setup stays in
+// local storage. A real Google account keeps its visits on the server instead.
+function readSessionStorage(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionStorage(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
     return true;
   } catch {
     return false;
@@ -218,6 +264,33 @@ function createNfcClaim(nfcToken, source = "ui") {
   };
 }
 
+function isAdminUser() {
+  return state.user?.role === "admin";
+}
+
+function canUseMockNfcTools() {
+  return STAMP_GATEWAY_MODE === "mock" && isAdminUser();
+}
+
+// The DB booth enum value for a local booth, or null for local-only facility rows.
+function boothKeyFor(booth) {
+  if (!booth?.officialClubId) return null;
+  return window.FestivalCatalog.CLUB_IDS[booth.officialClubId] || null;
+}
+
+function boothForKey(key) {
+  return key ? state.db.booths.find(booth => boothKeyFor(booth) === key) || null : null;
+}
+
+function serverReviewState(boothId) {
+  const key = boothKeyFor(state.db.booths.find(booth => booth.id === boothId));
+  return key ? serverReviews.get(key) || null : null;
+}
+
+function isAdminOnlyNfcSource(source) {
+  return ADMIN_ONLY_NFC_SOURCES.has(String(source || ""));
+}
+
 function readInitialNfcClaim() {
   const url = new URL(window.location.href);
   const fragment = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
@@ -242,18 +315,187 @@ function readInitialNfcClaim() {
 
 state.pendingNfcClaim = readInitialNfcClaim();
 
+// Public club profiles imported from Chatdong. Classroom assignments are temporary
+// until the festival operator provides the final placement sheet.
+const OFFICIAL_CLUBS = [
+  {
+    id: "709a90e2-b234-46f9-9675-0ebe14f856b6",
+    name: "글빛누리",
+    aliases: ["독서", "인문학"],
+    description: "인문학으로 인간과 사회를 깊이 이해하는 것을 목표로 하는 독서 동아리입니다. 문학, 역사, 철학, 사회과학을 탐구하며 폭넓은 지식과 관심을 쌓습니다.",
+    image: "./assets/clubs/709a90e2-b234-46f9-9675-0ebe14f856b6.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "97717b20-8448-4a30-8379-c7a7029541eb",
+    name: "메커니즘",
+    aliases: ["공학", "프로젝트"],
+    description: "관심 분야별로 팀을 구성해 공학 프로젝트를 진행하는 동아리입니다. 활동을 자율적으로 기획하고 심도 있게 탐구하며 문제 해결 능력과 공학적 사고력을 기릅니다.",
+    image: null,
+    imageKind: "initial",
+  },
+  {
+    id: "edc2df72-fae6-4016-b42f-a67ff85c29c6",
+    name: "인사이트(인문사회동아리)",
+    aliases: ["인사이트", "INSIGHT", "인문사회"],
+    description: "인간 삶의 본질을 탐구하는 인문학적 소양과 사회 현상을 분석하는 사회과학적 시각을 기르는 동아리입니다. 모둠 탐구, 아카이브 제작, 지역사회 문제 해결 프로젝트와 개인 자유 탐구를 진행합니다.",
+    image: "./assets/clubs/edc2df72-fae6-4016-b42f-a67ff85c29c6.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "7f339a02-ea01-419e-ae56-6b03722092c2",
+    name: "패러다임(사회문제탐구동아리)",
+    aliases: ["패러다임", "사회문제탐구"],
+    description: "우리나라의 다양한 사회 문제를 탐구하고, 문제의 원인과 해결 방법을 부원들과 토론하는 동아리입니다.",
+    image: "./assets/clubs/7f339a02-ea01-419e-ae56-6b03722092c2.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "8e992f2a-3f62-4e35-a533-9a7a511de3c1",
+    name: "Re:chem(리켐)",
+    aliases: ["리켐", "Rechem", "화학"],
+    description: "일상 속 다양한 현상을 화학의 원리로 탐구하는 학문 공동체입니다. 실험과 토론을 통해 원리를 이해하고 화학적 사고력과 탐구 능력을 기릅니다.",
+    image: "./assets/clubs/8e992f2a-3f62-4e35-a533-9a7a511de3c1.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "bd986569-f15e-4202-9eb7-a37006639c2a",
+    name: "invelix-인벨릭스",
+    aliases: ["invelix", "인벨릭스", "코딩", "개발"],
+    description: "판교고 운영의 기반이 되는 여러 웹 서비스를 개발하고 운영하며 교내 서버를 관리하는 대표 코딩 동아리입니다. 찾동 개발에도 참여했습니다.",
+    image: "./assets/clubs/bd986569-f15e-4202-9eb7-a37006639c2a.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "22031dff-ac7a-4653-92de-05efa5ba1660",
+    name: "건축학부",
+    aliases: ["건축", "실내건축", "디자인"],
+    description: "건축과 실내 건축 디자인에 관심 있는 학생들이 스케치, 우드락 건축물 제작, 건축 주제 발표 등의 활동을 하는 동아리입니다.",
+    image: "./assets/clubs/22031dff-ac7a-4653-92de-05efa5ba1660.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "ef2c47d3-47ec-4a27-a96b-740a5d5281c7",
+    name: "머큐리",
+    aliases: ["과학", "실험", "의생명"],
+    description: "물리·화학·생명·지구과학 분야별 그룹을 구성해 관심 분야의 실험을 직접 기획하고 수행하는 과학 동아리입니다. 대학 전문가와 연계한 심화 탐구 프로그램도 진행합니다.",
+    image: "./assets/clubs/ef2c47d3-47ec-4a27-a96b-740a5d5281c7.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "f058e380-c7e3-4739-8780-6d7f8960cdc6",
+    name: "neon (네온 밴드동아리)",
+    aliases: ["neon", "네온", "밴드", "음악"],
+    description: "수요음악회와 축제를 중심으로 공연하며 교외 공연에도 참여하는 판교고 밴드 동아리입니다. 꾸준한 합주와 공연 준비를 함께합니다.",
+    image: "./assets/clubs/f058e380-c7e3-4739-8780-6d7f8960cdc6.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "6cc4bd63-7652-4068-bca3-1a7e0c5b25b8",
+    name: "티치스트",
+    aliases: ["교육", "교사", "모의수업"],
+    description: "수업 설계, 모의수업, 교육 이슈 탐구를 진행하며 교육 분야 진로를 희망하는 학생들이 전문성을 키우는 교육 동아리입니다.",
+    image: "./assets/clubs/6cc4bd63-7652-4068-bca3-1a7e0c5b25b8.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "3bda73fa-9f6a-4cd9-8b1b-a274dabe600f",
+    name: "케미스트",
+    aliases: ["화학", "실험", "탐구"],
+    description: "화학 실험과 탐구 활동을 중심으로 과학적 사고력과 문제 해결 능력을 기르는 동아리입니다.",
+    image: "./assets/clubs/3bda73fa-9f6a-4cd9-8b1b-a274dabe600f.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "238d8ed9-94b6-47ee-aa13-bc43ef56de9b",
+    name: "아트 캔버스",
+    aliases: ["아트캔버스", "미술", "그림", "디자인"],
+    description: "그림과 디자인에 관심 있는 학생들이 드로잉, 채색, 디자인 작업 등 다양한 창작 활동을 하며 서로의 작품을 공유하고 성장하는 미술 동아리입니다.",
+    image: "./assets/clubs/238d8ed9-94b6-47ee-aa13-bc43ef56de9b.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "5add1187-1512-4ca2-9ac4-b5fbf61f9d3c",
+    name: "창업특허연구소",
+    aliases: ["창업", "특허", "지식재산", "IP"],
+    description: "현직 변리사의 멘토링을 통해 아이디어를 특허와 창업으로 발전시키는 지식재산 탐구 동아리입니다. 선행기술 조사, 특허 명세서 작성, 비즈니스 모델 설계와 시제품 제작을 경험합니다.",
+    image: "./assets/clubs/5add1187-1512-4ca2-9ac4-b5fbf61f9d3c.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "43e29cde-458b-45cb-bab5-2d773a87ef98",
+    name: "모멘트 (문화콘텐츠 탐구 동아리)",
+    aliases: ["모멘트", "문화콘텐츠", "콘텐츠", "미디어"],
+    description: "케이팝, 영화, 음식 등 문화콘텐츠의 산업 구조와 시장 전략을 탐구합니다. 트렌드와 데이터를 바탕으로 보고서를 작성하고 콘텐츠 기획·제작·홍보 전략을 설계합니다.",
+    image: "./assets/clubs/43e29cde-458b-45cb-bab5-2d773a87ef98.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "060d9426-5617-47b7-afd6-c06d8f16c4e2",
+    name: "배구사랑",
+    aliases: ["배구", "스포츠", "운동"],
+    description: "배구 강습으로 기본기를 익히고 자체 경기와 다른 학교와의 연습 경기, 성남시 배구 대회에 참여하며 팀워크와 도전 정신을 기르는 동아리입니다.",
+    image: "./assets/clubs/060d9426-5617-47b7-afd6-c06d8f16c4e2.webp",
+    imageKind: "logo",
+  },
+  {
+    id: "fb4bff77-acc9-4335-91bb-ce4a5b5ac441",
+    name: "월드 스코프(세계사회문화탐구반)",
+    aliases: ["월드스코프", "세계사회문화", "문화"],
+    description: "세계 각국의 문화를 역사·정치·사회적 배경과 연계해 조사하고 한국 사회와 비교해 발표와 토론을 진행합니다. 설문과 문화 체험을 바탕으로 비교 분석 보고서를 작성합니다.",
+    image: "./assets/clubs/fb4bff77-acc9-4335-91bb-ce4a5b5ac441.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "9b11a808-3916-4791-b2f6-eda7a1d8ba64",
+    name: "방송부",
+    aliases: ["방송", "미디어", "행사"],
+    description: "교내 방송을 관리하고 학교 행사와 축제 진행을 담당하는 동아리입니다. 방송 기술과 현장 운영을 경험하며 협업 능력과 책임감을 기릅니다.",
+    image: "./assets/clubs/9b11a808-3916-4791-b2f6-eda7a1d8ba64.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "2908ebef-b57c-4ec2-94ec-bea7c9b6fad2",
+    name: "심장박동 (심리동아리)",
+    aliases: ["심장박동", "심리", "심리학"],
+    description: "심리학을 여러 진로와 연계해 탐구하고, 심리 주제를 확장한 프로젝트와 봉사활동을 진행하는 동아리입니다.",
+    image: "./assets/clubs/2908ebef-b57c-4ec2-94ec-bea7c9b6fad2.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "b61ab2bb-2d0d-47d3-8c87-2b36baf28ffc",
+    name: "레브 (경영,경제 동아리)",
+    aliases: ["레브", "REVE", "경영", "경제"],
+    description: "경제와 경영에 관심 있는 학생들이 주식 투자 분석, 마케팅 전략, 주제별 심화 발표, 국제 경제·사회 이슈 분석을 진행하는 동아리입니다.",
+    image: "./assets/clubs/b61ab2bb-2d0d-47d3-8c87-2b36baf28ffc.webp",
+    imageKind: "poster",
+  },
+  {
+    id: "077557c9-0d54-41dd-a4ed-2bd9d9bce364",
+    name: "다이나믹스",
+    aliases: ["공학", "프로젝트", "로봇", "소프트웨어"],
+    description: "구성원이 직접 공학 프로젝트를 기획·설계·실행하는 자율 중심 동아리입니다. 환경, 에너지, 로봇, 소프트웨어, 제품 설계 등 다양한 주제를 팀 또는 개인 단위로 탐구합니다.",
+    image: "./assets/clubs/077557c9-0d54-41dd-a4ed-2bd9d9bce364.webp",
+    imageKind: "logo",
+  },
+].map((club) => ({
+  ...club,
+  sourceUrl: `https://chatdong.xyz/clubs/${club.id}`,
+}));
+
 function makeClassBooths(grade, floor) {
   return classPositions.map(([x, y], index) => {
     const klass = index + 1;
+    const club = OFFICIAL_CLUBS[((grade - 1) * classPositions.length) + index] || null;
     return {
       id: `g${grade}-${klass}`,
       eventId: EVENT.id,
-      clubName: `${grade}학년 ${klass}반`,
-      name: `${grade}학년 ${klass}반 부스`,
+      clubName: club?.name || `${grade}학년 ${klass}반`,
+      name: club?.name || `${grade}학년 ${klass}반 배정 예정`,
       floor,
       room: `${grade}-${klass}`,
       location: `${floor}층 ${grade}-${klass} 교실`,
-      description: "동아리/학급 부스 종류는 추후 확정되는 대로 업데이트할 예정입니다.",
+      description: club?.description || "동아리 배정이 확정되는 대로 업데이트할 예정입니다.",
       status: index === 5 ? "crowded" : index === 7 ? "paused" : "open",
       opensAt: EVENT.startsAt,
       closesAt: EVENT.endsAt,
@@ -262,6 +504,12 @@ function makeClassBooths(grade, floor) {
       y,
       favorite: index === 0,
       category: "class",
+      officialClubId: club?.id || null,
+      aliases: club?.aliases || [],
+      image: club?.image || null,
+      imageKind: club?.imageKind || "initial",
+      sourceUrl: club?.sourceUrl || null,
+      assignmentStatus: club ? "provisional" : "unassigned",
     };
   });
 }
@@ -303,6 +551,7 @@ const seed = {
     ...makeClassBooths(2, 3),
     ...makeClassBooths(3, 4),
   ],
+  clubCatalogVersion: CLUB_CATALOG_VERSION,
   stamps: [],
   idempotencyRecords: [],
   reviews: [],
@@ -310,31 +559,74 @@ const seed = {
 
 state.db = loadDb();
 
+function readSessionProgress() {
+  try {
+    const saved = JSON.parse(readSessionStorage(SESSION_KEY) || "null");
+    if (!saved || typeof saved !== "object") return null;
+    return Object.fromEntries(SESSION_FIELDS
+      .filter(field => Array.isArray(saved[field]))
+      .map(field => [field, saved[field]]));
+  } catch {
+    return null;
+  }
+}
+
+function persistDb(db) {
+  // Booth setup, event and notices persist; the visitor's own progress does not.
+  const durable = Object.fromEntries(Object.entries(db).filter(([field]) => !SESSION_FIELDS.includes(field)));
+  const stored = writeStorage(DB_KEY, JSON.stringify(durable));
+  writeSessionStorage(SESSION_KEY, JSON.stringify(Object.fromEntries(SESSION_FIELDS.map(field => [field, db[field] || []]))));
+  return stored;
+}
+
 function loadDb() {
   const saved = readStorage(DB_KEY);
   if (!saved) {
-    writeStorage(DB_KEY, JSON.stringify(seed));
-    return structuredClone(seed);
+    const fresh = structuredClone(seed);
+    persistDb(fresh);
+    return fresh;
   }
   let db;
   try {
     db = JSON.parse(saved);
   } catch {
-    writeStorage(DB_KEY, JSON.stringify(seed));
-    return structuredClone(seed);
+    const fresh = structuredClone(seed);
+    persistDb(fresh);
+    return fresh;
   }
+  // Progress written by an older build sat in local storage; a new app run starts empty.
+  const progress = readSessionProgress();
+  SESSION_FIELDS.forEach(field => { db[field] = progress?.[field] || []; });
   const legacyFacilityUpdates = {
     b3: { legacyName: "교무실", name: "행정실", location: "1층 행정실", description: "축제 운영 문의와 긴급 연락을 처리하는 관리 공간입니다." },
     b4: { legacyName: "방송실", name: "시청각실", location: "1층 시청각실", description: "축제 영상과 안내 프로그램을 운영할 수 있는 공간입니다." },
     b5: { legacyName: "매점", name: "상담실", location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다." },
   };
+  const shouldImportClubCatalog = Number(db.clubCatalogVersion || 0) < CLUB_CATALOG_VERSION;
   db.event = { ...seed.event, ...(db.event || {}) };
   db.announcements = Array.isArray(db.announcements) ? db.announcements : structuredClone(seed.announcements);
   db.booths = (Array.isArray(db.booths) ? db.booths : structuredClone(seed.booths)).map((booth) => {
     const update = legacyFacilityUpdates[booth.id];
-    const migrated = update && booth.name === update.legacyName
+    let migrated = update && booth.name === update.legacyName
       ? { ...booth, name: update.name, location: update.location, description: update.description }
       : booth;
+    if (shouldImportClubCatalog && booth.category === "class") {
+      const catalogBooth = seed.booths.find((item) => item.id === booth.id);
+      if (catalogBooth) {
+        migrated = {
+          ...migrated,
+          clubName: catalogBooth.clubName,
+          name: catalogBooth.name,
+          description: catalogBooth.description,
+          officialClubId: catalogBooth.officialClubId,
+          aliases: catalogBooth.aliases,
+          image: catalogBooth.image,
+          imageKind: catalogBooth.imageKind,
+          sourceUrl: catalogBooth.sourceUrl,
+          assignmentStatus: catalogBooth.assignmentStatus,
+        };
+      }
+    }
     return {
       eventId: EVENT.id,
       clubName: migrated.category === "class" ? migrated.name.replace(" 부스", "") : "행사 운영",
@@ -361,29 +653,60 @@ function loadDb() {
   }));
   db.idempotencyRecords = Array.isArray(db.idempotencyRecords) ? db.idempotencyRecords : [];
   db.reviews = Array.isArray(db.reviews) ? db.reviews : [];
+  db.clubCatalogVersion = CLUB_CATALOG_VERSION;
+  if (shouldImportClubCatalog) persistDb(db);
   return db;
 }
 
 function saveDb() {
-  writeStorage(DB_KEY, JSON.stringify(state.db));
+  persistDb(state.db);
 }
 
 const repo = {
   avgRating(boothId) {
+    if (isServerMode()) return serverReviewState(boothId)?.average || 0;
     const list = state.db.reviews.filter((review) => review.boothId === boothId);
     if (!list.length) return 0;
     return list.reduce((sum, review) => sum + Number(review.rating), 0) / list.length;
   },
+  reviewsForBooth(boothId) {
+    if (isServerMode()) {
+      return (serverReviewState(boothId)?.reviews || []).map((review, index) => ({
+        id: `server-${boothId}-${index}`, boothId, rating: review.rating,
+        content: review.content || "", createdAt: review.createdAt,
+        author: review.author, mine: review.mine,
+      }));
+    }
+    return state.db.reviews
+      .filter((review) => review.boothId === boothId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  },
   hasStamp(userId, boothId) {
+    if (isServerMode()) return this.stampsForUser(userId).some(stamp => stamp.boothId === boothId);
     return state.db.stamps.some((stamp) => stamp.userId === userId && stamp.boothId === boothId && stamp.status !== "revoked");
   },
   hasReview(userId, boothId) {
+    if (isServerMode()) {
+      if (userId !== state.user?.id) return false;
+      const key = boothKeyFor(state.db.booths.find(booth => booth.id === boothId));
+      // A null cache means "not loaded yet"; never claim an unrated booth is already rated.
+      if (key && serverMyReviews) return serverMyReviews.has(key);
+      return serverReviewState(boothId)?.myRating != null;
+    }
     return state.db.reviews.some((review) => review.userId === userId && review.boothId === boothId);
   },
+  reviewCount(boothId) {
+    if (isServerMode()) return serverReviewState(boothId)?.count ?? null;
+    return state.db.reviews.filter((review) => review.boothId === boothId).length;
+  },
   boothVisits(boothId) {
+    if (isServerMode()) return 0;
     return state.db.stamps.filter((stamp) => stamp.boothId === boothId && stamp.status !== "revoked").length;
   },
   stampsForUser(userId) {
+    if (isServerMode()) return userId === state.user?.id ? state.db.booths
+      .filter(booth => serverCompletedBooths.includes(boothKeyFor(booth)))
+      .map(booth => ({ boothId: booth.id, userId, status: "active", method: "nfc", createdAt: null })) : [];
     return state.db.stamps.filter((stamp) => stamp.userId === userId && stamp.status !== "revoked");
   },
 };
@@ -463,6 +786,9 @@ const mockStampGateway = {
       : null;
     if (!booth) {
       return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그입니다.", { requestId }));
+    }
+    if (booth.nfcEnabled === false) {
+      return finish(nfcFailure("NFC_TAG_DISABLED", "이 부스의 NFC 적립이 중지되어 있습니다.", { boothId: booth.id, requestId }));
     }
     if (state.db.event.emergencyMode) {
       return finish(nfcFailure("EMERGENCY_MODE", "비상 모드에서는 NFC 적립이 잠시 중지됩니다.", { status: 503, boothId: booth.id, requestId }));
@@ -569,7 +895,16 @@ function createHttpStampGateway() {
   };
 }
 
-const stampGateway = STAMP_GATEWAY_MODE === "http" ? createHttpStampGateway() : mockStampGateway;
+const stampGateway = isServerMode() ? {
+  async claimNfc({ nfcToken }) {
+    if (!festivalAccount) return nfcFailure("AUTH_REQUIRED", "로그인이 필요합니다.");
+    const result = await festivalAccount.claim(nfcToken);
+    if (!result.ok) return result;
+    serverCompletedBooths = result.completedBooths;
+    const booth = state.db.booths.find(item => window.FestivalCatalog.CLUB_IDS[item.officialClubId] === result.boothKey);
+    return { ...result, boothId: booth?.id || null, earnedAt: null };
+  },
+} : mockStampGateway;
 
 const NFC_ERROR_TITLES = {
   NFC_TAG_INVALID: "등록되지 않은 태그예요",
@@ -582,38 +917,65 @@ const NFC_ERROR_TITLES = {
   NETWORK_ERROR: "네트워크 연결이 불안정해요",
 };
 
+let nfcQueue = Promise.resolve();
 const nfcAdapter = {
-  async scan(claim) {
+  scan(claim) {
+    const next = nfcQueue.then(() => this.process(claim));
+    nfcQueue = next.catch(() => {});
+    return next;
+  },
+  async process(claim) {
     state.nfcTestMessage = "";
     const request = {
       nfcToken: String(claim?.nfcToken || ""),
       idempotencyKey: claim?.idempotencyKey || makeId(),
       source: claim?.source || "ui",
     };
+    if (isAdminOnlyNfcSource(request.source) && !isAdminUser()) {
+      const denied = nfcFailure("ADMIN_REQUIRED", "모의 방문 인증은 관리자만 사용할 수 있습니다.", { status: 403 });
+      state.pendingNfcClaim = null;
+      if (state.user) {
+        state.scanResult = {
+          type: "blocked",
+          title: "관리자 전용 기능이에요",
+          body: denied.message,
+        };
+        showNfcFeedback();
+      } else {
+        state.loginError = "모의 방문 인증은 관리자 계정으로 로그인해야 사용할 수 있습니다.";
+        state.route = "login";
+      }
+      render();
+      return denied;
+    }
     if (!request.nfcToken) {
       state.scanResult = { type: "error", title: "태그 정보를 읽지 못했어요", body: "다시 인식하거나 운영자에게 수동 승인을 요청하세요." };
-      state.route = state.user ? "scan" : "login";
-      render();
+      if (state.user) showNfcFeedback();
+      else { state.route = "login"; render(); }
       return nfcFailure("NFC_TAG_INVALID", "태그 정보가 비어 있습니다.");
     }
     if (!state.user) {
       state.pendingNfcClaim = request;
+      if (isServerMode()) festivalAccount?.savePending(request);
       state.route = "login";
       state.loginError = "NFC 태그가 인식되었습니다. 로그인하면 같은 요청 식별자로 자동 적립을 이어갑니다.";
       render();
       return { ok: false, queued: true };
     }
 
+    const actingUser = state.user.id;
     const result = await stampGateway.claimNfc({
       eventId: state.db.event.id,
       userId: state.user.id,
       nfcToken: request.nfcToken,
       idempotencyKey: request.idempotencyKey,
     });
+    if (state.user?.id !== actingUser) return result;
     const booth = result.boothId ? state.db.booths.find((item) => item.id === result.boothId) : null;
 
-    if (result.code === "AUTH_REQUIRED") {
+    if (["AUTH_REQUIRED", "GOOGLE_AUTH_REQUIRED", "PROFILE_REQUIRED"].includes(result.code)) {
       state.pendingNfcClaim = request;
+      if (isServerMode()) festivalAccount?.savePending(request);
       state.user = null;
       state.route = "login";
       state.loginError = "로그인이 만료되었습니다. 다시 로그인하면 방문 인증을 이어갑니다.";
@@ -624,16 +986,15 @@ const nfcAdapter = {
     if (result.ok) {
       state.pendingNfcClaim = null;
       const duplicate = result.result === "ALREADY_EARNED";
-      if (!duplicate && !result.replayed) showStampPop();
       state.scanResult = {
         type: duplicate ? "duplicate" : "success",
         boothId: result.boothId,
-        title: duplicate ? "이미 방문한 부스예요" : "스탬프를 적립했어요",
+        title: repo.hasReview(state.user.id, result.boothId) ? "스탬프가 완성됐어요" : "방문 인증 완료 · 별점이 필요해요",
         body: duplicate
           ? "기존 방문 기록을 그대로 유지했어요."
           : result.replayed
             ? "같은 요청의 기존 성공 결과를 다시 불러왔어요."
-            : `${formatTime(result.earnedAt)}에 방문 기록이 저장됐어요.`,
+            : "방문 기록은 보관됐어요. 별점을 남겨 스탬프 날인을 완료하세요.",
       };
     } else {
       state.pendingNfcClaim = result.retryable ? request : null;
@@ -646,25 +1007,262 @@ const nfcAdapter = {
         retryable: Boolean(result.retryable),
       };
     }
-    state.route = "scan";
-    render();
+    if (isServerMode()) festivalAccount?.savePending(state.pendingNfcClaim);
+    const editing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+    if (["home", "scan", "stamps", "detail", "reviews"].includes(state.route) && !editing && !state.searchOpen) {
+      const scrollY = window.scrollY;
+      render();
+      window.scrollTo(0, scrollY);
+    }
+    refreshVisitIndicators();
+    showNfcFeedback();
     return result;
   },
 };
 
+let nfcFeedbackTimer;
+function dismissNfcFeedback() {
+  clearTimeout(nfcFeedbackTimer);
+  document.querySelector("#nfcFeedback")?.remove();
+}
+
+function showNfcFeedback() {
+  dismissNfcFeedback();
+  const result = state.scanResult;
+  if (!result || !state.user) return;
+  const booth = state.db.booths.find(item => item.id === result.boothId);
+  const canReview = booth && ["success", "duplicate"].includes(result.type) && !repo.hasReview(state.user.id, booth.id);
+  const node = document.createElement("aside");
+  node.id = "nfcFeedback";
+  node.className = `nfc-feedback ${result.type}`;
+  node.innerHTML = `<div class="nfc-feedback-content" role="status" aria-live="polite"><span class="nfc-feedback-icon">${icon(result.type === "success" ? "check" : result.type === "duplicate" ? "stamp" : "notice")}</span><div><strong>${escapeHtml(result.title)}</strong><p>${escapeHtml(booth?.name || result.body)}</p></div></div>
+    <button type="button" class="icon-btn feedback-close" aria-label="인증 알림 닫기">${icon("close")}</button>
+    ${canReview ? `<button type="button" class="feedback-action">별점 남기기 ${icon("arrow")}</button>` : result.retryable ? `<button type="button" class="feedback-action">다시 시도 ${icon("refresh")}</button>` : ""}`;
+  node.querySelector(".feedback-close").onclick = dismissNfcFeedback;
+  node.querySelector(".feedback-action")?.addEventListener("click", () => {
+    dismissNfcFeedback();
+    if (canReview) openBoothReview(booth.id);
+    else if (state.pendingNfcClaim) runActionOnce("nfc-claim", () => nfcAdapter.scan(state.pendingNfcClaim));
+  });
+  document.body.append(node);
+  if (!canReview && !result.retryable && ["success", "duplicate"].includes(result.type)) nfcFeedbackTimer = setTimeout(dismissNfcFeedback, 3000);
+}
+
+function refreshVisitIndicators() {
+  festivalWeb.refreshIndicators();
+  const count = repo.stampsForUser(state.user.id).length;
+  document.querySelectorAll("[data-stamp-count]").forEach(node => { node.textContent = count; });
+  document.querySelectorAll("[data-map-select]").forEach(node => {
+    const visited = repo.hasStamp(state.user.id, node.dataset.mapSelect);
+    node.classList.toggle("visited", visited);
+    node.classList.toggle("stamped", visited);
+  });
+  document.querySelectorAll("[data-booth-visited]").forEach(node => {
+    const visited = repo.hasStamp(state.user.id, node.dataset.boothVisited);
+    node.textContent = visited ? "방문 완료" : "방문 전";
+    node.classList.toggle("visit-complete", visited);
+    node.closest(".booth-item")?.querySelector(".stamp")?.classList.toggle("on", visited);
+  });
+  const floorCount = document.querySelector("[data-floor-stamp-count]");
+  if (floorCount) floorCount.textContent = visibleBooths().filter(booth => repo.hasStamp(state.user.id, booth.id)).length;
+  updatePendingReviewCount();
+}
+
 function statusInfo(status) {
+  if (isServerMode()) return { label: "상태 미등록", tone: "muted" };
   return BOOTH_STATUS[status] || BOOTH_STATUS.preparing;
 }
 
 function formatTime(value) {
+  if (!value) return "시각 미기록";
   return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(new Date(value));
 }
 
 function formatOperatingHours(booth) {
+  if (isServerMode()) return "운영 시간 미등록";
   return `${formatTime(booth.opensAt)}–${formatTime(booth.closesAt)}`;
 }
 
+function formatReviewDate(value) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(value));
+}
+
+function ratingInfo(boothId) {
+  const reviews = repo.reviewsForBooth(boothId);
+  const count = isServerMode() ? (serverReviewState(boothId)?.count ?? 0) : reviews.length;
+  const average = repo.avgRating(boothId);
+  return {
+    reviews,
+    count,
+    status: isServerMode() ? serverReviewState(boothId)?.status || "idle" : "ready",
+    message: isServerMode() ? serverReviewState(boothId)?.message || "" : "",
+    average: count && average ? Number(average).toFixed(1) : null,
+  };
+}
+
+// Server reviews are fetched per booth and patched into the open screen so that a reply never
+// replaces a text input, the map, or a scroll position.
+async function loadBoothReviews(boothId, { force = false } = {}) {
+  if (!isServerMode() || !festivalAccount) return null;
+  const actingUser = state.user?.id;
+  const booth = state.db.booths.find(item => item.id === boothId);
+  const key = boothKeyFor(booth);
+  if (!key) return null;
+  const cached = serverReviews.get(key);
+  if (!force && cached && ["ready", "loading"].includes(cached.status)) return cached;
+  serverReviews.set(key, { ...(cached || { count: 0, average: null, myRating: null, reviews: [] }), status: "loading" });
+  updateReviewSection(boothId);
+  const response = await festivalAccount.reviews(key);
+  if (state.user?.id !== actingUser) return null;
+  if (!response.ok) {
+    serverReviews.set(key, { ...(serverReviews.get(key) || {}), status: "error", message: response.message });
+  } else {
+    serverReviews.set(key, { ...response, status: "ready" });
+    if (serverMyReviews) {
+      if (response.myRating != null) serverMyReviews.add(key);
+      else serverMyReviews.delete(key);
+    }
+  }
+  updateReviewSection(boothId);
+  return serverReviews.get(key);
+}
+
+async function loadMyReviews() {
+  if (!isServerMode() || !festivalAccount) return;
+  const actingUser = state.user?.id;
+  const response = await festivalAccount.myReviews();
+  if (state.user?.id !== actingUser) return;
+  if (!response.ok) return;
+  serverMyReviews = new Set(response.boothKeys);
+  updatePendingReviewCount();
+  if (["home", "stamps"].includes(state.route) && !state.searchOpen) render();
+}
+
+function updatePendingReviewCount() {
+  const pending = document.querySelector(".home-review-action small");
+  if (!pending) return;
+  const text = pendingReviewText();
+  if (pending.textContent !== text) pending.textContent = text;
+}
+
+function pendingReviewText() {
+  if (isServerMode() && !serverMyReviews) return "방문한 부스를 확인하는 중이에요";
+  const pending = unreviewedBooths().length;
+  return pending ? `별점을 기다리는 부스 ${pending}개` : "방문한 부스에 별점을 남겨주세요";
+}
+
+function updateReviewSection(boothId) {
+  if (state.route !== "detail" || state.selectedBoothId !== boothId) return;
+  const info = ratingInfo(boothId);
+  const list = document.querySelector("#boothReviewSection .review-list");
+  if (list) list.innerHTML = reviewListMarkup(info);
+  const average = document.querySelector("[data-review-average]");
+  if (average) average.textContent = reviewAverageText(info);
+  const count = document.querySelector("[data-review-count]");
+  if (count) count.textContent = reviewCountText(info);
+  const own = festivalWeb.ownReview(boothId);
+  if (own) {
+    state.reviewRating = own.rating;
+    document.querySelectorAll("[data-rating]").forEach(star => {
+      star.disabled = true;
+      star.classList.toggle("on", Number(star.dataset.rating) <= own.rating);
+      star.setAttribute("aria-pressed", String(Number(star.dataset.rating) === own.rating));
+    });
+    const submit = document.querySelector("#submitReview");
+    if (submit) {
+      submit.disabled = state.reviewBusy || Boolean(own.content?.trim());
+      submit.textContent = own.content?.trim() ? "이미 등록한 후기예요" : "글 후기 임시저장";
+    }
+  }
+}
+
+function reviewAverageText(info) {
+  if (info.status === "loading") return "불러오는 중";
+  if (info.status === "error") return "확인 실패";
+  return info.average || "평가 전";
+}
+
+function reviewCountText(info) {
+  if (info.status === "loading") return "…";
+  if (info.status === "error") return "확인 실패";
+  return `${info.count}개`;
+}
+
+function reviewListMarkup(info) {
+  if (info.status === "loading") return `<div class="review-empty"><strong>후기를 불러오는 중이에요</strong></div>`;
+  if (info.status === "error") return `<div class="review-empty"><strong>후기를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p></div>`;
+  if (!info.reviews.length) return `<div class="review-empty"><strong>아직 등록된 후기가 없어요</strong></div>`;
+  return info.reviews.map(reviewView).join("");
+}
+
+let publicCatalogStorage = null;
+try { publicCatalogStorage = window.localStorage; } catch { /* Storage is optional. */ }
+const publicCatalog = window.FestivalCatalog.createClient({ storage: publicCatalogStorage });
+
+function catalogBooth(booth) {
+  return publicCatalog.forClub(booth.officialClubId);
+}
+
+function catalogName(booth) {
+  return `<span data-catalog-name="${booth.id}">${escapeHtml(catalogBooth(booth)?.name || booth.name)}</span>`;
+}
+
+function catalogRatingText(booth) {
+  if (!booth.officialClubId) return "데모 부스";
+  const remote = catalogBooth(booth);
+  if (!remote) return "DB 별점 미확인";
+  const cached = publicCatalog.getSnapshot().status !== "ready" ? " · 저장본" : "";
+  return `DB ${remote.rating > 0 ? `${remote.rating.toFixed(1)}점` : "평가 전"}${cached}`;
+}
+
+function catalogRating(booth) {
+  return `<span data-catalog-rating="${booth.id}">${escapeHtml(catalogRatingText(booth))}</span>`;
+}
+
+function catalogPositionText(booth) {
+  if (!booth.officialClubId) return "데모 시설";
+  const remote = catalogBooth(booth);
+  if (!remote) return "DB 위치 미확인 · 지도는 임시 배치";
+  return remote.position ? `DB 위치: ${remote.position} · 지도는 임시 배치` : "DB 위치 미등록 · 지도는 임시 배치";
+}
+
+function catalogConnectionView() {
+  return `<section class="catalog-connection" aria-label="데이터 연결 상태">
+    <div><strong data-catalog-status role="status"></strong><small data-catalog-time></small></div>
+    <button type="button" class="icon-btn" data-refresh-catalog aria-label="부스 정보 새로고침" title="부스 정보 새로고침">↻</button>
+    <p>${isServerMode() ? "계정·방문·별점은 서버에 저장됩니다. 지도는 임시 배치이며 운영 상태와 교환권은 아직 서버에 없습니다." : "부스·별점은 DB 조회 전용. 로그인·방문·리뷰는 앱을 닫으면 사라지는 체험용입니다."}</p>
+  </section>`;
+}
+
+// Update only server-data slots; never replace inputs, scroll containers, or map nodes.
+function updateCatalogDom() {
+  const snapshot = publicCatalog.getSnapshot();
+  const labels = {
+    idle: "부스 DB 연결 대기", loading: "부스 DB 조회 중", ready: `부스 DB 연결 · ${snapshot.rows.length}개`,
+    cached: "저장된 부스 정보", offline: "연결 실패 · 저장된 정보 표시", error: "연결 실패 · 로컬 데모 표시",
+  };
+  const missing = snapshot.rows.filter((row) => !Object.values(window.FestivalCatalog.CLUB_IDS).includes(row.id)).length;
+  document.querySelectorAll("[data-catalog-status]").forEach((node) => { node.textContent = labels[snapshot.status]; });
+  document.querySelectorAll("[data-catalog-time]").forEach((node) => {
+    node.textContent = snapshot.fetchedAt === null ? "아직 조회된 데이터가 없습니다." : `마지막 조회 ${new Date(snapshot.fetchedAt).toLocaleString("ko-KR")}${missing ? ` · 지도 미배정 ${missing}개` : ""}`;
+  });
+  document.querySelectorAll("[data-refresh-catalog]").forEach((node) => {
+    node.disabled = snapshot.status === "loading";
+    node.setAttribute("aria-busy", String(snapshot.status === "loading"));
+  });
+  ["name", "rating", "position"].forEach((field) => {
+    document.querySelectorAll(`[data-catalog-${field}]`).forEach((node) => {
+      const booth = state.db.booths.find((item) => item.id === node.dataset[`catalog${field[0].toUpperCase()}${field.slice(1)}`]);
+      if (!booth) return;
+      const value = field === "name" ? catalogBooth(booth)?.name || booth.name
+        : field === "rating" ? catalogRatingText(booth) : catalogPositionText(booth);
+      if (node.textContent !== value) node.textContent = value;
+    });
+  });
+}
+
 function icon(name) {
+  if (window.FestivalIcons?.[name]) return window.FestivalIcons[name];
   const icons = {
     home: "⌂",
     map: "⌖",
@@ -675,6 +1273,7 @@ function icon(name) {
     admin: "⚙",
     user: "●",
     heart: "♥",
+    external: "↗",
   };
   return icons[name] || "";
 }
@@ -693,16 +1292,22 @@ function render() {
     app.classList.toggle("route-change", routeChanged);
     app.classList.toggle("state-update", !routeChanged);
     if (state.route === "login") app.innerHTML = loginView();
-    if (state.route === "home") app.innerHTML = homeView();
+    if (state.route === "home") app.innerHTML = festivalWeb.home();
     if (state.route === "map") app.innerHTML = mapView();
     if (state.route === "scan") app.innerHTML = scanView();
     if (state.route === "detail") app.innerHTML = detailView();
-    if (state.route === "stamps") app.innerHTML = stampView();
+    if (state.route === "stamps") app.innerHTML = festivalWeb.stamps();
+    if (state.route === "vouchers") app.innerHTML = festivalWeb.vouchers();
+    if (state.route === "reviews") app.innerHTML = festivalWeb.reviews();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
+    if (state.reviewPickerOpen && state.user) app.insertAdjacentHTML("beforeend", reviewPickerView());
+    if (app.querySelector("main")) app.querySelector("main").inert = state.reviewPickerOpen;
     app.dataset.previousRoute = previousRoute;
     app.dataset.route = nextRoute;
     bindEvents();
+    festivalWeb.afterRender();
+    updateCatalogDom();
   } finally {
     renderInProgress = false;
   }
@@ -715,11 +1320,12 @@ function loginView() {
       <div>
         <div class="brand-mark">P</div>
         <h1 class="title">판교고 축제<br />스탬프 맵</h1>
-        <p class="subtitle">현재는 구글 계정 인증 화면만 먼저 확인하는 단계입니다. 버튼을 누르면 학생 모드로 바로 입장합니다.</p>
+        <p class="subtitle">${isServerMode() ? "Google 계정으로 로그인해 내 방문 기록을 확인하세요." : "앱을 닫으면 사라지는 체험용입니다. 스탬프를 남기려면 Google 로그인을 사용하세요."}</p>
       </div>
       <section class="panel">
         ${profileStep ? profileForm() : googleForm()}
       </section>
+      ${catalogConnectionView()}
     </main>
   `;
 }
@@ -728,12 +1334,13 @@ function googleForm() {
   return `
     <div class="auth-card">
       <div class="auth-step">1단계</div>
-      <h2>구글 계정 인증</h2>
-      <p class="subtitle">현재는 구글 계정 인증 UI 틀만 적용되어 있습니다. 버튼을 누르면 인증 완료로 처리되고 바로 지도 화면으로 이동합니다.</p>
+      <h2>${isServerMode() ? "축제 로그인" : "데모 입장"}</h2>
+      <p class="subtitle">${isServerMode() ? "로그인 후 이름과 학번을 등록합니다. 학교 계정 제한은 아직 적용 전입니다." : "데모 기록은 서버에 전송되지 않고 앱을 닫으면 사라집니다."}</p>
       ${state.pendingNfcClaim ? `<p class="success-text">NFC 태그 인식됨 · 로그인 후 자동 적립 대기 중</p>` : ""}
-      ${state.loginError ? `<p class="error-text">${state.loginError}</p>` : ""}
-      <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "로그인 확인 중..." : "G 구글 계정으로 계속"}</button>
-      <button id="adminLogin" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>관리자 모드로 계속</button>
+      ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
+      <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</button>
+      ${isServerMode() ? "" : `<button id="adminLogin" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>관리자 데모로 계속</button>`}
+      <button id="switchMode" type="button" class="ghost-btn">${isServerMode() ? "데모 둘러보기" : "실제 로그인으로 돌아가기"}</button>
     </div>
   `;
 }
@@ -744,13 +1351,13 @@ function profileForm() {
     <div class="auth-card">
       <div class="auth-step">2단계</div>
       <h2>학생 정보 등록</h2>
-      <p class="account-chip">인증됨: ${google.email}</p>
-      ${state.loginError ? `<p class="error-text">${state.loginError}</p>` : ""}
+      <p class="account-chip">인증됨: ${escapeHtml(google.email)}</p>
+      ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
       <div class="input-stack">
-        <label class="field">이름<input id="name" class="input" value="${google.displayName}" /></label>
+        <label class="field">이름<input id="name" class="input" maxlength="60" value="${escapeHtml(google.displayName)}" /></label>
         <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" /></label>
-        <label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>
-        <button id="profileSubmit" type="button" class="primary-btn">등록하고 시작</button>
+        ${isServerMode() ? "" : `<label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>`}
+        <button id="profileSubmit" type="button" class="primary-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "저장 중..." : "등록하고 시작"}</button>
         <button id="backToGoogle" type="button" class="ghost-btn">구글 계정 다시 선택</button>
       </div>
     </div>
@@ -759,40 +1366,48 @@ function profileForm() {
 
 function homeView() {
   const stamps = repo.stampsForUser(state.user.id);
-  const available = state.db.booths.filter((booth) => ["open", "crowded"].includes(booth.status));
-  const crowded = state.db.booths.filter((booth) => booth.status === "crowded").length;
-  const notice = state.db.announcements[0];
+  const notice = isServerMode() ? null : state.db.announcements[0];
   return `
-    <main class="screen p0-page home-screen">
-      <header class="p0-header">
-        <div>
-          <span class="eyebrow">${state.db.event.status === "rehearsal" ? "UI TEST MODE" : "ORBIT"}</span>
-          <h1>${state.user?.name || "학생"}님, 안녕하세요</h1>
-          <p>${state.db.event.name}</p>
-        </div>
-        <button class="icon-btn" data-route="profile" aria-label="내 정보">${icon("user")}</button>
+    <main class="home-screen home-v2">
+      <header class="festival-header">
+        <div><span class="eyebrow">PANGYO FESTIVAL ${isServerMode() ? "" : "· DEMO"}</span><h1>오늘, 판교고 축제</h1></div>
+        <button type="button" class="icon-btn" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button>
       </header>
+      <section class="home-identity" aria-label="내 축제 현황">
+        <div><strong>${escapeHtml(state.user.name)}님</strong><span>${escapeHtml(isServerMode() ? state.user.studentNumber || "축제 참가자" : "체험 계정")}</span></div>
+        <button type="button" data-route="stamps">${icon("stamp")}<span>나의 스탬프 <b data-stamp-count>${stamps.length}</b></span>${icon("arrow")}</button>
+      </section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
-      ${notice ? noticeBanner(notice) : ""}
-      <section class="home-summary" aria-label="축제 현황">
-        <div><span>방문</span><strong>${stamps.length}</strong><small>개 부스</small></div>
-        <div><span>운영 중</span><strong>${available.length}</strong><small>개 부스</small></div>
-        <div><span>혼잡</span><strong>${crowded}</strong><small>개 부스</small></div>
+      <section class="home-map" aria-label="학교 부스 지도">
+        <div class="section-heading"><h2>어디부터 가볼까?</h2><button type="button" class="icon-btn" id="mapSearchBtn" aria-label="부스 검색" title="부스 검색">${icon("search")}</button></div>
+        ${floorTabsView()}
+        ${mapCanvasView(visibleBooths(), mapPlanForFloor(state.floor))}
+        <div class="home-map-caption"><span>${state.floor}층 · ${isServerMode() ? "위치 임시 배치" : "데모 지도"}</span><button type="button" data-route="map">지도 크게 보기 ${icon("external")}</button></div>
       </section>
-      <section class="p0-section">
-        <div class="section-heading"><div><span>빠른 시작</span><h2>지금 무엇을 할까요?</h2></div></div>
-        <div class="quick-actions">
-          <button type="button" data-route="map"><b>${icon("map")}</b><span><strong>부스 찾기</strong><small>층과 교실로 찾아보세요</small></span></button>
-          <button type="button" data-route="scan"><b>${icon("scan")}</b><span><strong>NFC 방문 인증</strong><small>태그 결과를 확인하세요</small></span></button>
-        </div>
+      <section class="home-notice" aria-label="공지사항">
+        ${icon("notice")}<div><span>공지사항</span><strong>${notice ? escapeHtml(notice.title) : "새로운 공지를 기다리고 있어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div>
       </section>
-      <section class="p0-section">
-        <div class="section-heading"><div><span>추천 부스</span><h2>현재 이용 가능해요</h2></div><button data-route="map">전체 보기</button></div>
-        <div class="home-booth-list">${available.slice(0, 3).map(homeBoothCard).join("")}</div>
-      </section>
+      <button type="button" class="home-review-action" data-open-reviews>
+        <span class="review-action-icon">${icon("message")}</span><span><strong>오늘의 부스는 어땠나요?</strong><small>${escapeHtml(pendingReviewText())}</small></span>${icon("arrow")}
+      </button>
+      ${state.searchOpen ? searchOverlay(searchResults()) : ""}
       ${bottomNav("home")}
     </main>
   `;
+}
+
+function unreviewedBooths() {
+  return state.db.booths.filter(festivalWeb.reviewPending);
+}
+
+function reviewPickerView() {
+  const booths = unreviewedBooths();
+  return `<div class="review-picker-backdrop" data-close-reviews>
+    <section class="review-picker" role="dialog" aria-modal="true" aria-labelledby="reviewPickerTitle">
+      <header><div><span class="eyebrow">MY VISITS</span><h2 id="reviewPickerTitle">방문한 부스 평가</h2></div><button type="button" class="icon-btn" data-close-reviews aria-label="닫기">${icon("close")}</button></header>
+      ${isServerMode() && !serverMyReviews ? `<p class="notice">이미 남긴 별점을 확인하는 중이에요. 목록이 곧 정확해집니다.</p>` : ""}
+      <div class="review-picker-list">${booths.length ? booths.map(booth => `<button type="button" data-review-booth="${booth.id}"><span><strong>${catalogName(booth)}</strong><small>${escapeHtml(booth.location)}</small></span>${icon("arrow")}</button>`).join("") : `<div class="empty-state">${icon("star")}<h3>${repo.stampsForUser(state.user.id).length ? "모든 별점을 남겼어요" : "아직 방문한 부스가 없어요"}</h3><p>부스를 방문하면 이곳에서 평가할 수 있어요.</p></div>`}</div>
+    </section></div>`;
 }
 
 function noticeBanner(notice) {
@@ -816,7 +1431,7 @@ function emergencyBanner() {
 function homeBoothCard(booth) {
   return `
     <button type="button" class="home-booth-card" data-list-select="${booth.id}">
-      <span><strong>${booth.name}</strong><small>${booth.clubName} · ${booth.location}</small></span>
+      <span><strong>${catalogName(booth)}</strong><small>${booth.location} · ${catalogRating(booth)}</small></span>
       ${statusBadge(booth.status)}
     </button>
   `;
@@ -836,14 +1451,14 @@ function nfcTestBooths() {
 function scanView() {
   const result = state.scanResult;
   const resultBooth = result?.boothId ? state.db.booths.find((booth) => booth.id === result.boothId) : null;
-  const testBooths = nfcTestBooths();
+  const showMockNfcTools = canUseMockNfcTools();
+  const testBooths = showMockNfcTools ? nfcTestBooths() : [];
   const completedTests = testBooths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   return `
     <main class="screen p0-page scan-screen">
-      <header class="p0-header compact">
-        <div><span class="eyebrow">NFC</span><h1>방문 인증</h1><p>태그를 휴대전화 뒷면에 가까이 대세요.</p></div>
-      </header>
-      <section class="demo-boundary"><strong>UI 테스트 모드</strong><span>현재 기록은 이 브라우저에만 저장돼요.</span></section>
+      ${festivalWeb.header("방문 인증", "NFC 태그로 방문을 확인해요")}
+      ${festivalWeb.scanControls()}
+      <section class="demo-boundary"><strong>${isServerMode() ? "서버 방문 인증" : "UI 테스트 모드"}</strong><span>${isServerMode() ? "등록된 서명 태그만 사용할 수 있어요." : "앱을 닫으면 이 기록은 사라져요."}</span></section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       <section class="scan-pad ${result ? `has-result ${result.type}` : ""}">
         ${result ? `
@@ -861,7 +1476,7 @@ function scanView() {
           <p>NFC를 읽지 못하면 부스 운영자에게 수동 승인을 요청하세요.</p>
         `}
       </section>
-      ${STAMP_GATEWAY_MODE === "mock" ? `<section class="nfc-test-panel" aria-labelledby="nfcTestTitle">
+      ${showMockNfcTools ? `<section class="nfc-test-panel" aria-labelledby="nfcTestTitle">
         <div class="nfc-test-head">
           <span><strong id="nfcTestTitle">모의 NFC 태그</strong><small>서버 API와 같은 토큰·재시도 계약을 테스트합니다.</small></span>
           <b>${completedTests}/${testBooths.length}</b>
@@ -884,8 +1499,8 @@ function scanView() {
       </section>` : ""}
       <section class="manual-help">
         <span>인식되지 않나요?</span>
-        <strong>운영자에게 수동 승인을 요청하세요</strong>
-        <p>실서비스에서는 운영자가 담당 부스와 단기 학생 코드를 확인한 뒤 승인합니다.</p>
+        <strong>운영자에게 현장 확인을 요청하세요</strong>
+        <p>${isServerMode() ? "앱 내 수동 승인은 아직 준비 중입니다. 현재 태그와 부스를 운영자에게 알려주세요." : "실서비스에서는 운영자가 담당 부스와 단기 학생 코드를 확인한 뒤 승인합니다."}</p>
       </section>
       ${bottomNav("scan")}
     </main>
@@ -896,20 +1511,21 @@ function profileView() {
   const stampCount = repo.stampsForUser(state.user.id).length;
   return `
     <main class="screen p0-page profile-screen">
-      <header class="p0-header compact">
-        <div><span class="eyebrow">MY ORBIT</span><h1>내 정보</h1><p>현재 로그인과 기록은 데모 상태예요.</p></div>
-      </header>
+      ${festivalWeb.header("내 정보", isServerMode() ? "Google 계정과 내 축제 기록" : "체험 중인 축제 기록")}
       <section class="profile-card">
-        <div class="profile-avatar">${(state.user.name || "학").slice(0, 1)}</div>
-        <div><strong>${state.user.name}</strong><span>${state.user.googleEmail || "학교 계정 미연결"}</span></div>
-        <em>${state.user.role === "admin" ? "관리자 데모" : "학생 데모"}</em>
+        <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
+        <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
+        <em>${isServerMode() ? "Google 로그인" : state.user.role === "admin" ? "관리자 데모" : "학생 데모"}</em>
       </section>
       <section class="profile-list">
         <div><span>행사</span><strong>${state.db.event.name}</strong></div>
         <div><span>방문 기록</span><strong>${stampCount}개</strong></div>
-        <div><span>저장 위치</span><strong>이 브라우저</strong></div>
+        <div><span>완성한 스탬프</span><strong>${festivalWeb.completed().length}개</strong></div>
+        <div><span>저장 위치</span><strong>${isServerMode() ? "Supabase 서버" : "이번 실행 동안만"}</strong></div>
       </section>
-      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">관리자 데모 열기</button>` : ""}
+      ${catalogConnectionView()}
+      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 데모 열기"}</button>` : ""}
+      ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
       ${bottomNav("profile")}
     </main>
@@ -929,11 +1545,15 @@ function normalizeSearchText(value) {
     .replace(/[\s\u200B-\u200D\uFEFF]+/gu, "");
 }
 
+function boothSearchText(booth) {
+  const classroom = /^([1-3])-([1-8])$/.exec(booth.room || "");
+  const classLabel = classroom ? `${classroom[1]}학년 ${classroom[2]}반` : "";
+  const remote = catalogBooth(booth);
+  return normalizeSearchText(`${booth.name} ${booth.clubName} ${booth.location} ${classLabel} ${(booth.aliases || []).join(" ")} ${remote?.name || ""} ${remote?.position || ""}`);
+}
+
 function matchesBoothSearch(booth) {
-  const term = normalizeSearchText(state.search);
-  if (!term) return true;
-  const searchableText = normalizeSearchText(`${booth.name} ${booth.clubName} ${booth.location}`);
-  return searchableText.includes(term);
+  return boothSearchText(booth).includes(normalizeSearchText(state.search));
 }
 
 function visibleBooths() {
@@ -1077,71 +1697,68 @@ function mapPlanMarkup(plan, booths) {
   `;
 }
 
+function floorTabsView() {
+  return `<nav class="floor-tabs indoor-floors" aria-label="층 선택">${[...FLOORS].reverse().map(({floor, label, caption}) => `<button type="button" class="floor-tab ${state.floor === floor ? "active" : ""}" data-floor="${floor}" aria-label="${label} ${caption}" aria-pressed="${state.floor === floor}"><strong>${floor}F</strong><small>${caption}</small></button>`).join("")}</nav>`;
+}
+
+function mapCanvasView(booths, plan) {
+  const placed = new Set(plan.rooms.map(item => boothForPlanRoom(item, booths)?.id).filter(Boolean));
+  const selected = booths.find(booth => booth.id === state.selectedBoothId);
+  return `<div class="map-card ${selected ? "has-preview" : ""}" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
+    <div class="map-canvas"><div class="map-grid"></div><div class="school-label">PANGYO HIGH SCHOOL · ${state.floor}층</div>${mapPlanMarkup(plan, booths)}
+      ${booths.filter(booth => !placed.has(booth.id)).map(booth => {
+        const position = boothMapPosition(booth);
+        return `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${position.x}%;top:${position.y}%" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}" title="${escapeHtml(booth.name)}"><span aria-hidden="true">${icon("map")}</span></button>`;
+      }).join("")}
+    </div>
+    <div class="map-zoom-controls" role="group" aria-label="지도 확대 및 축소">
+      <button type="button" class="map-zoom-btn" id="mapZoomIn" aria-label="지도 확대" title="지도 확대" ${state.mapZoom >= MAP_ZOOM_MAX ? "disabled" : ""}>${icon("plus")}</button>
+      <button type="button" class="map-zoom-btn" id="mapZoomOut" aria-label="지도 축소" title="지도 축소" ${state.mapZoom <= MAP_ZOOM_MIN ? "disabled" : ""}>${icon("minus")}</button>
+    </div>
+    ${booths.length ? "" : mapEmptyCard()}${selected ? mapPreviewCard(selected) : ""}
+  </div>`;
+}
+
 function mapView() {
   const booths = visibleBooths();
   const globalSearchResults = searchResults();
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const plan = mapPlanForFloor(state.floor);
-  const placedBoothIds = new Set(plan.rooms.map((item) => boothForPlanRoom(item, booths)?.id).filter(Boolean));
-  const floatingBooths = booths.filter((booth) => !placedBoothIds.has(booth.id));
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
-  const selectedBooth = booths.find((booth) => booth.id === state.selectedBoothId);
   const sheetHint = state.sheetLevel === "full" ? "탭해서 지도 보기" : "탭해서 전체 목록 보기";
   const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : "부스 목록 펼치기";
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
       <header class="top-bar">
-        <button class="icon-btn" data-route="home" title="홈" aria-label="홈">${icon("home")}</button>
-        <div class="top-title"><strong>판교고 축제 맵</strong><span>${floorInfo.label} · ${floorInfo.caption} · ${state.user?.name || ""}님</span></div>
+        <button class="icon-btn" data-route="home" aria-label="홈으로">${icon("back")}</button>
+        <div class="top-title"><strong>판교고 실내지도</strong><span>${isServerMode() ? "위치 임시 배치" : "축제 부스 · DEMO"}</span></div>
         <button class="icon-btn map-search-action ${state.search ? "has-query" : ""}" id="mapSearchBtn" type="button" aria-label="부스 검색">
-          <span>⌕</span>
+          <span>${icon("search")}</span>
           ${state.search ? `<b>${globalSearchResults.length}</b>` : ""}
         </button>
-        <button class="icon-btn" data-route="profile" title="내 정보" aria-label="내 정보">${state.user?.role === "admin" ? icon("admin") : icon("user")}</button>
       </header>
-      <nav class="floor-tabs" aria-label="층 선택">
-        ${FLOORS.map(({ floor, label, caption }) => `
-          <button type="button" class="floor-tab ${state.floor === floor ? "active" : ""}" data-floor="${floor}" aria-pressed="${state.floor === floor}">
-            <strong>${label}</strong><small>${caption}</small>
-          </button>
-        `).join("")}
-      </nav>
       <section class="map-stage">
+        ${floorTabsView()}
         <div class="map-context-bar">
           <span><strong>${floorInfo.label}</strong>${plan.subtitle}</span>
-          <button type="button" id="resetMapView">전체보기</button>
+          <button type="button" id="resetMapView" aria-label="지도 처음 보기" title="지도 처음 보기">${icon("refresh")}</button>
         </div>
         <div class="map-legend" aria-label="지도 범례">
           <span><i class="classroom"></i>학급</span>
           <span><i class="facility"></i>시설</span>
           <span><i class="visited"></i>방문 완료</span>
         </div>
-        <div class="map-card ${selectedBooth ? "has-preview" : ""}" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
-          <div class="map-canvas">
-            <div class="map-grid"></div>
-            <div class="school-label">PANGYO HIGH SCHOOL · ${floorInfo.label}</div>
-            ${mapPlanMarkup(plan, booths)}
-            ${floatingBooths.map((booth, index) => {
-              const position = boothMapPosition(booth);
-              const markerLabel = booth.category === "class" ? booth.location.match(/(\d-\d)/)?.[1] || "부스" : "부스";
-              return `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${position.x}%;top:${position.y}%;--stagger:${index * 18}ms" data-map-select="${booth.id}" aria-label="${booth.name}" title="${booth.name}"><span aria-hidden="true">${markerLabel}</span></button>`;
-            }).join("")}
-          </div>
-          ${booths.length ? "" : mapEmptyCard()}
-          ${selectedBooth ? mapPreviewCard(selectedBooth) : ""}
-        </div>
+        ${mapCanvasView(booths, plan)}
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
         <button class="sheet-handle" id="sheetToggle" aria-label="${sheetHandleLabel}">
           <span class="sheet-grip"></span>
-          <span class="sheet-snap-dots" aria-hidden="true">
-            ${["peek", "mid", "full"].map((level) => `<i class="${state.sheetLevel === level || (level === "mid" && state.sheetOpen && state.sheetLevel !== "full") ? "active" : ""}"></i>`).join("")}
-          </span>
+          <span class="sheet-peek-label">${icon("list")} ${floorInfo.label} 부스 ${booths.length}개</span>
         </button>
         <div class="sheet-head">
           <span>
             <strong>${floorInfo.label} 부스</strong>
-            <small>${booths.length}개 · ${stampedCount}개 방문</small>
+            <small>${booths.length}개 · <span data-floor-stamp-count>${stampedCount}</span>개 방문</small>
           </span>
           <small class="sheet-hint">${sheetHint}</small>
         </div>
@@ -1159,9 +1776,9 @@ function searchOverlay(booths) {
       <header class="search-screen-head">
         <button class="icon-btn" id="closeSearchScreen" type="button" aria-label="검색 닫기">${icon("back")}</button>
         <div class="search-screen-input ${state.search ? "has-clear" : ""}">
-          <span aria-hidden="true">⌕</span>
+          <span aria-hidden="true">${icon("search")}</span>
           <input id="searchScreenInput" class="input" placeholder="부스 이름이나 위치 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" />
-          <button id="clearSearchScreen" type="button" class="clear-search-btn" aria-label="검색어 지우기" ${state.search ? "" : "hidden"}>×</button>
+          <button id="clearSearchScreen" type="button" class="clear-search-btn" aria-label="검색어 지우기" ${state.search ? "" : "hidden"}>${icon("close")}</button>
         </div>
       </header>
       <div class="search-screen-controls">
@@ -1246,6 +1863,15 @@ function markerClass(booth) {
   return classes.join(" ");
 }
 
+function clubVisual(booth, variant = "list") {
+  const label = String(booth.name || booth.clubName || "부스").trim();
+  if (booth.image) {
+    const alt = variant === "detail" ? `${label} 대표 이미지` : "";
+    return `<span class="club-visual ${variant} kind-${escapeHtml(booth.imageKind || "poster")}"><img src="${escapeHtml(booth.image)}" alt="${escapeHtml(alt)}" loading="${variant === "detail" ? "eager" : "lazy"}" decoding="async" /></span>`;
+  }
+  return `<span class="club-visual ${variant} fallback" aria-hidden="true">${escapeHtml(label.slice(0, 1) || "부")}</span>`;
+}
+
 function sheetClass() {
   if (state.sheetLevel === "full") return "full";
   if (state.sheetLevel === "mid" || state.sheetOpen) return "open";
@@ -1255,13 +1881,18 @@ function sheetClass() {
 function boothItem(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
   const selected = state.selectedBoothId === booth.id;
-  const visits = repo.boothVisits(booth.id);
+  const rating = ratingInfo(booth.id);
+  const officialClub = Boolean(booth.officialClubId);
+  const metaText = officialClub
+    ? `${booth.location} · 임시 배치 · ${formatOperatingHours(booth)}`
+    : `${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}`;
   return `
-    <button class="booth-item ${booth.category || "class"} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
+    <button class="booth-item ${booth.category || "class"} ${officialClub ? "has-club-visual" : ""} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
+      ${officialClub ? clubVisual(booth) : ""}
       <span class="booth-main">
-        <strong>${booth.favorite ? icon("heart") + " " : ""}${booth.name}</strong>
-        <span class="meta">${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}</span>
-        <span class="booth-stats"><i>방문 ${visits}</i><i>${stamped ? "방문 인증 완료" : "방문 전"}</i></span>
+        <strong>${booth.favorite ? icon("heart") + " " : ""}${catalogName(booth)}</strong>
+        <span class="meta">${metaText}</span>
+        <span class="booth-stats"><i class="rating-stat">${icon("star")} ${catalogRating(booth)}</i><i>${isServerMode() ? (repo.hasReview(state.user.id, booth.id) ? "별점 남김" : stamped ? "별점 남기기" : "방문 후 평가") : `데모 평가 ${rating.count}`}</i><i data-booth-visited="${booth.id}" class="${stamped ? "visit-complete" : ""}">${stamped ? "방문 완료" : "방문 전"}</i></span>
       </span>
       ${statusBadge(booth.status)}
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
@@ -1271,16 +1902,16 @@ function boothItem(booth) {
 
 function mapPreviewCard(booth) {
   const stamped = repo.hasStamp(state.user.id, booth.id);
+  const rating = ratingInfo(booth.id);
   return `
     <article class="map-preview-card">
       <div>
-        <strong>${booth.name}</strong>
-        <span>${booth.location} · ${formatOperatingHours(booth)} · 방문 ${repo.boothVisits(booth.id)}</span>
-        ${statusBadge(booth.status)}
-        <span class="preview-status"><i class="${stamped ? "on" : ""}">${stamped ? "방문 인증 완료" : "방문 전"}</i></span>
+        <strong>${catalogName(booth)}</strong>
+        <span>${escapeHtml(booth.location)}</span>
+        <span class="preview-rating">${icon("star")} ${isServerMode() ? catalogRating(booth) : rating.average || "평가 전"}<span class="preview-visit" data-booth-visited="${booth.id}">${stamped ? "방문 완료" : "방문 전"}</span></span>
       </div>
-      <button type="button" class="preview-detail-btn" data-detail="${booth.id}">${stamped ? "다시보기" : "상세"}</button>
-      <button type="button" class="preview-close-btn" data-clear-selection aria-label="선택 해제">×</button>
+      <button type="button" class="preview-detail-btn" data-detail="${booth.id}">상세 ${icon("arrow")}</button>
+      <button type="button" class="preview-close-btn" data-clear-selection aria-label="선택 해제">${icon("close")}</button>
     </article>
   `;
 }
@@ -1288,7 +1919,9 @@ function mapPreviewCard(booth) {
 function detailView() {
   const booth = state.db.booths.find((item) => item.id === state.selectedBoothId) || state.db.booths[0];
   const stamped = repo.hasStamp(state.user.id, booth.id);
-  const mockNfcToken = STAMP_GATEWAY_MODE === "mock" ? mockNfcTokenForTagId(booth.nfcTagId) : "";
+  const rating = ratingInfo(booth.id);
+  const reviewed = repo.hasReview(state.user.id, booth.id);
+  const mockNfcToken = canUseMockNfcTools() ? mockNfcTokenForTagId(booth.nfcTagId) : "";
   return `
     <main class="screen detail-screen">
       <header class="top-bar">
@@ -1296,68 +1929,119 @@ function detailView() {
         <div class="top-title"><strong>부스 상세</strong><span>${booth.location}</span></div>
         ${mockNfcToken
           ? `<button class="icon-btn" data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-shortcut" title="NFC 모의 테스트">NFC</button>`
-          : `<span class="icon-btn" aria-hidden="true"></span>`}
+          : `<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button>`}
       </header>
       <section class="detail-hero">
         <div class="detail-status-row">${statusBadge(booth.status)}<span>${formatOperatingHours(booth)}</span></div>
-        <div class="meta">${booth.clubName} · ${booth.floor}층 · ${booth.room}</div>
-        <h1 class="title">${booth.name}</h1>
-        <div class="meta"><span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span> ${stamped ? "방문 인증 완료" : "아직 방문하지 않았어요"}</div>
+        <div class="detail-club-heading">
+          ${booth.officialClubId ? clubVisual(booth, "detail") : ""}
+          <div>
+            <div class="meta">${booth.officialClubId ? "판교고 동아리 · 임시 배치" : booth.clubName} · ${booth.floor}층 · ${booth.room}</div>
+            <h1 class="title">${catalogName(booth)}</h1>
+            <p class="catalog-position" data-catalog-position="${booth.id}">${escapeHtml(catalogPositionText(booth))}</p>
+          </div>
+        </div>
+        <div class="meta"><span class="stamp ${stamped && reviewed ? "on" : ""}">${icon("stamp")}</span> ${stamped ? reviewed ? "스탬프 날인 완료" : "방문 인증 완료 · 별점 등록 대기" : "아직 방문하지 않았어요"}</div>
+        <div class="detail-metrics" aria-label="부스 평가와 방문 상태">
+          <span><small>${isServerMode() ? "축제 앱 별점" : "데모 별점"}</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong><em>${catalogRating(booth)}</em></span>
+          <span><small>${isServerMode() ? "리뷰" : "데모 평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
+          <span><small>${isServerMode() ? "내 방문" : "데모 방문"}</small><strong>${stamped ? "방문 완료" : "방문 전"}</strong></span>
+        </div>
       </section>
+      <p class="detail-data-note">${isServerMode() ? "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주세요." : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
       <section class="panel section">
         <h2>부스 소개</h2>
-        <p class="subtitle">${booth.description}</p>
+        <p class="subtitle">${escapeHtml(booth.description)}</p>
+        ${booth.sourceUrl ? `<a class="club-source-link" href="${escapeHtml(booth.sourceUrl)}" target="_blank" rel="noopener noreferrer">찾동에서 원문 보기 ${icon("external")}</a>` : ""}
       </section>
+      ${festivalWeb.program(booth)}
       <section class="panel section">
         <h2>방문 인증</h2>
         ${stamped
           ? `<p class="success-text">이 부스의 방문 기록이 축제 패스에 저장됐습니다.</p>`
           : `<p class="notice">부스의 NFC 태그를 인식해 방문을 인증하세요. 인식되지 않으면 운영자에게 수동 승인을 요청할 수 있습니다.</p>`}
-        <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" ${mockNfcToken ? `data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-action"` : "disabled"}>${mockNfcToken ? (stamped ? "인증 결과 다시 확인" : "NFC 모의 방문 인증") : "NFC 태그를 스캔해 주세요"}</button>
+        <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" ${mockNfcToken ? `data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-action"` : `data-route="${stamped ? "stamps" : "scan"}"`}>${mockNfcToken ? (stamped ? "인증 결과 다시 확인" : "NFC 모의 방문 인증") : stamped ? "내 스탬프 보기" : "NFC 방문 인증"}</button>
+      </section>
+      <section class="panel section review-section" id="boothReviewSection">
+        <div class="review-heading">
+          <div><span>${isServerMode() ? "방문한 부스 평가" : "데모 평가 · 앱을 닫으면 사라짐"}</span><h2>어떤 경험이었나요?</h2></div>
+        </div>
+        ${reviewed && festivalWeb.ownReview(booth.id)?.content?.trim()
+          ? `<p class="review-guidance success">별점과 글 후기를 모두 남겼어요. 고마워요!</p>`
+          : reviewForm({
+            enabled: stamped,
+            message: reviewed ? "별점은 이미 저장됐어요. 못 쓴 글 후기를 이어서 남겨주세요." : stamped ? "별점 등록으로 스탬프를 완성하세요. 글 후기는 나중에 써도 돼요." : "방문 인증 후 별점을 남길 수 있어요.",
+          })}
+        <div class="review-list">${reviewListMarkup(rating)}</div>
       </section>
       ${bottomNav("map")}
     </main>
   `;
 }
 
-function reviewForm(enabled) {
+function reviewForm({ enabled, message }) {
+  const own = festivalWeb.ownReview(state.selectedBoothId);
+  const value = own?.rating || state.reviewRating;
   return `
-    <div class="${enabled ? "" : "hidden"}">
-      <div class="star-picker">${[1, 2, 3, 4, 5].map((n) => `<button class="star ${state.reviewRating >= n ? "on" : ""}" data-rating="${n}">${icon("star")}</button>`).join("")}</div>
-      <textarea id="reviewContent" class="textarea" placeholder="방문 경험을 남겨주세요."></textarea>
-      <button id="submitReview" class="primary-btn">리뷰 등록</button>
+    <div class="review-compose ${enabled ? "" : "locked"}">
+      <p class="review-guidance">${message}</p>
+      <div class="star-picker" aria-label="별점 선택">
+        ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star ${value >= n ? "on" : ""}" data-rating="${n}" aria-label="${n}점" aria-pressed="${value === n}" ${enabled && !own ? "" : "disabled"}>${icon("star")}</button>`).join("")}
+      </div>
+      <label class="review-field" for="reviewContent">글 후기 <small>선택 · 최대 500자</small></label>
+      <textarea id="reviewContent" class="textarea" maxlength="500" placeholder="좋았던 경험을 나눠주세요." ${enabled ? "" : "disabled"}>${escapeHtml(state.reviewDraft)}</textarea>
+      <p class="web-review-hint">${isServerMode() ? "글 후기 추가·포인트 적립은 서버 연결 후 지원돼요." : `글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번`}</p>
+      <p class="review-feedback" id="reviewFeedback" role="status" aria-live="polite"></p>
+      <button id="submitReview" type="button" class="primary-btn full-action" ${enabled && !state.reviewBusy ? "" : "disabled"}>${state.reviewBusy ? "등록 중..." : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료"}</button>
+      ${enabled ? `<button id="saveReviewDraft" class="ghost-btn full-action" type="button">임시저장하고 나중에 쓰기</button>` : ""}
     </div>
-    <button class="primary-btn" disabled ${enabled ? "hidden" : ""}>리뷰 작성</button>
   `;
 }
 
 function reviewView(review) {
-  const user = state.db.users.find((item) => item.id === review.userId);
-  return `<article class="review"><strong>${icon("star")} ${review.rating} · ${user?.name || "학생"}</strong><p>${review.content}</p></article>`;
+  // Server reviews carry a masked author name; demo reviews look the writer up locally.
+  const author = review.author || state.db.users.find((item) => item.id === review.userId)?.name || "학생";
+  return `<article class="review${review.mine ? " mine" : ""}"><div class="review-meta"><strong>${icon("star")} ${Number(review.rating).toFixed(1)}</strong><span>방문 인증 · ${escapeHtml(author)}${review.mine ? " (나)" : ""} · ${formatReviewDate(review.createdAt)}</span></div>${review.content ? `<p>${escapeHtml(review.content)}</p>` : ""}</article>`;
 }
 
 function stampView() {
-  const count = repo.stampsForUser(state.user.id).length;
-  const total = state.db.booths.length;
-  const percent = Math.min((count / Math.max(total, 1)) * 100, 100);
+  const stamps = [...repo.stampsForUser(state.user.id)].sort((a, b) => isServerMode()
+    ? serverCompletedBooths.indexOf(window.FestivalCatalog.CLUB_IDS[state.db.booths.find(booth => booth.id === a.boothId)?.officialClubId]) - serverCompletedBooths.indexOf(window.FestivalCatalog.CLUB_IDS[state.db.booths.find(booth => booth.id === b.boothId)?.officialClubId])
+    : new Date(a.createdAt) - new Date(b.createdAt));
+  const count = stamps.length;
+  const total = isServerMode() ? Object.keys(window.FestivalCatalog.CLUB_IDS).length : state.db.booths.length;
+  const remaining = Math.max(GOAL_COUNT - count, 0);
+  const percent = Math.min((count / GOAL_COUNT) * 100, 100);
+  const rewardState = isServerMode() ? "locked" : state.user.exchangedAt ? "redeemed" : count >= GOAL_COUNT ? "available" : "locked";
+  const rewardTitle = isServerMode() ? "보상 교환 준비 중" : rewardState === "redeemed" ? "교환 완료" : rewardState === "available" ? "간식 교환권 사용 가능" : "간식 교환권 준비 중";
+  const rewardBody = isServerMode() ? "현재는 방문 기록만 저장됩니다. 교환권은 발급되지 않습니다." : rewardState === "redeemed"
+    ? `${formatReviewDate(state.user.exchangedAt)}에 교환 처리되었습니다.`
+    : rewardState === "available"
+      ? "축제 운영본부에서 이 화면을 보여주세요."
+      : `목표까지 스탬프 ${remaining}개 남았습니다.`;
   return `
     <main class="screen p0-page stamp-screen">
       <header class="p0-header compact">
-        <div><span class="eyebrow">FESTIVAL PASS</span><h1>나의 축제 패스</h1><p>내가 방문한 부스를 한눈에 확인하세요.</p></div>
+        <div><span class="eyebrow">MY FESTIVAL</span><h1>차곡차곡, 나의 축제</h1></div>
       </header>
       <section class="pass-summary">
-        <h1 class="title">현재 ${count}개 획득</h1>
-        <p class="subtitle">전체 ${total}개 중 ${count}개를 모았습니다.</p>
-        <div class="progress-wrap"><div class="progress" style="width:${percent}%"></div></div>
-        <p class="pass-note">실제 계정·서버 연결 전까지 이 기기에만 저장돼요.</p>
+        <div class="pass-count"><strong>${count}<small> / ${total}</small></strong><span>개의 스탬프를 모았어요</span></div>
+        <div class="progress-wrap" role="progressbar" aria-label="전체 스탬프 수집률" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${count}"><div class="progress" style="width:${Math.min(100, count / total * 100)}%"></div></div>
+        <p class="pass-note">${isServerMode() ? "인증된 방문 기록만 표시해요." : "데모 기록 · 앱을 닫으면 사라짐 · 실제 교환 불가"}</p>
+      </section>
+      ${stampTrailView(stamps, total)}
+      <section class="reward-status ${rewardState}" aria-live="polite">
+        <span class="reward-mark">${icon("ticket")}</span>
+        <div><small>${isServerMode() ? "교환권" : `데모 · 스탬프 ${GOAL_COUNT}개`}</small><h2>${rewardTitle}</h2><p>${rewardBody}</p>${!isServerMode() ? `<small>실제 상품으로 교환할 수 없는 시연용입니다.</small>` : ""}</div>
+        <strong>${rewardState === "redeemed" ? "사용됨" : rewardState === "available" ? "교환 가능" : `${percent.toFixed(0)}%`}</strong>
       </section>
       <section class="p0-section">
-        <div class="section-heading"><div><span>방문 목록</span><h2>${count ? "기록된 부스" : "아직 방문 기록이 없어요"}</h2></div></div>
+        <div class="section-heading"><div><span>방문 목록</span><h2>${count ? `기록된 부스 ${count}개` : "아직 방문 기록이 없어요"}</h2></div><small>전체 ${total}개</small></div>
         <div class="pass-list">
-          ${state.db.booths.map((booth) => {
-            const stamp = state.db.stamps.find((item) => item.userId === state.user.id && item.boothId === booth.id);
-            return `<button type="button" class="pass-row ${stamp ? "earned" : ""}" data-list-select="${booth.id}"><span class="stamp ${stamp ? "on" : ""}">${icon("stamp")}</span><span><strong>${booth.name}</strong><small>${booth.location}${stamp ? ` · ${formatTime(stamp.createdAt)}` : " · 미방문"}</small></span></button>`;
-          }).join("")}
+          ${stamps.length ? stamps.map(stamp => {
+            const booth = state.db.booths.find(item => item.id === stamp.boothId);
+            return `<button type="button" class="pass-row earned" data-list-select="${booth.id}"><span class="stamp on">${icon("check")}</span><span><strong>${catalogName(booth)}</strong><small>${escapeHtml(booth.location)}${stamp.createdAt ? ` · ${formatTime(stamp.createdAt)}` : ""}</small></span>${icon("arrow")}</button>`;
+          }).join("") : `<div class="empty-state">${icon("stamp")}<h3>첫 스탬프를 기다리고 있어요</h3><button type="button" class="ghost-btn" data-route="map">부스 둘러보기 ${icon("arrow")}</button></div>`}
         </div>
       </section>
       ${bottomNav("stamps")}
@@ -1365,10 +2049,69 @@ function stampView() {
   `;
 }
 
+const TAG_DURATIONS = [[30, "30분"], [60, "1시간"], [240, "4시간"], [720, "12시간"], [1440, "1일"], [4320, "3일"], [10080, "7일"]];
+
+// Operator screen for the real server. The DB re-checks the admin flag on every issue call.
+function serverAdminView() {
+  const booths = state.db.booths.filter(booth => boothKeyFor(booth));
+  const selected = booths.find(booth => booth.id === serverAdmin.boothId) || booths[0] || null;
+  const result = serverAdmin.result;
+  return `
+    <main class="screen admin-screen server-admin">
+      <header class="top-bar">
+        <button class="icon-btn" data-route="home" aria-label="홈으로 돌아가기">${icon("back")}</button>
+        <div class="top-title"><strong>운영자 도구</strong><span>NFC 태그 발급</span></div>
+        <span class="icon-btn" aria-hidden="true"></span>
+      </header>
+      <section class="nfc-manager">
+        <header class="nfc-manager-heading"><div><h1>NFC 태그 발급</h1><p>부스 카드에 기록할 서명 주소를 만듭니다</p></div><span class="nfc-demo-badge">서버 연결</span></header>
+        <p class="nfc-scope-note">발급한 주소는 학생 계정에서 방문 인증에 사용됩니다. 화면을 공유하거나 촬영하지 마세요.</p>
+        ${booths.length ? `
+        <form id="serverAdminForm" novalidate>
+          <label class="field" for="serverAdminBooth">부스
+            <select class="select" id="serverAdminBooth">
+              ${booths.map(booth => `<option value="${escapeHtml(booth.id)}" ${selected?.id === booth.id ? "selected" : ""}>${escapeHtml(catalogBooth(booth)?.name || booth.name)} · ${escapeHtml(booth.location)}</option>`).join("")}
+            </select>
+          </label>
+          <label class="field" for="serverAdminMinutes">유효 기간
+            <select class="select" id="serverAdminMinutes">
+              ${TAG_DURATIONS.map(([value, label]) => `<option value="${value}" ${serverAdmin.minutes === value ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
+          <p class="nfc-field-note">기간이 지나면 카드를 다시 기록해야 합니다. 행사 당일에는 짧게 잡는 편이 안전합니다.</p>
+          <div class="nfc-save-row">
+            <span id="serverAdminStatus" role="status">${serverAdmin.busy ? "발급하는 중이에요" : "발급 준비됨"}</span>
+            <button type="submit" class="primary-btn" id="serverAdminIssue" ${serverAdmin.busy ? "disabled" : ""}>${icon("scan")} 태그 발급</button>
+          </div>
+        </form>
+        ${result ? `
+        <section class="nfc-saved-tools" aria-label="발급 결과">
+          <div class="nfc-manager-result ${result.tone}"><strong>${escapeHtml(result.title)}</strong><p>${escapeHtml(result.body)}</p></div>
+          ${result.url ? `
+          <label class="field" for="serverAdminUrl">카드에 기록할 주소
+            <div class="nfc-tag-input">
+              <input id="serverAdminUrl" class="input" value="${escapeHtml(result.url)}" readonly spellcheck="false" />
+              <button type="button" class="icon-btn" data-server-admin="copy" aria-label="발급 주소 복사" title="발급 주소 복사">${icon("copy")}</button>
+            </div>
+          </label>
+          <p class="nfc-field-note">NFC 쓰기 앱에서 URL(URI) 레코드로 기록하세요. 길이 ${result.url.length}자 · NTAG215 이상이 필요합니다.</p>` : ""}
+        </section>` : ""}
+        ` : `<p class="nfc-empty">서버 카탈로그에 연결된 부스가 없습니다.</p>`}
+      </section>
+      ${bottomNav("admin")}
+    </main>
+  `;
+}
+
 function adminView() {
+  if (isServerMode()) {
+    if (!isAdminUser()) return `<main class="screen"><h1>운영자 전용</h1><p>이 계정에는 운영자 권한이 없습니다. 담당 선생님이나 운영진에게 문의해 주세요.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
+    return serverAdminView();
+  }
+  if (!canUseMockNfcTools()) return `<main class="screen"><h1>관리자 접근 제한</h1><p>서버 관리자 기능은 아직 연결되지 않았습니다.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
   const tabs = [
     ["dashboard", "현황"],
-    ["booths", "부스/NFC"],
+    ["booths", "NFC 관리"],
     ["visits", "방문 기록"],
     ["users", "참여자"],
   ];
@@ -1376,9 +2119,9 @@ function adminView() {
   return `
     <main class="screen admin-screen">
       <header class="top-bar">
-        <button class="icon-btn" data-route="map">${icon("back")}</button>
+        <button class="icon-btn" data-route="map" aria-label="지도로 돌아가기">${icon("back")}</button>
         <div class="top-title"><strong>관리자 패널</strong><span>부스 운영, NFC, 방문 승인 관리</span></div>
-        <button class="icon-btn" data-route="login">G</button>
+        <button class="icon-btn" data-route="login" aria-label="로그아웃" title="로그아웃">${icon("logout")}</button>
       </header>
       <nav class="admin-tabs selector-bar">
         ${choiceSelect({
@@ -1431,9 +2174,11 @@ function adminPanel() {
   }
   if (state.adminTab === "booths") {
     return `
-      <section class="panel admin-panel-card">
+      ${nfcManagement.view()}
+      <details class="nfc-add-booth">
+        <summary>새 부스 추가</summary>
         <div class="admin-section-head"><h2>부스 추가</h2><span>NFC ID는 중복 불가</span></div>
-        ${state.adminMessage ? `<p class="success-text">${state.adminMessage}</p>` : ""}
+        ${state.adminMessage ? `<p class="success-text">${escapeHtml(state.adminMessage)}</p>` : ""}
         <div class="input-stack admin-form-grid">
           <input id="boothName" class="input" placeholder="부스명" />
           <input id="boothLocation" class="input" placeholder="위치" />
@@ -1442,8 +2187,7 @@ function adminPanel() {
           <textarea id="boothDesc" class="textarea" placeholder="부스 설명"></textarea>
           <button id="addBooth" type="button" class="primary-btn">부스 추가</button>
         </div>
-      </section>
-      <section class="admin-table section">${state.db.booths.map(boothAdminRow).join("")}</section>
+      </details>
     `;
   }
   if (state.adminTab === "visits") {
@@ -1463,7 +2207,10 @@ function adminPanel() {
     `;
   }
   if (!regularUsers.length) return adminEmpty("아직 참여자가 없습니다.", "사용자가 로그인하고 학생 정보를 등록하면 여기에 표시됩니다.");
-  return `<section class="admin-table">${regularUsers.map(userRow).join("")}</section>`;
+  return `
+    ${state.adminMessage ? `<p class="admin-inline-message" role="status">${escapeHtml(state.adminMessage)}</p>` : ""}
+    <section class="admin-table">${regularUsers.map(userRow).join("")}</section>
+  `;
 }
 
 function boothAdminRow(booth) {
@@ -1500,7 +2247,7 @@ function reviewRow(review) {
         <strong>${booth?.name || "삭제된 부스"}</strong>
         <p class="subtitle">${user?.name || "알 수 없음"} · ${review.rating}점 · ${new Date(review.createdAt).toLocaleDateString("ko-KR")}</p>
       </div>
-      <p class="admin-review-content">${review.content}</p>
+      <p class="admin-review-content">${escapeHtml(review.content)}</p>
       <div class="row-actions">
         <button type="button" class="danger-btn" data-delete-review="${review.id}">리뷰 삭제</button>
       </div>
@@ -1510,15 +2257,32 @@ function reviewRow(review) {
 
 function userRow(user) {
   const stampCount = repo.stampsForUser(user.id).length;
+  const completeCount = repo.stampsForUser(user.id).filter(s => repo.hasReview(user.id, s.boothId)).length;
   return `
     <div class="table-row admin-row">
       <div class="row-main">
         <strong>${user.name}</strong>
         <p class="subtitle">${user.studentNumber} · ${user.schoolId} · ${user.googleEmail || "Google 미연동"}</p>
       </div>
-      <div class="row-metrics"><span>방문 인증 ${stampCount}개</span><span>활성 사용자</span></div>
+      <div class="row-metrics"><span>방문 인증 ${stampCount}개</span><span>별점 등록 ${completeCount}개</span></div>
+      ${user.exchangedAt
+        ? `<p class="exchange-complete">${formatReviewDate(user.exchangedAt)} 간식 교환 완료</p>`
+        : `<p class="web-muted">실제 교환 처리는 바우처 서버 연결 후 지원됩니다.</p>`}
     </div>
   `;
+}
+
+function stampTrailView(stamps, total) {
+  const limit = state.stampTrailExpanded ? total : Math.min(total, Math.max(8, Math.ceil(stamps.length / 4) * 4));
+  return `<section class="stamp-journey" aria-label="스탬프 수집 여정"><ol class="stamp-trail">${Array.from({length: limit}, (_, index) => {
+    const stamp = stamps[index];
+    const booth = stamp ? state.db.booths.find(item => item.id === stamp.boothId) : null;
+    const row = Math.floor(index / 4), col = row % 2 ? 4 - index % 4 : index % 4 + 1;
+    return `<li class="trail-stop ${stamp ? "earned" : ""} ${index === stamps.length ? "next" : ""}" style="grid-row:${row + 1};grid-column:${col}">
+      ${booth ? `<button type="button" data-list-select="${booth.id}" aria-label="${index + 1}번째 스탬프, ${escapeHtml(booth.name)}">${icon("check")}</button>` : `<span class="trail-number" ${index === stamps.length ? 'aria-current="step"' : ""}>${index + 1}</span>`}
+      <small>${booth ? escapeHtml(booth.name) : index === stamps.length ? "다음 스탬프" : "방문 전"}</small>
+    </li>`;
+  }).join("")}</ol>${total > 8 ? `<button type="button" class="trail-toggle" id="toggleStampTrail" aria-expanded="${state.stampTrailExpanded}">${state.stampTrailExpanded ? "접기" : `전체 ${total}칸 보기`}</button>` : ""}</section>`;
 }
 
 function visitRow(stamp) {
@@ -1546,9 +2310,9 @@ function bottomNav(active) {
     <nav class="bottom-nav" aria-label="주요 메뉴">
       <button class="nav-btn ${active === "home" ? "active" : ""}" data-route="home"><span>${icon("home")}</span><span>홈</span></button>
       <button class="nav-btn ${active === "map" ? "active" : ""}" data-route="map"><span>${icon("map")}</span><span>부스</span></button>
-      <button class="nav-btn scan-nav ${active === "scan" ? "active" : ""}" data-route="scan"><span>${icon("scan")}</span><span>NFC</span></button>
-      <button class="nav-btn ${active === "stamps" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>패스</span></button>
-      <button class="nav-btn ${active === "profile" ? "active" : ""}" data-route="profile"><span>${icon("user")}</span><span>내 정보</span></button>
+      <button class="nav-btn ${active === "stamps" || active === "scan" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>스탬프</span></button>
+      <button class="nav-btn ${active === "vouchers" ? "active" : ""}" data-route="vouchers"><span>${icon("ticket")}</span><span>바우처</span></button>
+      <button class="nav-btn ${active === "reviews" ? "active" : ""}" data-route="reviews"><span>${icon("message")}</span><span>리뷰</span></button>
     </nav>
   `;
 }
@@ -1562,6 +2326,33 @@ function bindBoothListButtons(root = document) {
 }
 
 function bindEvents() {
+  document.querySelectorAll("[data-open-reviews]").forEach(button => button.addEventListener("click", () => {
+    state.reviewPickerOpen = true;
+    render();
+    writeNavigationHistory("push");
+    document.querySelector(".review-picker [data-close-reviews]")?.focus();
+  }));
+  document.querySelectorAll("[data-close-reviews]").forEach(button => button.addEventListener("click", event => {
+    if (event.target !== button && button.classList.contains("review-picker-backdrop")) return;
+    if (history.state?.reviewPickerOpen && navigationIndex > 0) { history.back(); return; }
+    state.reviewPickerOpen = false;
+    render();
+    document.querySelector("[data-open-reviews]")?.focus();
+  }));
+  document.querySelectorAll("[data-review-booth]").forEach(button => button.addEventListener("click", () => openBoothReview(button.dataset.reviewBooth)));
+  document.querySelector("#reviewContent")?.addEventListener("input", event => { state.reviewDraft = event.target.value; festivalWeb.saveDraft(); });
+  document.querySelector("#toggleStampTrail")?.addEventListener("click", () => {
+    state.stampTrailExpanded = !state.stampTrailExpanded;
+    render();
+    document.querySelector("#toggleStampTrail")?.focus({preventScroll: true});
+  });
+  document.querySelector("#switchMode")?.addEventListener("click", () => {
+    writeStorage("festival-demo-mode", isServerMode() ? "1" : "0");
+    const url = new URL(location.href);
+    url.searchParams.delete("demo");
+    history.replaceState(null, "", url.href);
+    location.reload();
+  });
   document.querySelectorAll(".choice-select").forEach((root) => {
     root.addEventListener("click", (event) => event.stopPropagation());
   });
@@ -1577,16 +2368,17 @@ function bindEvents() {
     render();
   };
   document.querySelectorAll("button[data-route]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       closeMenus();
       state.searchOpen = false;
+      state.reviewPickerOpen = false;
       if (button.dataset.route === "admin" && state.user?.role !== "admin") {
         state.loginError = "관리자 계정으로 로그인해야 접근할 수 있습니다.";
         navigateTo("login", { replace: true });
         return;
       }
       if (button.dataset.route === "login") {
-        resetLogin();
+        if (!await resetLogin()) return;
         navigateTo("login", { replace: true });
         return;
       }
@@ -1601,9 +2393,9 @@ function bindEvents() {
     });
   });
   document.querySelector("#googleLogin")?.addEventListener("click", () => runActionOnce("google-login", () => startGoogleLogin("student")));
-  document.querySelector("#profileSubmit")?.addEventListener("click", completeProfile);
-  document.querySelector("#backToGoogle")?.addEventListener("click", () => {
-    resetLogin();
+  document.querySelector("#profileSubmit")?.addEventListener("click", () => runActionOnce("profile-save", completeProfile));
+  document.querySelector("#backToGoogle")?.addEventListener("click", async () => {
+    await resetLogin();
     render();
   });
   document.querySelector("#adminLogin")?.addEventListener("click", () => runActionOnce("admin-login", adminLogin));
@@ -1618,10 +2410,12 @@ function bindEvents() {
     state.mapOffsetX = 0;
     state.mapOffsetY = 0;
     state.searchOpen = false;
+    state.selectedBoothId = null;
     render();
     writeNavigationHistory("push");
   }));
   document.querySelector("#sheetToggle")?.addEventListener("click", () => {
+    if (Date.now() < Number(document.querySelector("#sheet")?.dataset.suppressClickUntil || 0)) return;
     if (state.sheetLevel === "peek") {
       setSheetLevel("mid");
     } else if (state.sheetLevel === "mid") {
@@ -1747,12 +2541,26 @@ function bindEvents() {
     state.pendingNfcClaim = null;
     render();
   });
+  document.querySelector("#mapZoomIn")?.addEventListener("click", () => adjustMapZoom(MAP_ZOOM_STEP));
+  document.querySelector("#mapZoomOut")?.addEventListener("click", () => adjustMapZoom(-MAP_ZOOM_STEP));
   document.querySelector("#resetNfcTestStamps")?.addEventListener("click", resetNfcTestStamps);
   document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => {
     state.reviewRating = Number(button.dataset.rating);
-    render();
+    festivalWeb.saveDraft();
+    document.querySelectorAll("[data-rating]").forEach((star) => {
+      const rating = Number(star.dataset.rating);
+      star.classList.toggle("on", rating <= state.reviewRating);
+      star.setAttribute("aria-pressed", String(rating === state.reviewRating));
+    });
   }));
-  document.querySelector("#submitReview")?.addEventListener("click", submitReview);
+  document.querySelector("#submitReview")?.addEventListener("click", () => runActionOnce("submit-review", submitReview));
+  document.querySelector("#serverAdminForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    runActionOnce("server-admin-issue", issueServerTag);
+  });
+  document.querySelector("#serverAdminBooth")?.addEventListener("change", (event) => { serverAdmin.boothId = event.target.value; });
+  document.querySelector("#serverAdminMinutes")?.addEventListener("change", (event) => { serverAdmin.minutes = Number(event.target.value); });
+  document.querySelector('[data-server-admin="copy"]')?.addEventListener("click", copyServerTagUrl);
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
     state.adminTab = button.dataset.adminTab;
@@ -1766,7 +2574,9 @@ function bindEvents() {
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
   document.querySelector("#manualApproveStamp")?.addEventListener("click", () => runActionOnce("admin:manual-approve", manualApproveStamp));
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
-  document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => completeExchange(button.dataset.exchange)));
+  document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => runActionOnce(`admin:exchange:${button.dataset.exchange}`, () => completeExchange(button.dataset.exchange))));
+  nfcManagement.bind();
+  festivalWeb.bind();
 }
 
 function closeMenus() {
@@ -1840,6 +2650,7 @@ function bindSheetDrag() {
     sheet.classList.remove("dragging");
     sheet.style.height = "";
     if (!moved) return;
+    sheet.dataset.suppressClickUntil = String(Date.now() + 400);
     const targets = [
       ["full", fullHeight],
       ["mid", midHeight],
@@ -1849,7 +2660,11 @@ function bindSheetDrag() {
       Math.abs(item[1] - currentHeight) < Math.abs(best[1] - currentHeight) ? item : best
     ), targets[0]);
     setSheetLevel(level);
-    render();
+    // Keep the pointer target alive through the trailing click to avoid a second toggle.
+    sheet.classList.toggle("open", level !== "peek");
+    sheet.classList.toggle("full", level === "full");
+    document.querySelector(".map-screen")?.classList.toggle("sheet-full", level === "full");
+    handle.setAttribute("aria-label", level === "full" ? "부스 목록 접기" : "부스 목록 펼치기");
   };
 
   handle.addEventListener("pointerdown", (event) => {
@@ -1887,6 +2702,7 @@ function bindMapDrag() {
   let pinchStart = 0;
   let dragging = false;
   let moved = false;
+  let suppressClickUntil = 0;
   let lastTap = { time: 0, x: 0, y: 0 };
   let lastTouchZoomAt = 0;
   let transformFrame = 0;
@@ -1902,8 +2718,19 @@ function bindMapDrag() {
       canvas.style.transform = pendingTransform;
     });
   };
+  const commitTransform = () => {
+    const transform = `translate(${state.mapOffsetX}px, ${state.mapOffsetY}px) scale(${state.mapZoom})`;
+    card.style.setProperty("--map-zoom", state.mapZoom);
+    card.style.setProperty("--map-x", `${state.mapOffsetX}px`);
+    card.style.setProperty("--map-y", `${state.mapOffsetY}px`);
+    canvas.style.transform = transform;
+    const zoomIn = card.querySelector("#mapZoomIn");
+    const zoomOut = card.querySelector("#mapZoomOut");
+    if (zoomIn) zoomIn.disabled = state.mapZoom >= MAP_ZOOM_MAX;
+    if (zoomOut) zoomOut.disabled = state.mapZoom <= MAP_ZOOM_MIN;
+  };
   const zoomAt = (clientX, clientY) => {
-    const nextZoom = Number(Math.min(1.6, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
+    const nextZoom = Number(Math.min(MAP_ZOOM_MAX, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
     const rect = card.getBoundingClientRect();
     const maxX = 72 * nextZoom;
     const maxY = 92 * nextZoom;
@@ -1936,7 +2763,7 @@ function bindMapDrag() {
     if (Math.abs(event.clientX - startX) > 7 || Math.abs(event.clientY - startY) > 7) moved = true;
     if (pointers.size >= 2 && pinchStart) {
       moved = true;
-      const nextZoom = Number(Math.min(1.6, Math.max(0.9, baseZoom * (distance([...pointers.values()].slice(0, 2)) / pinchStart))).toFixed(2));
+      const nextZoom = Number(Math.min(MAP_ZOOM_MAX, Math.max(MAP_ZOOM_MIN, baseZoom * (distance([...pointers.values()].slice(0, 2)) / pinchStart))).toFixed(2));
       state.mapZoom = nextZoom;
       const maxX = 72 * nextZoom;
       const maxY = 92 * nextZoom;
@@ -1958,6 +2785,9 @@ function bindMapDrag() {
     if (!dragging) return;
     if (transformFrame) cancelAnimationFrame(transformFrame);
     transformFrame = 0;
+    const trackedPointer = pointers.get(event.pointerId);
+    const endX = event.type === "pointercancel" ? trackedPointer?.clientX ?? startX : event.clientX;
+    const endY = event.type === "pointercancel" ? trackedPointer?.clientY ?? startY : event.clientY;
     pointers.delete(event.pointerId);
     if (pointers.size >= 1) {
       const [remaining] = pointers.values();
@@ -1971,13 +2801,19 @@ function bindMapDrag() {
     }
     const maxX = 72 * state.mapZoom;
     const maxY = 92 * state.mapZoom;
-    state.mapOffsetX = clamp(baseX + event.clientX - startX, maxX);
-    state.mapOffsetY = clamp(baseY + event.clientY - startY, maxY);
+    state.mapOffsetX = clamp(baseX + endX - startX, maxX);
+    state.mapOffsetY = clamp(baseY + endY - startY, maxY);
+    commitTransform();
     const now = Date.now();
-    const tapDistance = Math.hypot(event.clientX - lastTap.x, event.clientY - lastTap.y);
+    const tapDistance = Math.hypot(endX - lastTap.x, endY - lastTap.y);
     dragging = false;
     pinchStart = 0;
     card.classList.remove("dragging");
+    if (moved) {
+      suppressClickUntil = now + 320;
+      lastTap = { time: 0, x: 0, y: 0 };
+      return;
+    }
     // A map tap re-renders during pointerup, so clear the preview here instead of
     // waiting for the later click event that would otherwise be discarded.
     if (!moved && state.selectedBoothId && !event.target.closest("button, input, select, textarea")) {
@@ -1991,13 +2827,17 @@ function bindMapDrag() {
     if (!moved && now - lastTap.time < 320 && tapDistance < 36) {
       lastTap = { time: 0, x: 0, y: 0 };
       lastTouchZoomAt = now;
-      zoomAt(event.clientX, event.clientY);
+      zoomAt(endX, endY);
       return;
     }
-    if (!moved) lastTap = { time: now, x: event.clientX, y: event.clientY };
-    render();
+    lastTap = { time: now, x: endX, y: endY };
   };
 
+  card.addEventListener("click", (event) => {
+    if (Date.now() > suppressClickUntil) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
   card.addEventListener("pointerup", finish);
   card.addEventListener("pointercancel", finish);
   card.addEventListener("dblclick", (event) => {
@@ -2008,15 +2848,61 @@ function bindMapDrag() {
   });
 }
 
-function resetLogin() {
+async function resetLogin() {
+  if (nfcManagement.hasDrafts() && !window.confirm("저장하지 않은 NFC 설정이 있습니다. 변경을 버리고 로그아웃할까요?")) return false;
+  if (isServerMode()) {
+    if (state.loginBusy) return false;
+    state.loginBusy = true;
+    try {
+      const response = await festivalAccount?.signOut();
+      if (response?.error) throw response.error;
+    } catch {
+      state.loginBusy = false;
+      state.loginError = "로그아웃을 확인하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.";
+      render();
+      return false;
+    }
+    festivalAccount?.savePending(null);
+    serverCompletedBooths = [];
+    serverMyReviews = null;
+    serverReviews.clear();
+    Object.assign(serverAdmin, { busy: false, boothId: null, minutes: 240, result: null });
+    state.pendingNfcClaim = null;
+  }
   state.user = null;
+  nfcManagement.clear();
+  state.reviewPickerOpen = false;
+  state.reviewDraft = "";
+  state.scanResult = null;
+  dismissNfcFeedback();
   state.authStep = "google";
   state.pendingGoogle = null;
   state.authIntent = "student";
   state.loginBusy = false;
   state.loginError = "";
   state.openMenu = null;
+  return true;
 }
+
+// Set when the sign-in tab is opened. If the app comes back to the front without a session, the
+// login never returned here, which usually means this app's callback address is not registered
+// and the provider sent the browser to the project's default site instead.
+let signInStartedAt = 0;
+
+function reportUnfinishedSignIn() {
+  if (document.visibilityState !== "visible" || !signInStartedAt) return;
+  signInStartedAt = 0;
+  if (!isServerMode() || state.user) return;
+  // The native callback arrives moments after the app returns to the front; wait for it first.
+  setTimeout(() => {
+    if (state.user || state.authStep === "profile" || state.loginBusy) return;
+    state.loginError = "로그인 결과를 확인하지 못했어요. 다시 시도하거나 운영자에게 이 웹사이트의 로그인 복귀 주소 등록을 확인해 주세요.";
+    state.route = "login";
+    render();
+  }, 2000);
+}
+
+document.addEventListener("visibilitychange", reportUnfinishedSignIn);
 
 async function startGoogleLogin(intent = "student") {
   if (state.loginBusy) return;
@@ -2025,6 +2911,14 @@ async function startGoogleLogin(intent = "student") {
   state.loginBusy = true;
   render();
   try {
+    if (isServerMode()) {
+      if (!festivalAccount) throw new Error("로그인 모듈을 불러오지 못했습니다. 새로고침해 주세요.");
+      await festivalAccount.signIn();
+      signInStartedAt = Date.now();
+      state.loginBusy = false;
+      render();
+      return;
+    }
     state.pendingGoogle = await authProvider.signInWithGoogle();
     if (intent === "admin") {
       state.loginBusy = false;
@@ -2060,10 +2954,17 @@ async function startGoogleLogin(intent = "student") {
   }
 }
 
-function completeProfile() {
+async function completeProfile() {
   const google = state.pendingGoogle;
   const name = document.querySelector("#name").value.trim();
   const studentNumber = document.querySelector("#studentNumber").value.trim();
+  if (isServerMode()) {
+    state.loginBusy = true;
+    try { applyServerProfile(await festivalAccount.updateProfile(name, studentNumber)); }
+    catch (error) { state.loginError = error.message || "정보를 저장하지 못했습니다."; }
+    finally { state.loginBusy = false; render(); }
+    return;
+  }
   const schoolId = document.querySelector("#schoolId").value.trim();
   if (!name || !studentNumber || !schoolId) {
     state.loginError = "이름, 학번, 아이디를 모두 입력해주세요.";
@@ -2098,6 +2999,7 @@ function completeProfile() {
 }
 
 function adminLogin() {
+  if (isServerMode()) return;
   finishAdminGoogleLogin(authProvider.signInAdmin());
 }
 
@@ -2131,11 +3033,39 @@ function consumePendingNfc() {
 function goDetail(id) {
   if (state.route === "detail" && state.selectedBoothId === id) return;
   state.selectedBoothId = id;
+  state.reviewRating = festivalWeb.ownReview(id)?.rating || festivalWeb.draft(id).rating || 0;
+  state.reviewDraft = festivalWeb.draft(id).content || "";
+  state.reviewBusy = false;
+  state.reviewPickerOpen = false;
   state.searchOpen = false;
   state.sheetOpen = false;
   state.sheetLevel = "peek";
   state.openMenu = null;
   navigateTo("detail");
+  requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  loadBoothReviews(id);
+}
+
+function openBoothReview(id) {
+  state.reviewPickerOpen = false;
+  goDetail(id);
+  requestAnimationFrame(() => document.querySelector("#boothReviewSection")?.scrollIntoView({block: "start", behavior: "auto"}));
+}
+
+function adjustMapZoom(delta) {
+  const nextZoom = Number(Math.min(MAP_ZOOM_MAX, Math.max(MAP_ZOOM_MIN, state.mapZoom + delta)).toFixed(2));
+  if (nextZoom === state.mapZoom) return;
+  state.mapZoom = nextZoom;
+  if (nextZoom <= 1) {
+    state.mapOffsetX = 0;
+    state.mapOffsetY = 0;
+  } else {
+    const maxX = 72 * nextZoom;
+    const maxY = 92 * nextZoom;
+    state.mapOffsetX = Math.min(maxX, Math.max(-maxX, state.mapOffsetX));
+    state.mapOffsetY = Math.min(maxY, Math.max(-maxY, state.mapOffsetY));
+  }
+  render();
 }
 
 function selectMapBooth(id) {
@@ -2161,16 +3091,85 @@ function focusMapOnBooth(id, targetZoom = state.mapZoom) {
   state.mapOffsetY = Math.min(maxY, Math.max(-maxY, targetY));
 }
 
-function submitReview() {
-  const content = document.querySelector("#reviewContent").value.trim();
-  if (!content) return;
-  if (!repo.hasStamp(state.user.id, state.selectedBoothId) || repo.hasReview(state.user.id, state.selectedBoothId)) return;
-  state.db.reviews.push({ id: makeId(), userId: state.user.id, boothId: state.selectedBoothId, rating: state.reviewRating, content, createdAt: new Date().toISOString() });
-  saveDb();
+async function submitReview() {
+  const input = document.querySelector("#reviewContent");
+  const feedback = document.querySelector("#reviewFeedback");
+  const content = input?.value.trim() || "";
+  const boothId = state.selectedBoothId;
+  const setFeedback = (message, tone = "error") => {
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.dataset.tone = tone;
+  };
+  if (state.reviewBusy) return;
+  if (!Number.isInteger(state.reviewRating) || state.reviewRating < 1 || state.reviewRating > 5) {
+    setFeedback("별점을 선택해 주세요. 글 후기는 쓰지 않아도 괜찮아요.");
+    document.querySelector("[data-rating]")?.focus();
+    return;
+  }
+  if (content.length > 500) {
+    setFeedback("리뷰는 500자 이하로 작성해주세요.");
+    input?.focus();
+    return;
+  }
+  if (!repo.hasStamp(state.user.id, boothId)) {
+    setFeedback("부스를 방문해야 리뷰를 작성할 수 있습니다.");
+    return;
+  }
+  const existing = festivalWeb.ownReview(boothId);
+  if (existing?.content?.trim()) { setFeedback("이미 글 후기를 남긴 부스예요."); return; }
+  if (existing && !content) { setFeedback("별점은 저장되어 있어요. 추가할 글 후기를 입력해 주세요."); return; }
+  if (isServerMode() && repo.hasReview(state.user.id, boothId)) {
+    const saved = festivalWeb.saveDraft();
+    setFeedback(saved ? "후기 추가 서버 연결을 준비 중이에요. 이 탭에 임시저장했으니 탭을 닫기 전에 확인해 주세요." : "후기 추가 서버가 아직 없고 임시저장도 실패했어요. 입력한 글은 그대로 두었어요.", saved ? "info" : "error");
+    return;
+  }
+  if (isServerMode()) {
+    const booth = state.db.booths.find(item => item.id === boothId);
+    const key = boothKeyFor(booth);
+    if (!key) {
+      setFeedback("이 부스는 서버 카탈로그에 없어 별점을 등록할 수 없습니다.");
+      return;
+    }
+    const actingUser = state.user.id;
+    state.reviewBusy = true;
+    setFeedback("등록하는 중이에요...", "info");
+    document.querySelector("#submitReview")?.setAttribute("disabled", "true");
+    const response = await festivalAccount.submitReview(key, state.reviewRating, content);
+    state.reviewBusy = false;
+    if (state.user?.id !== actingUser) return;
+    if (!response.ok) {
+      if (response.code === "ALREADY_REVIEWED") serverMyReviews?.add(key);
+      document.querySelector("#submitReview")?.removeAttribute("disabled");
+      setFeedback(response.message);
+      if (["AUTH_REQUIRED", "GOOGLE_AUTH_REQUIRED", "PROFILE_REQUIRED"].includes(response.code)) render();
+      return;
+    }
+    serverReviews.set(key, { ...response, status: "ready" });
+    serverMyReviews?.add(key);
+    state.reviewRating = 0;
+    state.reviewDraft = "";
+    festivalWeb.clearDraft(boothId);
+    render();
+    return;
+  }
+  const next = cloneData(state.db);
+  const current = next.reviews.find(r => r.userId === state.user.id && r.boothId === boothId);
+  if (current) { current.content = content; current.updatedAt = new Date().toISOString(); }
+  else next.reviews.push({ id: makeId(), userId: state.user.id, boothId, rating: state.reviewRating, content, createdAt: new Date().toISOString() });
+  if (!writeSessionStorage(SESSION_KEY, JSON.stringify(Object.fromEntries(SESSION_FIELDS.map(field => [field, next[field] || []]))))) {
+    setFeedback("저장 공간을 사용할 수 없어요. 글을 유지했으니 다시 시도해 주세요."); return;
+  }
+  state.db = next;
+  festivalWeb.syncRewards();
+  festivalWeb.clearDraft(boothId);
+  state.reviewRating = 0;
+  state.reviewDraft = "";
   render();
 }
 
 function addBooth() {
+  if (!canUseMockNfcTools()) return;
   const name = document.querySelector("#boothName").value.trim();
   if (!name) return;
   const nfcTagId = document.querySelector("#boothNfc").value.trim() || `NFC-${Date.now()}`;
@@ -2203,6 +3202,7 @@ function addBooth() {
 }
 
 function deleteBooth(id) {
+  if (!canUseMockNfcTools()) return;
   state.db.booths = state.db.booths.filter((booth) => booth.id !== id);
   state.db.stamps = state.db.stamps.filter((stamp) => stamp.boothId !== id);
   state.db.idempotencyRecords = state.db.idempotencyRecords.filter((record) => record.boothId !== id);
@@ -2212,6 +3212,7 @@ function deleteBooth(id) {
 }
 
 function saveNfcTag(id) {
+  if (!canUseMockNfcTools()) return;
   const booth = state.db.booths.find((item) => item.id === id);
   const next = document.getElementById(`nfc-${id}`).value.trim();
   if (!next) return;
@@ -2227,6 +3228,7 @@ function saveNfcTag(id) {
 }
 
 function saveBoothStatus(id) {
+  if (!canUseMockNfcTools()) return;
   const booth = state.db.booths.find((item) => item.id === id);
   const select = document.getElementById(`status-${id}`);
   if (!booth || !select || !BOOTH_STATUS[select.value]) return;
@@ -2237,6 +3239,7 @@ function saveBoothStatus(id) {
 }
 
 function manualApproveStamp() {
+  if (!isAdminUser()) return;
   const userId = document.getElementById("manualUser")?.value;
   const boothId = document.getElementById("manualBooth")?.value;
   const user = state.db.users.find((item) => item.id === userId && item.role !== "admin");
@@ -2264,7 +3267,7 @@ function manualApproveStamp() {
 }
 
 function resetNfcTestStamps() {
-  if (!state.user) return;
+  if (!isAdminUser()) return;
   const testBoothIds = new Set(nfcTestBooths().map((booth) => booth.id));
   const before = state.db.stamps.length;
   state.db.stamps = state.db.stamps.filter((stamp) => (
@@ -2283,11 +3286,57 @@ function resetNfcTestStamps() {
 }
 
 function testNfcTag(id) {
-  const booth = state.db.booths.find((item) => item.id === id);
-  if (!booth) return;
-  state.adminMessage = `${booth.name} 태그 인식 테스트 완료`;
-  state.selectedBoothId = id;
-  navigateTo("detail");
+  return nfcManagement.simulate(id);
+}
+
+async function issueServerTag() {
+  if (!isServerMode() || !isAdminUser() || serverAdmin.busy || !festivalAccount) return;
+  if (!festivalWeb.webTagUrl("check")) {
+    serverAdmin.result = { tone: "error", title: "HTTPS 웹 주소가 필요해요", body: "공개된 HTTPS 축제 웹사이트에서 태그를 발급하세요. 로컬 미리보기나 APK 주소로는 발급하지 않아요." };
+    render(); return;
+  }
+  const boothId = document.querySelector("#serverAdminBooth")?.value || serverAdmin.boothId;
+  const minutes = Number(document.querySelector("#serverAdminMinutes")?.value || serverAdmin.minutes);
+  const booth = state.db.booths.find(item => item.id === boothId);
+  const key = boothKeyFor(booth);
+  serverAdmin.boothId = boothId;
+  serverAdmin.minutes = Number.isInteger(minutes) ? minutes : 240;
+  if (!key) {
+    serverAdmin.result = { tone: "error", title: "발급할 수 없습니다", body: "서버 카탈로그에 연결된 부스가 아닙니다." };
+    render();
+    return;
+  }
+  const actingUser = state.user.id;
+  serverAdmin.busy = true;
+  serverAdmin.result = null;
+  render();
+  const response = await festivalAccount.issueTag(key, serverAdmin.minutes);
+  serverAdmin.busy = false;
+  if (state.user?.id !== actingUser || !isAdminUser()) return;
+  serverAdmin.result = response.ok
+    ? {
+      tone: "success",
+      title: `${catalogBooth(booth)?.name || booth.name} 태그를 발급했습니다`,
+      body: `${new Date(response.expiresAt).toLocaleString("ko-KR")}까지 사용할 수 있습니다. 카드에 기록한 뒤 다시 읽어 주소가 온전한지 확인하세요.`,
+      // Kept in memory only: the signed token is never written to storage or logs.
+      url: festivalWeb.webTagUrl(response.token),
+    }
+    : { tone: "error", title: "발급하지 못했습니다", body: response.message };
+  render();
+}
+
+async function copyServerTagUrl() {
+  const url = serverAdmin.result?.url;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    serverAdmin.result = { ...serverAdmin.result, body: "발급 주소를 복사했습니다. NFC 쓰기 앱에 URL 레코드로 붙여 넣으세요." };
+    render();
+  } catch {
+    const input = document.querySelector("#serverAdminUrl");
+    input?.focus();
+    input?.select();
+  }
 }
 
 function deleteReview(id) {
@@ -2298,8 +3347,20 @@ function deleteReview(id) {
 
 function completeExchange(id) {
   const user = state.db.users.find((item) => item.id === id);
+  if (!user) return;
+  if (user.exchangedAt) {
+    state.adminMessage = `${user.name} 학생의 교환권은 이미 사용 처리되었습니다.`;
+    render();
+    return;
+  }
+  if (repo.stampsForUser(user.id).length < GOAL_COUNT) {
+    state.adminMessage = `${user.name} 학생은 아직 스탬프 목표를 달성하지 못했습니다.`;
+    render();
+    return;
+  }
   user.exchangedAt = new Date().toISOString();
   saveDb();
+  state.adminMessage = `${user.name} 학생의 간식 교환을 완료 처리했습니다.`;
   render();
 }
 
@@ -2313,6 +3374,85 @@ function showStampPop() {
   setTimeout(() => pop.remove(), 900);
 }
 
+function applyServerProfile(profile) {
+  if (profile) signInStartedAt = 0; // the login came back; no need to warn about a lost callback
+  serverCompletedBooths = profile?.completedBooths || [];
+  if (!profile) {
+    state.user = null;
+    state.authStep = "google";
+    state.pendingGoogle = null;
+    state.route = "login";
+    serverMyReviews = null;
+    serverReviews.clear();
+  } else if (profile.needsProfile) {
+    state.user = null;
+    state.pendingGoogle = { email: profile.email, displayName: profile.name };
+    state.authStep = "profile";
+    state.route = "login";
+  } else {
+    // The operator flag comes from the caller's own users row. Every privileged call is
+    // re-checked on the server, so this only decides which screens are offered.
+    state.user = { id: profile.authUserId, name: profile.name, studentNumber: profile.studentNumber,
+      googleEmail: profile.email, role: profile.isAdmin ? "admin" : "user", source: "server" };
+    state.authStep = "google";
+    state.loginError = "";
+    if (state.route === "login") state.route = "home";
+  }
+  render();
+  if (state.user) {
+    consumePendingNfc();
+    loadMyReviews();
+  }
+}
+
+async function initializeAccount() {
+  if (!isServerMode()) {
+    if (state.pendingNfcClaim) await nfcAdapter.scan(state.pendingNfcClaim);
+    return;
+  }
+  state.loginBusy = true;
+  render();
+  try {
+    festivalAccount = window.FestivalAccount.createAccount({ sdk: window.supabase,
+      config: window.FestivalCatalog, storage: publicCatalogStorage || undefined, location,
+      onChange: event => { if (event === "SIGNED_OUT") applyServerProfile(null); },
+    });
+    const initialized = festivalAccount.initialize();
+    window.FestivalNativeAuth = {
+      async receiveCallback(url) {
+        try { await initialized.catch(() => {}); applyServerProfile(await festivalAccount.receiveCallback(url)); }
+        catch { state.loginError = "로그인을 완료하지 못했습니다. Google 계정으로 다시 시도해 주세요."; render(); }
+      },
+    };
+    if (state.pendingNfcClaim) festivalAccount.savePending(state.pendingNfcClaim);
+    else state.pendingNfcClaim = festivalAccount.pending();
+    applyServerProfile(await initialized);
+  } catch (error) {
+    state.loginError = window.FestivalAccount?.normalizeError(error).message || "로그인 연결을 확인하지 못했습니다.";
+  } finally { state.loginBusy = false; render(); }
+}
+
 initializeNavigation();
-if (state.pendingNfcClaim) nfcAdapter.scan(state.pendingNfcClaim);
-else render();
+window.addEventListener("beforeunload", event => {
+  if (nfcManagement.hasDrafts()) { event.preventDefault(); event.returnValue = ""; }
+});
+document.addEventListener("keydown", event => {
+  const dialog = document.querySelector(".review-picker");
+  if (event.key === "Escape") {
+    if (dialog) dialog.querySelector("[data-close-reviews]")?.click();
+    else if (document.querySelector("#nfcFeedback")) dismissNfcFeedback();
+    else if (state.searchOpen) document.querySelector("#closeSearchScreen")?.click();
+  }
+  if (!dialog || event.key !== "Tab") return;
+  const focusable = [...dialog.querySelectorAll('button:not([disabled]), a[href], input:not([disabled])')];
+  const first = focusable[0], last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+});
+render();
+initializeAccount();
+publicCatalog.subscribe(updateCatalogDom);
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-refresh-catalog]")) publicCatalog.refresh();
+});
+publicCatalog.refresh();
