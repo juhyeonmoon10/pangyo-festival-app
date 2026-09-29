@@ -1341,7 +1341,7 @@ function googleForm() {
     <div class="auth-card">
       <div class="auth-step">1단계</div>
       <h2>${isServerMode() ? "축제 로그인" : "데모 입장"}</h2>
-      <p class="subtitle">${isServerMode() ? "로그인 후 이름과 학번을 등록합니다. 학교 계정 제한은 아직 적용 전입니다." : "데모 기록은 서버에 전송되지 않고 앱을 닫으면 사라집니다."}</p>
+      <p class="subtitle">${isServerMode() ? "Google 계정 이름을 사용하며, 첫 로그인에 학번만 확인합니다. 학교 계정 제한은 아직 적용 전입니다." : "데모 기록은 서버에 전송되지 않고 앱을 닫으면 사라집니다."}</p>
       ${state.pendingNfcClaim ? `<p class="success-text">NFC 태그 인식됨 · 로그인 후 자동 적립 대기 중</p>` : ""}
       ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</button>
@@ -1353,18 +1353,19 @@ function googleForm() {
 
 function profileForm() {
   const google = state.pendingGoogle;
+  const needsName = !isServerMode() || !google.displayName?.trim() || google.displayName.trim().length > 60;
   return `
     <div class="auth-card">
       <div class="auth-step">2단계</div>
-      <h2>학생 정보 등록</h2>
-      <p class="account-chip">인증됨: ${escapeHtml(google.email)}</p>
+      <h2>${needsName ? "학생 정보 등록" : "학번 확인"}</h2>
+      <p class="account-chip">${needsName ? "인증됨" : escapeHtml(google.displayName)} · ${escapeHtml(google.email)}</p>
       ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
       <div class="input-stack">
-        <label class="field">이름<input id="name" class="input" maxlength="60" value="${escapeHtml(google.displayName)}" /></label>
-        <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" /></label>
+        ${needsName ? `${isServerMode() ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}<label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? google.displayName ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>` : ""}
+        <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" maxlength="5" value="${escapeHtml(google.studentNumber || "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         ${isServerMode() ? "" : `<label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>`}
         <button id="profileSubmit" type="button" class="primary-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "저장 중..." : "등록하고 시작"}</button>
-        <button id="backToGoogle" type="button" class="ghost-btn">구글 계정 다시 선택</button>
+        <button id="backToGoogle" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>구글 계정 다시 선택</button>
       </div>
     </div>
   `;
@@ -3053,12 +3054,23 @@ async function saveDisplayName() {
 
 async function completeProfile() {
   const google = state.pendingGoogle;
-  const name = document.querySelector("#name").value.trim();
+  if (!google || state.loginBusy) return;
+  const nameInput = document.querySelector("#name");
+  const name = nameInput ? nameInput.value.trim() : google.displayName.trim();
   const studentNumber = document.querySelector("#studentNumber").value.trim();
   if (isServerMode()) {
+    google.studentNumber = studentNumber;
+    if (nameInput) google.nameDraft = name;
     state.loginBusy = true;
-    try { applyServerProfile(await festivalAccount.updateProfile(name, studentNumber)); }
-    catch (error) { state.loginError = error.message || "정보를 저장하지 못했습니다."; }
+    state.loginError = "";
+    render();
+    try {
+      const updated = await festivalAccount.updateProfile(name, studentNumber);
+      if (state.pendingGoogle === google && updated.authUserId === google.uid) applyServerProfile(updated);
+    }
+    catch (error) {
+      if (state.pendingGoogle === google) state.loginError = window.FestivalAccount.normalizeError(error).message;
+    }
     finally { state.loginBusy = false; render(); }
     return;
   }
@@ -3486,7 +3498,7 @@ function applyServerProfile(profile) {
     serverReviews.clear();
   } else if (profile.needsProfile) {
     state.user = null;
-    state.pendingGoogle = { email: profile.email, displayName: profile.name };
+    state.pendingGoogle = { uid: profile.authUserId, email: profile.email, displayName: profile.name, studentNumber: profile.studentNumber };
     state.authStep = "profile";
     state.route = "login";
   } else {

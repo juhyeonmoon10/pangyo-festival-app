@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'" />
+    <base href="../" />
+    <title>Google onboarding isolated fixture</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="ui-ver2.css" />
+    <link rel="stylesheet" href="web-redesign.css" />
+  </head>
+  <body class="design-ver2 design-web">
+    <div id="app" class="app-shell"></div>
+    <script src="supabase-catalog.js"></script>
+    <script>
+      // This fixture never loads the real auth SDK and cannot contact any server.
+      window.FestivalCatalog.createClient = () => ({
+        getSnapshot: () => ({ status: 'ready', rows: [], updatedAt: Date.now() }),
+        forClub: () => null, subscribe() {}, refresh() {},
+      });
+      const fixtureMode = new URL(location.href).searchParams.get('fixture');
+      let fixtureProfile = { id: 1, authUserId: 'fixture-student', name: '', email: 'student@example.invalid',
+        studentNumber: '', needsProfile: true, isAdmin: false, completedBooths: [] };
+      window.supabase = { createClient: () => ({
+        auth: {
+          onAuthStateChange() {},
+          getSession: async () => ({ data: { session: { user: { id: fixtureProfile.authUserId } } } }),
+          getUser: async () => ({ data: { user: { id: fixtureProfile.authUserId,
+            identities: [{ provider: 'google', identity_data: { full_name: fixtureMode === 'missing' ? '' : '김학생' } }] } } }),
+          updateUser: async ({ data }) => {
+            if (fixtureMode === 'failure') return { error: new Error('fixture network failure') };
+            fixtureProfile = { ...fixtureProfile, name: data.festival_name,
+              studentNumber: data.festival_student_number, needsProfile: false };
+            return {};
+          },
+        },
+        rpc: async method => method === 'festival_nfc_profile'
+          ? { data: fixtureProfile }
+          : method === 'festival_my_reviews' ? { data: [] } : { error: new Error('Unexpected fixture RPC') },
+      }) };
+    </script>
+    <script src="festival-account.js"></script>
+    <script src="assets/vendor/ui-icons.js"></script>
+    <script src="nfc-manager.js"></script>
+    <script src="assets/vendor/qrcode-1.4.4.js"></script>
+    <script src="programs.js"></script>
+    <script src="web-experience.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

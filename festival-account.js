@@ -8,7 +8,9 @@
   const PENDING_KEY = "pangyo-pending-nfc-v1";
   const MESSAGES = {
     AUTH_REQUIRED: "로그인이 필요합니다.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
-    PROFILE_REQUIRED: "이름과 학번을 먼저 등록해 주세요.", PROFILE_CONFLICT: "계정 연결을 확인해야 합니다. 운영자에게 문의해 주세요.",
+    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", PROFILE_CONFLICT: "계정 연결을 확인해야 합니다. 운영자에게 문의해 주세요.",
+    PROFILE_UNCONFIRMED: "등록 결과를 확인하지 못했어요. 다시 시도해 주세요.",
+    INVALID_STUDENT_NUMBER: "학번을 1~3으로 시작하는 5자리 숫자로 입력해 주세요.",
     INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
     PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했어요. 새로고침 후 이름을 확인해 주세요.",
     NFC_DISABLED: "서버 방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
@@ -95,10 +97,27 @@
       }
     });
 
-    async function profile() {
+    async function readProfile() {
       const { data, error } = await client.rpc("festival_nfc_profile");
       if (error) throw error;
       return validateProfile(data);
+    }
+
+    async function profile() {
+      const current = await readProfile();
+      if (!current.needsProfile || validName(current.name)) return current;
+      const { data, error } = await client.auth.getUser();
+      if (error) throw error;
+      if (!data?.user || data.user.id !== current.authUserId) throw new Error("AUTH_REQUIRED");
+      const google = data.user.identities?.find(identity => identity.provider === "google")?.identity_data || {};
+      const metadata = data.user.user_metadata || {};
+      const name = [google.full_name, google.name, metadata.full_name, metadata.name].find(validName);
+      // This is an onboarding default, not a completed profile or a role assertion.
+      return { ...current, name: name ? name.trim() : current.name };
+    }
+
+    function validName(value) {
+      return typeof value === "string" && value.trim().length >= 1 && value.trim().length <= 60;
     }
 
     async function initialize() {
@@ -144,10 +163,15 @@
     async function updateProfile(name, studentNumber) {
       name = String(name).trim();
       studentNumber = String(studentNumber).trim();
-      if (!name || name.length > 60 || !/^[1-3][0-9]{4}$/.test(studentNumber)) throw new Error("이름과 5자리 학번을 확인해 주세요.");
+      if (!validName(name)) throw new Error("INVALID_NAME");
+      if (!/^[1-3][0-9]{4}$/.test(studentNumber)) throw new Error("INVALID_STUDENT_NUMBER");
       const { error } = await client.auth.updateUser({ data: { festival_name: name, festival_student_number: studentNumber } });
       if (error) throw error;
-      return profile();
+      const updated = await readProfile();
+      if (updated.needsProfile || updated.name !== name || updated.studentNumber !== studentNumber) {
+        throw new Error("PROFILE_UNCONFIRMED");
+      }
+      return updated;
     }
 
     async function updateName(value) {

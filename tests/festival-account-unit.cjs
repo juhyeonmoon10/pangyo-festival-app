@@ -58,6 +58,70 @@ test('profile input validation and safe public error messages', async () => {
   assert.equal(normalizeError({ message: 'boom' }).code, 'NETWORK_ERROR');
 });
 
+test('first login obtains the Google full name without writing or bypassing registration', async () => {
+  let writes = 0;
+  const pending = { ...good, name: '', studentNumber: '', needsProfile: true };
+  const { account, auth } = setup(async () => ({ data: pending }));
+  auth.getSession = async () => ({ data: { session: { user: { id: good.authUserId } } } });
+  auth.getUser = async () => ({ data: { user: { id: good.authUserId,
+    identities: [{ provider: 'google', identity_data: { full_name: '  문주현  ' } }],
+    user_metadata: { full_name: 'Fallback' } } } });
+  auth.updateUser = async () => { writes++; };
+  assert.deepEqual(await account.initialize(), { ...pending, name: '문주현', isAdmin: false });
+  assert.equal(writes, 0);
+});
+
+test('Google metadata name is accepted when identity full name is absent', async () => {
+  const { account, auth } = setup(async () => ({ data: { ...good, name: '', needsProfile: true } }));
+  for (const key of ['full_name', 'name']) {
+    auth.getUser = async () => ({ data: { user: { id: good.authUserId, user_metadata: { [key]: 'Google Name' } } } });
+    assert.equal((await account.profile()).name, 'Google Name');
+  }
+});
+
+test('existing app names and complete profiles are never overwritten by Google', async () => {
+  for (const needsProfile of [false, true]) {
+    const { account, auth } = setup(async () => ({ data: { ...good, name: '내가 정한 이름', needsProfile } }));
+    auth.getUser = () => { throw Error('unexpected auth read'); };
+    auth.updateUser = () => { throw Error('unexpected write'); };
+    assert.equal((await account.profile()).name, '내가 정한 이름');
+  }
+});
+
+test('missing or unsupported Google names leave the registration fallback available', async () => {
+  const { account, auth } = setup(async () => ({ data: { ...good, name: '', needsProfile: true } }));
+  for (const full_name of ['', '   ', '가'.repeat(61), 123, null]) {
+    auth.getUser = async () => ({ data: { user: { id: good.authUserId, user_metadata: { full_name } } } });
+    const result = await account.profile();
+    assert.equal(result.name, '');
+    assert.equal(result.needsProfile, true);
+  }
+});
+
+test('failed auth or switched accounts cannot supply an onboarding name', async () => {
+  const { account, auth } = setup(async () => ({ data: { ...good, name: '', needsProfile: true } }));
+  auth.getUser = async () => ({ error: new Error('AUTH_REQUIRED') });
+  await assert.rejects(account.profile(), /AUTH_REQUIRED/);
+  auth.getUser = async () => ({ data: { user: { id: 'other-account', user_metadata: { full_name: 'Other' } } } });
+  await assert.rejects(account.profile(), /AUTH_REQUIRED/);
+});
+
+test('registration persists the automatic name and student number through the existing API', async () => {
+  const writes = [];
+  const { account, auth } = setup(async () => ({ data: { ...good, name: '문주현' } }));
+  auth.updateUser = async value => { writes.push(value); return {}; };
+  const saved = await account.updateProfile(' 문주현 ', ' 21001 ');
+  assert.deepEqual(writes, [{ data: { festival_name: '문주현', festival_student_number: '21001' } }]);
+  assert.equal(saved.needsProfile, false);
+});
+
+test('registration never reports success when the server still requires a profile', async () => {
+  const { account, auth } = setup(async () => ({ data: { ...good, needsProfile: true } }));
+  auth.getUser = () => { throw Error('must confirm stored data, not Google defaults'); };
+  await assert.rejects(account.updateProfile(good.name, good.studentNumber), /PROFILE_UNCONFIRMED/);
+  await assert.rejects(account.updateProfile(good.name, '99999'), /INVALID_STUDENT_NUMBER/);
+});
+
 test('name changes update only the app display name and confirm the saved profile', async () => {
   const calls = [];
   const expected = { ...good, name: '새 이름', completedBooths: ['글빛누리'] };

@@ -198,3 +198,7 @@
   .design-web .map-screen .top-title strong { font-size: 17px; }
 }
 @media (prefers-reduced-motion: reduce) { .design-web *, .design-web *::before, .design-web *::after { transition: none !important; animation: none !important; } }
+.auth-card .account-chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}

@@ -13,30 +13,31 @@ function storage() {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 }
-async function setup({ server = false, updateName = async name => ({ ...profile, name }) } = {}) {
+async function setup({ server = false, updateName = async name => ({ ...profile, name }), updateProfile } = {}) {
   const app = { dataset: {}, classList: { toggle() {} }, querySelector: () => null, innerHTML: '' };
+  const inputs = new Map();
   const context = vm.createContext({
     URL, URLSearchParams, TextEncoder, TextDecoder, structuredClone, atob, btoa, crypto: webcrypto,
     location: new URL(`https://fixture.invalid/${server ? '' : '?demo=1'}`),
     localStorage: storage(), sessionStorage: storage(),
     history: { state: null, replaceState() {}, pushState() {} },
-    document: { querySelector: selector => selector === '#app' ? app : null, querySelectorAll: () => [],
+    document: { querySelector: selector => selector === '#app' ? app : inputs.get(selector) || null, querySelectorAll: () => [],
       getElementById: () => null, addEventListener() {}, body: {} },
     addEventListener() {}, setTimeout: () => 0, clearTimeout() {},
     festivalWeb: { afterRender() {}, bind() {}, completed: () => [], header: () => '', home: () => '' },
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({ getSnapshot: () => ({ status: 'idle', rows: [] }),
       forClub: () => null, subscribe() {}, refresh() {} }) },
     FestivalAccount: { normalizeError, createAccount: () => ({ initialize: async () => profile, pending: () => null,
-      myReviews: async () => ({ ok: false }), updateName }) },
+      myReviews: async () => ({ ok: false }), updateName, updateProfile }) },
     fetch: () => { throw Error('Unit tests must not contact any server'); },
   });
   context.window = context;
   for (const file of ['nfc-manager.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   await new Promise(setImmediate);
-  const api = vm.runInContext('({state, openNameEditor, cancelNameEditor, saveDisplayName, profileView, loadDb, applyServerProfile})', context);
+  const api = vm.runInContext('({state, openNameEditor, cancelNameEditor, saveDisplayName, profileView, profileForm, completeProfile, loadDb, applyServerProfile})', context);
   if (!server) api.state.user = api.state.db.users[0];
   api.state.route = 'profile';
-  return { ...api, session: context.sessionStorage };
+  return { ...api, session: context.sessionStorage, inputs };
 }
 
 test('cancel and unchanged names do not save', async () => {
@@ -134,4 +135,49 @@ test('HTML-like names are escaped in profile and editor', async () => {
   const html = api.profileView();
   assert.ok(html.includes('&lt;img'));
   assert.ok(!html.includes('<img src=x'));
+});
+
+test('Google name registration asks for student number only and saves the automatic name', async () => {
+  const calls = [];
+  const api = await setup({ server: true, updateProfile: async (name, studentNumber) => {
+    calls.push({ name, studentNumber }); return { ...profile, name, studentNumber };
+  } });
+  api.applyServerProfile({ ...profile, name: '문주현', studentNumber: '', needsProfile: true });
+  const html = api.profileForm();
+  assert.doesNotMatch(html, /id="name"/);
+  assert.match(html, /학번 확인/);
+  api.inputs.set('#studentNumber', { value: '21001', addEventListener() {} });
+  await api.completeProfile();
+  assert.deepEqual(calls, [{ name: '문주현', studentNumber: '21001' }]);
+  assert.equal(api.state.route, 'home');
+  assert.equal(api.state.user.name, '문주현');
+});
+
+test('missing Google name shows a fallback but never an unescaped name', async () => {
+  const api = await setup({ server: true });
+  api.applyServerProfile({ ...profile, name: '', needsProfile: true });
+  assert.match(api.profileForm(), /id="name"/);
+  api.applyServerProfile({ ...profile, name: '<img src=x>', needsProfile: true });
+  const html = api.profileForm();
+  assert.doesNotMatch(html, /<img src=x>|id="name"/);
+  assert.match(html, /&lt;img/);
+});
+
+test('onboarding blocks duplicate saves and retains student input on failure', async () => {
+  let calls = 0, reject;
+  const api = await setup({ server: true, updateProfile: () => {
+    calls++; return new Promise((_, fail) => { reject = fail; });
+  } });
+  api.applyServerProfile({ ...profile, needsProfile: true });
+  api.inputs.set('#studentNumber', { value: '21002', addEventListener() {} });
+  const first = api.completeProfile();
+  await api.completeProfile();
+  assert.equal(calls, 1);
+  assert.match(api.profileForm(), /disabled/);
+  reject(new Error('private database error'));
+  await first;
+  assert.equal(api.state.pendingGoogle.studentNumber, '21002');
+  assert.match(api.profileForm(), /value="21002"/);
+  assert.doesNotMatch(api.state.loginError, /private/);
+  assert.equal(api.state.loginBusy, false);
 });
