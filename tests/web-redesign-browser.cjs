@@ -65,6 +65,8 @@ const base = process.env.FESTIVAL_TEST_URL || 'http://127.0.0.1:5186/';
       assert.equal(await page.locator('.web-stamps [data-route="scan"]').count(), 0, 'stamp page must not show an NFC scan entry button');
       await capture('pending-stamp');
       await page.locator('[data-review-booth="g1-1"]').click();
+      assert.equal(await page.locator('.club-source-link').count(), 0, 'booth detail must not link students out to the catalog source');
+      assert.equal(await page.getByRole('heading', { name: '부스 소개', exact: true }).count(), 1, 'booth introduction must remain');
       await page.locator('#submitReview').click();
       assert.match(await page.locator('#reviewFeedback').innerText(), /별점/);
       await page.locator('[data-rating="4"]').click();

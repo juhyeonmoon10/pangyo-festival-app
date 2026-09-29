@@ -1952,7 +1952,6 @@ function detailView() {
       <section class="panel section">
         <h2>부스 소개</h2>
         <p class="subtitle">${escapeHtml(booth.description)}</p>
-        ${booth.sourceUrl ? `<a class="club-source-link" href="${escapeHtml(booth.sourceUrl)}" target="_blank" rel="noopener noreferrer">찾동에서 원문 보기 ${icon("external")}</a>` : ""}
       </section>
       ${festivalWeb.program(booth)}
       <section class="panel section">
