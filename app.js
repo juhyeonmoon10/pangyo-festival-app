@@ -1208,7 +1208,7 @@ function catalogName(booth) {
 }
 
 function catalogRatingText(booth) {
-  if (!booth.officialClubId) return "데모 부스";
+  if (!booth.officialClubId) return "부스";
   const remote = catalogBooth(booth);
   if (!remote) return "DB 별점 미확인";
   const cached = publicCatalog.getSnapshot().status !== "ready" ? " · 저장본" : "";
@@ -1220,7 +1220,7 @@ function catalogRating(booth) {
 }
 
 function catalogPositionText(booth) {
-  if (!booth.officialClubId) return "데모 시설";
+  if (!booth.officialClubId) return "시설";
   const remote = catalogBooth(booth);
   if (!remote) return "DB 위치 미확인 · 지도는 임시 배치";
   return remote.position ? `DB 위치: ${remote.position} · 지도는 임시 배치` : "DB 위치 미등록 · 지도는 임시 배치";
@@ -1370,7 +1370,7 @@ function homeView() {
   return `
     <main class="home-screen home-v2">
       <header class="festival-header">
-        <div><span class="eyebrow">PANGYO FESTIVAL ${isServerMode() ? "" : "· DEMO"}</span><h1>오늘, 판교고 축제</h1></div>
+        <div><span class="eyebrow">PANGYO FESTIVAL</span><h1>오늘, 판교고 축제</h1></div>
         <button type="button" class="icon-btn" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button>
       </header>
       <section class="home-identity" aria-label="내 축제 현황">
@@ -1382,7 +1382,7 @@ function homeView() {
         <div class="section-heading"><h2>어디부터 가볼까?</h2><button type="button" class="icon-btn" id="mapSearchBtn" aria-label="부스 검색" title="부스 검색">${icon("search")}</button></div>
         ${floorTabsView()}
         ${mapCanvasView(visibleBooths(), mapPlanForFloor(state.floor))}
-        <div class="home-map-caption"><span>${state.floor}층 · ${isServerMode() ? "위치 임시 배치" : "데모 지도"}</span><button type="button" data-route="map">지도 크게 보기 ${icon("external")}</button></div>
+        <div class="home-map-caption"><span>${state.floor}층 · ${isServerMode() ? "위치 임시 배치" : "축제 지도"}</span><button type="button" data-route="map">지도 크게 보기 ${icon("external")}</button></div>
       </section>
       <section class="home-notice" aria-label="공지사항">
         ${icon("notice")}<div><span>공지사항</span><strong>${notice ? escapeHtml(notice.title) : "새로운 공지를 기다리고 있어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div>
@@ -1515,7 +1515,7 @@ function profileView() {
       <section class="profile-card">
         <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
-        <em>${isServerMode() ? "Google 로그인" : state.user.role === "admin" ? "관리자 데모" : "학생 데모"}</em>
+        <em>${isServerMode() ? "Google 로그인" : state.user.role === "admin" ? "관리자" : "학생"}</em>
       </section>
       <section class="profile-list">
         <div><span>행사</span><strong>${state.db.event.name}</strong></div>
@@ -1524,7 +1524,7 @@ function profileView() {
         <div><span>저장 위치</span><strong>${isServerMode() ? "Supabase 서버" : "이번 실행 동안만"}</strong></div>
       </section>
       ${catalogConnectionView()}
-      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 데모 열기"}</button>` : ""}
+      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 도구 열기"}</button>` : ""}
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
       ${bottomNav("profile")}
@@ -1731,7 +1731,7 @@ function mapView() {
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
       <header class="top-bar">
         <button class="icon-btn" data-route="home" aria-label="홈으로">${icon("back")}</button>
-        <div class="top-title"><strong>판교고 실내지도</strong><span>${isServerMode() ? "위치 임시 배치" : "축제 부스 · DEMO"}</span></div>
+        <div class="top-title"><strong>판교고 실내지도</strong><span>${isServerMode() ? "위치 임시 배치" : "축제 부스"}</span></div>
         <button class="icon-btn map-search-action ${state.search ? "has-query" : ""}" id="mapSearchBtn" type="button" aria-label="부스 검색">
           <span>${icon("search")}</span>
           ${state.search ? `<b>${globalSearchResults.length}</b>` : ""}
@@ -1892,7 +1892,7 @@ function boothItem(booth) {
       <span class="booth-main">
         <strong>${booth.favorite ? icon("heart") + " " : ""}${catalogName(booth)}</strong>
         <span class="meta">${metaText}</span>
-        <span class="booth-stats"><i class="rating-stat">${icon("star")} ${catalogRating(booth)}</i><i>${isServerMode() ? (repo.hasReview(state.user.id, booth.id) ? "별점 남김" : stamped ? "별점 남기기" : "방문 후 평가") : `데모 평가 ${rating.count}`}</i><i data-booth-visited="${booth.id}" class="${stamped ? "visit-complete" : ""}">${stamped ? "방문 완료" : "방문 전"}</i></span>
+        <span class="booth-stats"><i class="rating-stat">${icon("star")} ${catalogRating(booth)}</i><i>${isServerMode() ? (repo.hasReview(state.user.id, booth.id) ? "별점 남김" : stamped ? "별점 남기기" : "방문 후 평가") : `평가 ${rating.count}`}</i><i data-booth-visited="${booth.id}" class="${stamped ? "visit-complete" : ""}">${stamped ? "방문 완료" : "방문 전"}</i></span>
       </span>
       ${statusBadge(booth.status)}
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
@@ -1943,9 +1943,9 @@ function detailView() {
         </div>
         <div class="meta"><span class="stamp ${stamped && reviewed ? "on" : ""}">${icon("stamp")}</span> ${stamped ? reviewed ? "스탬프 날인 완료" : "방문 인증 완료 · 별점 등록 대기" : "아직 방문하지 않았어요"}</div>
         <div class="detail-metrics" aria-label="부스 평가와 방문 상태">
-          <span><small>${isServerMode() ? "축제 앱 별점" : "데모 별점"}</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong><em>${catalogRating(booth)}</em></span>
-          <span><small>${isServerMode() ? "리뷰" : "데모 평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
-          <span><small>${isServerMode() ? "내 방문" : "데모 방문"}</small><strong>${stamped ? "방문 완료" : "방문 전"}</strong></span>
+          <span><small>별점</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong><em>${catalogRating(booth)}</em></span>
+          <span><small>${isServerMode() ? "리뷰" : "평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
+          <span><small>내 방문</small><strong>${stamped ? "방문 완료" : "방문 전"}</strong></span>
         </div>
       </section>
       <p class="detail-data-note">${isServerMode() ? "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주세요." : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
@@ -1963,7 +1963,7 @@ function detailView() {
       </section>
       <section class="panel section review-section" id="boothReviewSection">
         <div class="review-heading">
-          <div><span>${isServerMode() ? "방문한 부스 평가" : "데모 평가 · 앱을 닫으면 사라짐"}</span><h2>어떤 경험이었나요?</h2></div>
+          <div><span>${isServerMode() ? "방문한 부스 평가" : "평가 · 앱을 닫으면 사라짐"}</span><h2>어떤 경험이었나요?</h2></div>
         </div>
         ${reviewed && festivalWeb.ownReview(booth.id)?.content?.trim()
           ? `<p class="review-guidance success">별점과 글 후기를 모두 남겼어요. 고마워요!</p>`
@@ -2031,7 +2031,7 @@ function stampView() {
       ${stampTrailView(stamps, total)}
       <section class="reward-status ${rewardState}" aria-live="polite">
         <span class="reward-mark">${icon("ticket")}</span>
-        <div><small>${isServerMode() ? "교환권" : `데모 · 스탬프 ${GOAL_COUNT}개`}</small><h2>${rewardTitle}</h2><p>${rewardBody}</p>${!isServerMode() ? `<small>실제 상품으로 교환할 수 없는 시연용입니다.</small>` : ""}</div>
+        <div><small>${isServerMode() ? "교환권" : `스탬프 ${GOAL_COUNT}개`}</small><h2>${rewardTitle}</h2><p>${rewardBody}</p>${!isServerMode() ? `<small>실제 상품으로 교환할 수 없는 시연용입니다.</small>` : ""}</div>
         <strong>${rewardState === "redeemed" ? "사용됨" : rewardState === "available" ? "교환 가능" : `${percent.toFixed(0)}%`}</strong>
       </section>
       <section class="p0-section">

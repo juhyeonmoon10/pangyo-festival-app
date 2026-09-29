@@ -89,7 +89,7 @@ const festivalWeb = (() => {
     const pending = waiting().length;
     const notice = isServerMode() ? null : state.db.announcements[0];
     return `<main class="web-home">
-      <header class="web-brand"><span class="brand-symbol">P.</span><strong>판교고 축제</strong><span class="web-mode">${isServerMode() ? "MY FESTIVAL" : "DEMO"}</span><button type="button" class="icon-btn" data-route="profile" aria-label="내 정보">${icon("user")}</button></header>
+      <header class="web-brand"><span class="brand-symbol">P.</span><strong>판교고 축제</strong><span class="web-mode">MY FESTIVAL</span><button type="button" class="icon-btn" data-route="profile" aria-label="내 정보">${icon("user")}</button></header>
       <section class="web-welcome"><p>${/^\d{5}$/.test(state.user.studentNumber) ? escapeHtml(state.user.studentNumber) : "나의 축제 기록"}</p><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 채워보세요.</h1>
         <div class="web-my-stats"><button data-route="stamps"><span>스탬프</span><strong data-complete-count>${count}<small>개</small></strong></button><button data-route="vouchers"><span>바우처</span><strong>${coupons().filter(c => couponState(c) === "available").length}<small>장</small></strong></button><button data-route="reviews"><span>${isServerMode() ? "리뷰 포인트" : "체험 포인트"}</span><strong>${points() ?? "—"}<small>P</small></strong></button></div>
       </section>
