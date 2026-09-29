@@ -62,6 +62,7 @@ const base = process.env.FESTIVAL_TEST_URL || 'http://127.0.0.1:5186/';
       await page.evaluate(() => dismissNfcFeedback());
       await page.locator('#closeSearchScreen').click();
       await page.locator('.bottom-nav [data-route="stamps"]').click();
+      assert.equal(await page.locator('.web-stamps [data-route="scan"]').count(), 0, 'stamp page must not show an NFC scan entry button');
       await capture('pending-stamp');
       await page.locator('[data-review-booth="g1-1"]').click();
       await page.locator('#submitReview').click();

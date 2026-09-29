@@ -125,7 +125,6 @@ const festivalWeb = (() => {
           const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
           return booth ? `<button class="web-stamp-cell earned" data-list-select="${booth.id}" aria-label="${boothName(booth)} 날인 완료"><span>${icon("stamp")}</span><small>${boothName(booth)}</small></button>` : `<div class="web-stamp-cell ${i === earned.length ? "next" : ""}"><span>${i === 4 || i === 9 ? icon("ticket") : i + 1}</span><small>${i === 4 || i === 9 ? "바우처" : i === earned.length ? "다음 스탬프" : ""}</small></div>`;
         }).join("")}</div>
-        <button type="button" class="primary-btn full-action" data-route="scan">${icon("scan")} NFC 방문 인증</button>
       </section>
       ${pending.length ? `<section class="web-section"><div class="section-heading"><h2>날인 대기 <span>${pending.length}</span></h2></div><p class="web-muted">방문 인증은 보관됐어요. 별점을 남기면 날인이 완료돼요.</p>${pending.map(visitRow).join("")}</section>` : ""}
       <button type="button" class="web-pending voucher-link" data-route="vouchers">${icon("ticket")}<span><strong>내 바우처 확인</strong><small>${isServerMode() ? "쿠폰 서비스 준비 중" : "쿠폰마다 별도의 QR로 확인"}</small></span>${icon("arrow")}</button>

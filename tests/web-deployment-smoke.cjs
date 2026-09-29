@@ -64,6 +64,7 @@ const output = path.resolve(__dirname, '../artifacts/web-deployment');
       assert.equal(await page.locator('.indoor-floors .floor-tab').count(), 4);
       await capture('map');
       await page.locator('.bottom-nav [data-route="stamps"]').click();
+      assert.equal(await page.locator('.web-stamps [data-route="scan"]').count(), 0, 'stamp page must not show an NFC scan entry button');
       await capture('stamps');
       await page.locator('.bottom-nav [data-route="vouchers"]').click();
       await capture('vouchers');
