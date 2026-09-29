@@ -6,7 +6,7 @@ const GOAL_COUNT = 5;
 const MAP_ZOOM_MIN = 0.9;
 const MAP_ZOOM_MAX = 1.6;
 const MAP_ZOOM_STEP = 0.2;
-const STAMP_GATEWAY_MODE = new URL(location.href).searchParams.get("demo") === "1" || readStorage("festival-demo-mode") === "1" ? "mock" : "supabase";
+const STAMP_GATEWAY_MODE = new URL(location.href).searchParams.get("demo") === "1" ? "mock" : "supabase";
 const isServerMode = () => STAMP_GATEWAY_MODE === "supabase";
 let festivalAccount = null;
 let serverCompletedBooths = [];
@@ -1345,7 +1345,7 @@ function googleForm() {
       ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</button>
       ${isServerMode() ? "" : `<button id="adminLogin" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>관리자 데모로 계속</button>`}
-      <button id="switchMode" type="button" class="ghost-btn">${isServerMode() ? "데모 둘러보기" : "실제 로그인으로 돌아가기"}</button>
+      ${isServerMode() ? "" : `<button id="switchMode" type="button" class="ghost-btn">실제 로그인으로 돌아가기</button>`}
     </div>
   `;
 }
@@ -2351,7 +2351,7 @@ function bindEvents() {
     document.querySelector("#toggleStampTrail")?.focus({preventScroll: true});
   });
   document.querySelector("#switchMode")?.addEventListener("click", () => {
-    writeStorage("festival-demo-mode", isServerMode() ? "1" : "0");
+    writeStorage("festival-demo-mode", "0");
     const url = new URL(location.href);
     url.searchParams.delete("demo");
     history.replaceState(null, "", url.href);

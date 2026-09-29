@@ -12,11 +12,11 @@ function storage() {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 }
-function setup() {
+function setup({ url = 'https://fixture.invalid/?demo=1', rememberedDemo = false } = {}) {
   const app = { dataset: {}, classList: { toggle() {} }, querySelector: () => null, innerHTML: '' };
   const context = vm.createContext({
     URL, URLSearchParams, TextEncoder, TextDecoder, structuredClone, atob, btoa, crypto: webcrypto,
-    location: new URL('https://fixture.invalid/?demo=1'),
+    location: new URL(url),
     localStorage: storage(), sessionStorage: storage(),
     history: { state: null, replaceState() {}, pushState() {} },
     document: { querySelector: selector => selector === '#app' ? app : null, querySelectorAll: () => [],
@@ -25,11 +25,13 @@ function setup() {
     festivalWeb: { afterRender() {}, bind() {} },
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({ getSnapshot: () => ({ status: 'idle', rows: [] }),
       forClub: () => null, subscribe() {}, refresh() {} }) },
+    FestivalAccount: { createAccount: () => ({ initialize: async () => null, pending: () => null }) },
     fetch: () => { throw new Error('Unit tests must not contact any server'); },
   });
   context.window = context;
+  if (rememberedDemo) context.localStorage.setItem('festival-demo-mode', '1');
   for (const file of ['nfc-manager.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
-  const api = vm.runInContext('({state, seed, BOOTH_STATUS, loadDb, mockStampGateway, mockNfcTokenForTagId, adminPanel, nfcManagement})', context);
+  const api = vm.runInContext('({state, seed, BOOTH_STATUS, loadDb, mockStampGateway, mockNfcTokenForTagId, adminPanel, nfcManagement, googleForm, isServerMode})', context);
   api.state.user = api.state.db.users[0];
   return { ...api, local: context.localStorage, session: context.sessionStorage };
 }
@@ -100,4 +102,22 @@ test('current plans and visual styles no longer offer crowding', () => {
   for (const file of ['FESTIVAL_APP_FEATURE_PLAN.md', 'SERVER_MODE_SETUP.md']) {
     if (fs.existsSync(path.join(root, file))) assert.doesNotMatch(fs.readFileSync(path.join(root, file), 'utf8'), /혼잡|crowded|crowding|congestion/i, file);
   }
+});
+
+for (const rememberedDemo of [false, true]) {
+  test(`normal login has no demo entry (remembered demo: ${rememberedDemo})`, async () => {
+    const api = setup({ url: 'https://fixture.invalid/', rememberedDemo });
+    await new Promise(setImmediate);
+    assert.equal(api.isServerMode(), true);
+    assert.match(api.googleForm(), /Google 계정으로 계속/);
+    assert.doesNotMatch(api.googleForm(), /데모 둘러보기|학생 데모로 계속|관리자 데모로 계속|id="switchMode"/);
+  });
+}
+
+test('explicit demo URL retains test access and a return to real login', () => {
+  const api = setup();
+  assert.equal(api.isServerMode(), false);
+  assert.match(api.googleForm(), /학생 데모로 계속/);
+  assert.match(api.googleForm(), /실제 로그인으로 돌아가기/);
+  assert.doesNotMatch(api.googleForm(), /데모 둘러보기/);
 });
