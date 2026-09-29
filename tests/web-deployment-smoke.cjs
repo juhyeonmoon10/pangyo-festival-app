@@ -42,12 +42,17 @@ const output = path.resolve(__dirname, '../artifacts/web-deployment');
         return url.origin === base.origin ? route.continue() : route.fulfill({ json: [] });
       });
       const capture = async name => {
-        await page.evaluate(() => Promise.all([...document.images].map(image => image.decode().catch(() => {}))));
+        // Hidden sheet thumbnails use lazy loading and need not decode before a screenshot.
+        await page.evaluate(() => Promise.race([
+          Promise.all([...document.images].map(image => image.decode().catch(() => {}))),
+          new Promise(resolve => setTimeout(resolve, 500)),
+        ]));
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}/${name}`);
-        assert.deepEqual(await page.locator('img').evaluateAll(images => images.filter(i => !i.naturalWidth).map(i => i.src)), []);
+        assert.deepEqual(await page.locator('img').evaluateAll(images => images.filter(i => i.complete && !i.naturalWidth).map(i => i.src)), []);
         const screenshot = `${width}-${name}.png`;
         await page.screenshot({ path: path.join(output, screenshot), fullPage: true, animations: 'disabled' });
         report.screens.push(screenshot);
+        console.log(`Verified ${width}/${name}`);
       };
       await page.goto(new URL('/?demo=1&v=web-1.2', base).href);
       await page.locator('#googleLogin').click();
