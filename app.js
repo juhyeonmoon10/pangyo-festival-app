@@ -28,7 +28,6 @@ const EVENT = {
 const BOOTH_STATUS = {
   preparing: { label: "준비 중", tone: "muted" },
   open: { label: "운영 중", tone: "success" },
-  crowded: { label: "혼잡", tone: "warning" },
   paused: { label: "일시 중지", tone: "danger" },
   closed: { label: "마감", tone: "muted" },
 };
@@ -496,7 +495,7 @@ function makeClassBooths(grade, floor) {
       room: `${grade}-${klass}`,
       location: `${floor}층 ${grade}-${klass} 교실`,
       description: club?.description || "동아리 배정이 확정되는 대로 업데이트할 예정입니다.",
-      status: index === 5 ? "crowded" : index === 7 ? "paused" : "open",
+      status: index === 7 ? "paused" : "open",
       opensAt: EVENT.startsAt,
       closesAt: EVENT.endsAt,
       nfcTagId: `NFC-G${grade}-${String(klass).padStart(2, "0")}`,
@@ -603,6 +602,7 @@ function loadDb() {
     b5: { legacyName: "매점", name: "상담실", location: "1층 상담실", description: "조용한 안내와 상담이 필요한 경우 이용하는 공간입니다." },
   };
   const shouldImportClubCatalog = Number(db.clubCatalogVersion || 0) < CLUB_CATALOG_VERSION;
+  let didMigrateBoothStatus = false;
   db.event = { ...seed.event, ...(db.event || {}) };
   db.announcements = Array.isArray(db.announcements) ? db.announcements : structuredClone(seed.announcements);
   db.booths = (Array.isArray(db.booths) ? db.booths : structuredClone(seed.booths)).map((booth) => {
@@ -626,6 +626,11 @@ function loadDb() {
           assignmentStatus: catalogBooth.assignmentStatus,
         };
       }
+    }
+    // Retire the old device-only status without losing booth settings or visits.
+    if (migrated.status === "crowded") {
+      migrated = { ...migrated, status: "open" };
+      didMigrateBoothStatus = true;
     }
     return {
       eventId: EVENT.id,
@@ -654,7 +659,7 @@ function loadDb() {
   db.idempotencyRecords = Array.isArray(db.idempotencyRecords) ? db.idempotencyRecords : [];
   db.reviews = Array.isArray(db.reviews) ? db.reviews : [];
   db.clubCatalogVersion = CLUB_CATALOG_VERSION;
-  if (shouldImportClubCatalog) persistDb(db);
+  if (shouldImportClubCatalog || didMigrateBoothStatus) persistDb(db);
   return db;
 }
 
@@ -796,7 +801,7 @@ const mockStampGateway = {
     if (!["active", "rehearsal"].includes(state.db.event.status)) {
       return finish(nfcFailure("EVENT_NOT_ACTIVE", "현재 행사가 방문 적립 가능한 상태가 아닙니다.", { boothId: booth.id, requestId }));
     }
-    if (!["open", "crowded"].includes(booth.status)) {
+    if (booth.status !== "open") {
       return finish(nfcFailure("BOOTH_NOT_OPEN", `${booth.name}은(는) ${statusInfo(booth.status).label} 상태예요.`, { boothId: booth.id, requestId }));
     }
 
@@ -2143,8 +2148,8 @@ function adminView() {
 function adminPanel() {
   const regularUsers = state.db.users.filter((user) => user.role !== "admin");
   const totalVisits = state.db.stamps.length;
-  const activeBooths = state.db.booths.filter((booth) => ["open", "crowded"].includes(booth.status)).length;
-  const attentionBooths = state.db.booths.filter((booth) => ["crowded", "paused"].includes(booth.status)).length;
+  const activeBooths = state.db.booths.filter((booth) => booth.status === "open").length;
+  const attentionBooths = state.db.booths.filter((booth) => booth.status === "paused").length;
 
   if (state.adminTab === "dashboard") {
     const top = [...state.db.booths].sort((a, b) => repo.boothVisits(b.id) - repo.boothVisits(a.id)).slice(0, 5);
@@ -2156,9 +2161,9 @@ function adminPanel() {
       </section>
       <section class="stats-grid admin-stats">
         <div class="stat"><span>총 방문 인증</span><strong>${totalVisits}</strong><small>스탬프 발급 수</small></div>
-        <div class="stat"><span>운영 중 부스</span><strong>${activeBooths}</strong><small>혼잡 포함</small></div>
+        <div class="stat"><span>운영 중 부스</span><strong>${activeBooths}</strong><small>현재 운영 중</small></div>
         <div class="stat"><span>참여자</span><strong>${regularUsers.length}</strong><small>관리자 제외</small></div>
-        <div class="stat ${attentionBooths ? "warn" : ""}"><span>확인 필요</span><strong>${attentionBooths}</strong><small>혼잡·일시중지</small></div>
+        <div class="stat ${attentionBooths ? "warn" : ""}"><span>확인 필요</span><strong>${attentionBooths}</strong><small>일시 중지</small></div>
       </section>
       <section class="panel section admin-panel-card">
         <div class="admin-section-head"><h2>인기 부스 TOP 5</h2><span>방문수 기준</span></div>

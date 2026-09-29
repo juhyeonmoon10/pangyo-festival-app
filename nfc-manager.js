@@ -165,7 +165,7 @@ const nfcManagement = (() => {
       { ok: tagPattern.test(booth.nfcTagId || ""), label: "태그 ID 형식" },
       { ok: state.db.booths.filter(item => String(item.nfcTagId || "").toUpperCase() === String(booth.nfcTagId || "").toUpperCase()).length === 1, label: "부스와 태그가 1:1로 연결됨" },
       { ok: booth.nfcEnabled !== false, label: "NFC 적립 허용" },
-      { ok: ["open", "crowded"].includes(booth.status), label: "부스 운영 중" },
+      { ok: booth.status === "open", label: "부스 운영 중" },
       { ok: ["active", "rehearsal"].includes(state.db.event.status) && !state.db.event.emergencyMode, label: "행사 적립 가능" },
     ];
     const ok = checks.every(item => item.ok);

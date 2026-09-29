@@ -95,7 +95,7 @@ const base = process.env.FESTIVAL_TEST_URL || 'http://127.0.0.1:5186/';
       assert.equal(await page.locator('.web-written').count(), 1);
       // Synthetic visits exercise the existing mock gateway; no shared DB writes occur.
       await page.evaluate(async () => {
-        const booths = state.db.booths.filter(b => b.id !== 'g1-1' && ['open', 'crowded'].includes(b.status)).slice(0, 9);
+        const booths = state.db.booths.filter(b => b.id !== 'g1-1' && b.status === 'open').slice(0, 9);
         for (const booth of booths) {
           const token = mockNfcTokenForTagId(booth.nfcTagId);
           await nfcAdapter.scan(createNfcClaim(token, 'android-nfc'));

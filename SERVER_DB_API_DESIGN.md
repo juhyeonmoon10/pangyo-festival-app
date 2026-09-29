@@ -125,14 +125,14 @@ PostgreSQL / 별도 Supabase 프로젝트
 ```sql
 event_status      = draft | rehearsal | active | paused | ended | archived
 membership_role   = student | operator | supervisor | admin
-booth_status      = preparing | open | crowded | paused | closed
+booth_status      = preparing | open | paused | closed
 stamp_method      = nfc | manual
 stamp_status      = active | revoked
 notice_severity   = info | warning | emergency
 review_status     = visible | hidden | deleted
 ```
 
-앱의 기존 `preparing/open/crowded/paused/closed` 값과 API의 `booth_status`를 동일하게 유지한다.
+앱의 `preparing/open/paused/closed` 값과 API의 `booth_status`를 동일하게 유지한다.
 
 ## 6. 테이블 설계
 
@@ -467,7 +467,7 @@ https://pangyo-festival-app.vercel.app/nfc#t=<32-byte-random-base64url>
 4. 태그·부스·행사 일치 확인
 5. 행사 상태가 `active`인지 확인
 6. 현재 시각이 행사와 태그 유효 시간 안인지 확인
-7. 부스 상태가 `open` 또는 `crowded`인지 확인
+7. 부스 상태가 `open`인지 확인
 8. 사용자가 해당 행사의 활성 학생인지 확인
 9. transaction에서 active 스탬프 insert 시도
 10. 성공·중복·실패 attempt 기록
@@ -616,7 +616,7 @@ COMMIT
 목록 query:
 
 ```text
-?floor=2&status=open,crowded&q=1학년&sort=name&cursor=<opaque>&limit=30
+?floor=2&status=open&q=1학년&sort=name&cursor=<opaque>&limit=30
 ```
 
 허용 정렬값을 서버 목록으로 제한한다. 사용자가 보낸 컬럼명을 SQL `ORDER BY`에 직접 넣지 않는다.

@@ -3217,8 +3217,6 @@ button {
   margin-top: 5px;
 }
 
-.plan-room.booth-room.status-crowded .room-state,
-.marker.status-crowded { background: #b45309; }
 .plan-room.booth-room.status-paused .room-state,
 .marker.status-paused { background: #b91c1c; }
 .plan-room.booth-room.status-preparing .room-state,
