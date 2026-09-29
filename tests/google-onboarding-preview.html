@@ -22,6 +22,7 @@
       const fixtureMode = new URL(location.href).searchParams.get('fixture');
       let fixtureProfile = { id: 1, authUserId: 'fixture-student', name: '', email: 'student@example.invalid',
         studentNumber: '', needsProfile: true, isAdmin: false, completedBooths: [] };
+      if (fixtureMode === 'complete') fixtureProfile = { ...fixtureProfile, name: '김학생', studentNumber: '21001', needsProfile: false };
       window.supabase = { createClient: () => ({
         auth: {
           onAuthStateChange() {},

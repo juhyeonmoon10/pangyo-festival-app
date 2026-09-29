@@ -1216,9 +1216,9 @@ function catalogName(booth) {
 function catalogRatingText(booth) {
   if (!booth.officialClubId) return "부스";
   const remote = catalogBooth(booth);
-  if (!remote) return "DB 별점 미확인";
-  const cached = publicCatalog.getSnapshot().status !== "ready" ? " · 저장본" : "";
-  return `DB ${remote.rating > 0 ? `${remote.rating.toFixed(1)}점` : "평가 전"}${cached}`;
+  if (!remote) return "별점 정보 없음";
+  const cached = publicCatalog.getSnapshot().status !== "ready" ? " · 이전 정보" : "";
+  return `${remote.rating > 0 ? `${remote.rating.toFixed(1)}점` : "평가 전"}${cached}`;
 }
 
 function catalogRating(booth) {
@@ -1228,34 +1228,11 @@ function catalogRating(booth) {
 function catalogPositionText(booth) {
   if (!booth.officialClubId) return "시설";
   const remote = catalogBooth(booth);
-  if (!remote) return "DB 위치 미확인 · 지도는 임시 배치";
-  return remote.position ? `DB 위치: ${remote.position} · 지도는 임시 배치` : "DB 위치 미등록 · 지도는 임시 배치";
-}
-
-function catalogConnectionView() {
-  return `<section class="catalog-connection" aria-label="데이터 연결 상태">
-    <div><strong data-catalog-status role="status"></strong><small data-catalog-time></small></div>
-    <button type="button" class="icon-btn" data-refresh-catalog aria-label="부스 정보 새로고침" title="부스 정보 새로고침">↻</button>
-    <p>${isServerMode() ? "계정·방문·별점은 서버에 저장됩니다. 지도는 임시 배치이며 운영 상태와 교환권은 아직 서버에 없습니다." : "부스·별점은 DB 조회 전용. 로그인·방문·리뷰는 앱을 닫으면 사라지는 체험용입니다."}</p>
-  </section>`;
+  return remote?.position ? `위치: ${remote.position}` : "위치 미확정";
 }
 
 // Update only server-data slots; never replace inputs, scroll containers, or map nodes.
 function updateCatalogDom() {
-  const snapshot = publicCatalog.getSnapshot();
-  const labels = {
-    idle: "부스 DB 연결 대기", loading: "부스 DB 조회 중", ready: `부스 DB 연결 · ${snapshot.rows.length}개`,
-    cached: "저장된 부스 정보", offline: "연결 실패 · 저장된 정보 표시", error: "연결 실패 · 로컬 데모 표시",
-  };
-  const missing = snapshot.rows.filter((row) => !Object.values(window.FestivalCatalog.CLUB_IDS).includes(row.id)).length;
-  document.querySelectorAll("[data-catalog-status]").forEach((node) => { node.textContent = labels[snapshot.status]; });
-  document.querySelectorAll("[data-catalog-time]").forEach((node) => {
-    node.textContent = snapshot.fetchedAt === null ? "아직 조회된 데이터가 없습니다." : `마지막 조회 ${new Date(snapshot.fetchedAt).toLocaleString("ko-KR")}${missing ? ` · 지도 미배정 ${missing}개` : ""}`;
-  });
-  document.querySelectorAll("[data-refresh-catalog]").forEach((node) => {
-    node.disabled = snapshot.status === "loading";
-    node.setAttribute("aria-busy", String(snapshot.status === "loading"));
-  });
   ["name", "rating", "position"].forEach((field) => {
     document.querySelectorAll(`[data-catalog-${field}]`).forEach((node) => {
       const booth = state.db.booths.find((item) => item.id === node.dataset[`catalog${field[0].toUpperCase()}${field.slice(1)}`]);
@@ -1331,7 +1308,6 @@ function loginView() {
       <section class="panel">
         ${profileStep ? profileForm() : googleForm()}
       </section>
-      ${catalogConnectionView()}
     </main>
   `;
 }
@@ -1341,7 +1317,7 @@ function googleForm() {
     <div class="auth-card">
       <div class="auth-step">1단계</div>
       <h2>${isServerMode() ? "축제 로그인" : "데모 입장"}</h2>
-      <p class="subtitle">${isServerMode() ? "Google 계정 이름을 사용하며, 첫 로그인에 학번만 확인합니다. 학교 계정 제한은 아직 적용 전입니다." : "데모 기록은 서버에 전송되지 않고 앱을 닫으면 사라집니다."}</p>
+      <p class="subtitle">${isServerMode() ? "Google 계정 이름을 사용하며, 첫 로그인에 학번만 확인합니다." : "체험 기록은 앱을 닫으면 사라집니다."}</p>
       ${state.pendingNfcClaim ? `<p class="success-text">NFC 태그 인식됨 · 로그인 후 자동 적립 대기 중</p>` : ""}
       ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</button>
@@ -1465,7 +1441,7 @@ function scanView() {
     <main class="screen p0-page scan-screen">
       ${festivalWeb.header("방문 인증", "NFC 태그로 방문을 확인해요")}
       ${festivalWeb.scanControls()}
-      <section class="demo-boundary"><strong>${isServerMode() ? "서버 방문 인증" : "UI 테스트 모드"}</strong><span>${isServerMode() ? "등록된 서명 태그만 사용할 수 있어요." : "앱을 닫으면 이 기록은 사라져요."}</span></section>
+      ${isServerMode() ? "" : `<section class="demo-boundary"><strong>체험용 방문 인증</strong><span>앱을 닫으면 이 기록은 사라져요.</span></section>`}
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       <section class="scan-pad ${result ? `has-result ${result.type}` : ""}">
         ${result ? `
@@ -1518,11 +1494,11 @@ function profileView() {
   const stampCount = repo.stampsForUser(state.user.id).length;
   return `
     <main class="screen p0-page profile-screen">
-      ${festivalWeb.header("내 정보", isServerMode() ? "Google 계정과 내 축제 기록" : "체험 중인 축제 기록")}
+      ${festivalWeb.header("내 정보", isServerMode() ? "내 축제 기록" : "체험 중인 축제 기록")}
       <section class="profile-card">
         <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
-        <em>${isServerMode() ? "Google 로그인" : state.user.role === "admin" ? "관리자" : "학생"}</em>
+        ${state.user.role === "admin" ? "<em>관리자</em>" : ""}
       </section>
       <section class="profile-name-section" aria-label="이름 변경">
         ${state.nameEdit.open ? `
@@ -1542,9 +1518,7 @@ function profileView() {
         <div><span>행사</span><strong>${state.db.event.name}</strong></div>
         <div><span>방문 기록</span><strong>${stampCount}개</strong></div>
         <div><span>완성한 스탬프</span><strong>${festivalWeb.completed().length}개</strong></div>
-        <div><span>저장 위치</span><strong>${isServerMode() ? "Supabase 서버" : "이번 실행 동안만"}</strong></div>
       </section>
-      ${catalogConnectionView()}
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 도구 열기"}</button>` : ""}
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
@@ -1964,7 +1938,7 @@ function detailView() {
         </div>
         <div class="meta"><span class="stamp ${stamped && reviewed ? "on" : ""}">${icon("stamp")}</span> ${stamped ? reviewed ? "스탬프 날인 완료" : "방문 인증 완료 · 별점 등록 대기" : "아직 방문하지 않았어요"}</div>
         <div class="detail-metrics" aria-label="부스 평가와 방문 상태">
-          <span><small>별점</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong><em>${catalogRating(booth)}</em></span>
+          <span><small>별점</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong></span>
           <span><small>${isServerMode() ? "리뷰" : "평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
           <span><small>내 방문</small><strong>${stamped ? "방문 완료" : "방문 전"}</strong></span>
         </div>
@@ -2010,7 +1984,7 @@ function reviewForm({ enabled, message }) {
       </div>
       <label class="review-field" for="reviewContent">글 후기 <small>선택 · 최대 500자</small></label>
       <textarea id="reviewContent" class="textarea" maxlength="500" placeholder="좋았던 경험을 나눠주세요." ${enabled ? "" : "disabled"}>${escapeHtml(state.reviewDraft)}</textarea>
-      <p class="web-review-hint">${isServerMode() ? "글 후기 추가·포인트 적립은 서버 연결 후 지원돼요." : `글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번`}</p>
+      ${isServerMode() ? (own ? `<p class="web-review-hint">기존 별점에 추가하는 글은 이 탭에만 임시저장돼요. 탭을 닫으면 사라지며 포인트는 적립되지 않아요.</p>` : "") : `<p class="web-review-hint">글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번</p>`}
       <p class="review-feedback" id="reviewFeedback" role="status" aria-live="polite"></p>
       <button id="submitReview" type="button" class="primary-btn full-action" ${enabled && !state.reviewBusy ? "" : "disabled"}>${state.reviewBusy ? "등록 중..." : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료"}</button>
       ${enabled ? `<button id="saveReviewDraft" class="ghost-btn full-action" type="button">임시저장하고 나중에 쓰기</button>` : ""}
@@ -2287,7 +2261,7 @@ function userRow(user) {
       <div class="row-metrics"><span>방문 인증 ${stampCount}개</span><span>별점 등록 ${completeCount}개</span></div>
       ${user.exchangedAt
         ? `<p class="exchange-complete">${formatReviewDate(user.exchangedAt)} 간식 교환 완료</p>`
-        : `<p class="web-muted">실제 교환 처리는 바우처 서버 연결 후 지원됩니다.</p>`}
+        : `<p class="web-muted">바우처 교환은 아직 이용할 수 없어요.</p>`}
     </div>
   `;
 }
@@ -3230,14 +3204,14 @@ async function submitReview() {
   if (existing && !content) { setFeedback("별점은 저장되어 있어요. 추가할 글 후기를 입력해 주세요."); return; }
   if (isServerMode() && repo.hasReview(state.user.id, boothId)) {
     const saved = festivalWeb.saveDraft();
-    setFeedback(saved ? "후기 추가 서버 연결을 준비 중이에요. 이 탭에 임시저장했으니 탭을 닫기 전에 확인해 주세요." : "후기 추가 서버가 아직 없고 임시저장도 실패했어요. 입력한 글은 그대로 두었어요.", saved ? "info" : "error");
+    setFeedback(saved ? "추가 후기를 이 탭에 임시저장했어요. 아직 게시되지 않았으며 탭을 닫으면 사라져요." : "추가 후기를 임시저장하지 못했어요. 입력한 글은 그대로 두었어요.", saved ? "info" : "error");
     return;
   }
   if (isServerMode()) {
     const booth = state.db.booths.find(item => item.id === boothId);
     const key = boothKeyFor(booth);
     if (!key) {
-      setFeedback("이 부스는 서버 카탈로그에 없어 별점을 등록할 수 없습니다.");
+      setFeedback("이 부스는 아직 별점을 등록할 수 없어요.");
       return;
     }
     const actingUser = state.user.id;
@@ -3564,7 +3538,4 @@ document.addEventListener("keydown", event => {
 render();
 initializeAccount();
 publicCatalog.subscribe(updateCatalogDom);
-document.addEventListener("click", (event) => {
-  if (event.target.closest("[data-refresh-catalog]")) publicCatalog.refresh();
-});
 publicCatalog.refresh();

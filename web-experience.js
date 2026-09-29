@@ -102,7 +102,7 @@ const festivalWeb = (() => {
         ${visits.length ? `<div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>` : `<div class="web-empty-inline">${icon("stamp")}<p>아직 방문한 부스가 없어요.<br><span>첫 번째 축제 기록을 남겨보세요.</span></p></div>`}
       </section>
       <section class="web-section web-announcement">${icon("notice")}<div><h2>축제 소식</h2><strong>${notice ? escapeHtml(notice.title) : "등록된 공지가 없어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div></section>
-      <footer class="web-footer">PANGYO HIGH SCHOOL <span>${isServerMode() ? "포인트 · 쿠폰 발급 준비 중" : "체험 기록 · 실제 포인트 및 상품 교환 불가"}</span></footer>
+      <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
     </main>`;
   }
 
@@ -136,7 +136,7 @@ const festivalWeb = (() => {
     const booths = state.db.booths.filter(b => repo.hasStamp(state.user.id, b.id));
     const pending = booths.filter(reviewPending);
     return `<main class="screen web-page">${header("나의 리뷰", "별점은 필수, 글 후기는 선택")}
-      <section class="web-review-benefit">${icon("message")}<div><h2>못 남긴 이야기, 이어서</h2><p>${isServerMode() ? "별점만 남겼어도 글 후기를 나중에 작성할 수 있어요. 후기 추가·포인트 서버 연결 전에는 임시저장됩니다." : `글 후기를 처음 등록하면 체험 포인트 ${REVIEW_POINTS}P를 받아요. 부스당 한 번만 지급돼요.`}</p></div></section>
+      <section class="web-review-benefit">${icon("message")}<div><h2>못 남긴 이야기, 이어서</h2><p>${isServerMode() ? "기존 별점에 추가하는 글은 이 탭에만 임시저장돼요. 탭을 닫으면 사라지며 포인트는 적립되지 않아요." : `글 후기를 처음 등록하면 체험 포인트 ${REVIEW_POINTS}P를 받아요. 부스당 한 번만 지급돼요.`}</p></div></section>
       <section class="web-section"><div class="section-heading"><h2>작성할 후기 <span>${pending.length}</span></h2></div>${pending.length ? pending.map(b => visitRow({boothId: b.id})).join("") : `<div class="web-empty-inline">${icon("check")}<p>${booths.length ? "모든 후기를 남겼어요." : "부스 방문 후 후기를 남길 수 있어요."}</p></div>`}</section>
       <section class="web-section"><div class="section-heading"><h2>남긴 후기</h2></div>${booths.filter(b => !reviewPending(b)).map(b => `<article class="web-written"><header><strong>${boothName(b)}</strong><span>${icon("star")} ${ownReview(b.id).rating}</span></header><p>${escapeHtml(ownReview(b.id).content)}</p></article>`).join("") || `<p class="web-muted">아직 글 후기가 없어요.</p>`}</section>
       ${bottomNav("reviews")}</main>`;
@@ -148,7 +148,7 @@ const festivalWeb = (() => {
     const list = all.filter(c => voucherFilter === "available" ? couponState(c) === "available" : couponState(c) !== "available");
     return `<main class="screen web-page">${header("나의 바우처", "축제에서 모은 작은 혜택")}
       <div class="web-segments" role="group" aria-label="바우처 상태"><button data-voucher-filter="available" aria-pressed="${voucherFilter === "available"}">사용 가능 ${all.filter(c => couponState(c) === "available").length}</button><button data-voucher-filter="history" aria-pressed="${voucherFilter === "history"}">사용 완료 · 만료</button></div>
-      ${isServerMode() ? `<div class="web-empty"><span>${icon("ticket")}</span><h2>바우처를 준비하고 있어요</h2><p>실제 쿠폰 발급과 교환은 운영 서버 연결 후 열립니다.<br>현재 방문 기록은 그대로 유지돼요.</p></div>` : `<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>${list.length ? `<div class="web-coupons">${list.map(c => `<article class="web-coupon"><span class="coupon-symbol">${icon("ticket")}</span><div><small>DEMO · 스탬프 ${c.target}개 달성</small><h2>${c.title}</h2><p>${new Date(c.expiresAt).toLocaleDateString("ko-KR")}까지</p></div><button class="${couponState(c) === "available" ? "primary-btn" : "ghost-btn"}" data-voucher="${c.id}" ${couponState(c) === "available" ? "" : "disabled"}>${couponState(c) === "available" ? "QR 보기" : couponState(c) === "used" ? "사용 완료" : "만료"}</button></article>`).join("")}</div>` : `<div class="web-empty"><span>${icon("ticket")}</span><h2>${voucherFilter === "available" ? "사용 가능한 바우처가 없어요" : "아직 사용 내역이 없어요"}</h2><p>별점까지 등록한 스탬프 5개, 10개를 모으면<br>체험용 바우처가 한 장씩 발급돼요.</p><button class="ghost-btn" data-route="stamps">스탬프 보기</button></div>`}`}
+      ${isServerMode() ? `<div class="web-empty"><span>${icon("ticket")}</span><h2>바우처를 준비하고 있어요</h2><p>쿠폰 발급과 교환은 아직 이용할 수 없어요.<br>방문 기록은 그대로 유지돼요.</p></div>` : `<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>${list.length ? `<div class="web-coupons">${list.map(c => `<article class="web-coupon"><span class="coupon-symbol">${icon("ticket")}</span><div><small>DEMO · 스탬프 ${c.target}개 달성</small><h2>${c.title}</h2><p>${new Date(c.expiresAt).toLocaleDateString("ko-KR")}까지</p></div><button class="${couponState(c) === "available" ? "primary-btn" : "ghost-btn"}" data-voucher="${c.id}" ${couponState(c) === "available" ? "" : "disabled"}>${couponState(c) === "available" ? "QR 보기" : couponState(c) === "used" ? "사용 완료" : "만료"}</button></article>`).join("")}</div>` : `<div class="web-empty"><span>${icon("ticket")}</span><h2>${voucherFilter === "available" ? "사용 가능한 바우처가 없어요" : "아직 사용 내역이 없어요"}</h2><p>별점까지 등록한 스탬프 5개, 10개를 모으면<br>체험용 바우처가 한 장씩 발급돼요.</p><button class="ghost-btn" data-route="stamps">스탬프 보기</button></div>`}`}
       ${bottomNav("vouchers")}</main>`;
   }
 

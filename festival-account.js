@@ -13,16 +13,16 @@
     INVALID_STUDENT_NUMBER: "학번을 1~3으로 시작하는 5자리 숫자로 입력해 주세요.",
     INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
     PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했어요. 새로고침 후 이름을 확인해 주세요.",
-    NFC_DISABLED: "서버 방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
+    NFC_DISABLED: "방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
     NFC_TAG_EXPIRED: "태그의 사용 기간이 지났거나 교체되었습니다.",
     VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있어요.",
     ALREADY_REVIEWED: "이 부스에는 이미 별점을 남겼어요.",
     RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",
     REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
-    BOOTH_NOT_FOUND: "서버에 등록된 부스가 아닙니다.",
+    BOOTH_NOT_FOUND: "부스 정보를 확인할 수 없어요. 운영자에게 문의해 주세요.",
     ADMIN_REQUIRED: "운영자 계정만 사용할 수 있는 기능입니다.",
     INVALID_TAG_ISSUE_REQUEST: "발급 조건을 확인해 주세요. 유효 기간은 1분에서 7일 사이입니다.",
-    SERVER_NOT_READY: "서버 준비가 아직 끝나지 않았습니다. 운영자에게 설치 상태를 확인해 주세요. 지금은 데모 둘러보기를 사용할 수 있어요.",
+    SERVER_NOT_READY: "아직 이용할 수 없는 기능이에요. 운영자에게 문의해 주세요.",
   };
 
   function normalizeError(error) {
@@ -31,7 +31,7 @@
     // been applied yet. Reporting that as a network problem sends people chasing the wrong fix.
     const missing = error?.code === "PGRST202" || /schema cache/i.test(String(error?.message || ""));
     const code = known || (error?.status === 401 ? "AUTH_REQUIRED" : missing ? "SERVER_NOT_READY" : "NETWORK_ERROR");
-    return { code, message: MESSAGES[code] || "서버 응답을 확인하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.", retryable: code === "NETWORK_ERROR" };
+    return { code, message: MESSAGES[code] || "요청을 완료하지 못했어요. 연결을 확인하고 다시 시도해 주세요.", retryable: code === "NETWORK_ERROR" };
   }
 
   function validateProfile(value) {

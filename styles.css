@@ -4328,30 +4328,6 @@ button {
   line-height: 18px;
 }
 
-.catalog-connection {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  gap: 8px 12px;
-  padding: 14px 16px;
-  border-block: 1px solid #dce4e9;
-  background: #f2faf6;
-  text-align: left;
-}
-
-.catalog-connection strong,
-.catalog-connection small {
-  display: block;
-  overflow-wrap: anywhere;
-}
-
-.catalog-connection strong {
-  color: #176344;
-  font-size: 14px;
-  line-height: 22px;
-}
-
-.catalog-connection small,
-.catalog-connection p,
 .catalog-position {
   margin: 0;
   color: #52616a;
@@ -4360,9 +4336,6 @@ button {
   overflow-wrap: anywhere;
 }
 
-.catalog-connection p { grid-column: 1 / -1; }
-.catalog-connection .icon-btn { width: 44px; height: 44px; }
-.catalog-connection .icon-btn:disabled { opacity: 0.5; }
 .catalog-position { margin-top: 6px; }
 .detail-metrics [data-catalog-rating] { overflow-wrap: anywhere; }
 .booth-stats [data-catalog-rating] { display: inline; }

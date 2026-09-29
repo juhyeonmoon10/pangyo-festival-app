@@ -155,7 +155,6 @@
 .design-ver2 .detail-metrics { margin-top: 20px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; background: #fff; }
 .design-ver2 .detail-metrics small { font-size: 12px; }
 .design-ver2 .detail-metrics strong { font-size: 15px; }
-.design-ver2 .detail-screen .catalog-connection { margin: 0; }
 .detail-data-note { margin: 0 0 18px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .design-ver2 .review-section .star-picker { justify-content: space-between; gap: 6px; max-width: 320px; margin: 18px auto; }
 .design-ver2 .review-section .star { width: 48px; height: 48px; border: 0; background: #f2f5f3; color: #a2ada6; border-radius: 8px; }
@@ -232,8 +231,6 @@
 .design-ver2 .nfc-waves b { background: var(--primary); box-shadow: none; }
 .design-ver2 .nfc-waves i { border-color: #78ad93; }
 .design-ver2 .manual-help { border-radius: 0; background: transparent; border: 0; border-top: 1px solid var(--line); }
-.design-ver2 .catalog-connection { border-radius: 8px; background: #f6f8f6; box-shadow: none; }
-.design-ver2 .catalog-connection p { font-size: 12px; line-height: 1.6; }
 .design-ver2 .profile-card { border: 0; border-radius: 0; padding-inline: 0; box-shadow: none; background: #fff; }
 .design-ver2 .profile-avatar { border-radius: 8px; background: #e4f1e9; color: var(--primary-dark); }
 .design-ver2 .profile-list { border-radius: 0; box-shadow: none; border-inline: 0; }
