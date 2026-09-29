@@ -9,6 +9,8 @@
   const MESSAGES = {
     AUTH_REQUIRED: "로그인이 필요합니다.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
     PROFILE_REQUIRED: "이름과 학번을 먼저 등록해 주세요.", PROFILE_CONFLICT: "계정 연결을 확인해야 합니다. 운영자에게 문의해 주세요.",
+    INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
+    PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했어요. 새로고침 후 이름을 확인해 주세요.",
     NFC_DISABLED: "서버 방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
     NFC_TAG_EXPIRED: "태그의 사용 기간이 지났거나 교체되었습니다.",
     VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있어요.",
@@ -148,6 +150,16 @@
       return profile();
     }
 
+    async function updateName(value) {
+      const name = typeof value === "string" ? value.trim() : "";
+      if (!name || name.length > 60) throw new Error("INVALID_NAME");
+      const { error } = await client.auth.updateUser({ data: { festival_name: name } });
+      if (error) throw error;
+      const updated = await profile();
+      if (updated.name !== name || updated.needsProfile) throw new Error("PROFILE_NAME_UNCONFIRMED");
+      return updated;
+    }
+
     function claim(token) {
       if (typeof token !== "string" || token.length > 1024 || !TOKEN_PATTERN.test(token)) {
         return Promise.resolve({ ok: false, ...normalizeError({ message: "NFC_TAG_INVALID" }) });
@@ -245,7 +257,7 @@
       return null;
     }
 
-    return { initialize, signIn, profile, claim, updateProfile, receiveCallback, savePending, pending,
+    return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
       reviews, myReviews, submitReview, issueTag,
       signOut: () => client.auth.signOut({ scope: "local" }), normalizeError };
   }

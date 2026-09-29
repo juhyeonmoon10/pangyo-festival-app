@@ -76,6 +76,7 @@ const state = {
   authIntent: "student",
   loginBusy: false,
   loginError: "",
+  nameEdit: { open: false, draft: "", busy: false, error: "", message: "" },
   adminMessage: "",
   scanResult: null,
   nfcTestMessage: "",
@@ -1522,6 +1523,20 @@ function profileView() {
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
         <em>${isServerMode() ? "Google 로그인" : state.user.role === "admin" ? "관리자" : "학생"}</em>
       </section>
+      <section class="profile-name-section" aria-label="이름 변경">
+        ${state.nameEdit.open ? `
+          <form id="profileNameForm" class="profile-name-form" novalidate aria-busy="${state.nameEdit.busy}">
+            <label for="profileName">앱에서 사용할 이름</label>
+            <input id="profileName" class="input" autocomplete="name" maxlength="60" value="${escapeHtml(state.nameEdit.draft)}" aria-describedby="profileNameHint profileNameError" aria-invalid="${Boolean(state.nameEdit.error)}" ${state.nameEdit.busy ? "disabled" : ""} />
+            <p id="profileNameHint">Google 계정 이름과 학번은 변경되지 않습니다.</p>
+            <p id="profileNameError" class="error-text" role="alert">${escapeHtml(state.nameEdit.error)}</p>
+            <div class="profile-name-actions">
+              <button id="cancelNameEdit" type="button" class="ghost-btn" ${state.nameEdit.busy ? "disabled" : ""}>${icon("close")} 취소</button>
+              <button type="submit" class="primary-btn" ${state.nameEdit.busy ? "disabled" : ""}>${icon("save")} ${state.nameEdit.busy ? "저장 중..." : "저장"}</button>
+            </div>
+          </form>` : `<button id="editProfileName" type="button" class="text-link">${icon("user")} 이름 변경</button>`}
+        <p class="profile-name-feedback" role="status">${escapeHtml(state.nameEdit.message)}</p>
+      </section>
       <section class="profile-list">
         <div><span>행사</span><strong>${state.db.event.name}</strong></div>
         <div><span>방문 기록</span><strong>${stampCount}개</strong></div>
@@ -2398,6 +2413,22 @@ function bindEvents() {
   });
   document.querySelector("#googleLogin")?.addEventListener("click", () => runActionOnce("google-login", () => startGoogleLogin("student")));
   document.querySelector("#profileSubmit")?.addEventListener("click", () => runActionOnce("profile-save", completeProfile));
+  document.querySelector("#editProfileName")?.addEventListener("click", openNameEditor);
+  document.querySelector("#cancelNameEdit")?.addEventListener("click", cancelNameEditor);
+  document.querySelector("#profileName")?.addEventListener("input", event => {
+    state.nameEdit.draft = event.target.value;
+    state.nameEdit.error = "";
+    event.target.setAttribute("aria-invalid", "false");
+    const error = document.querySelector("#profileNameError");
+    if (error) error.textContent = "";
+  });
+  document.querySelector("#profileName")?.addEventListener("keydown", event => {
+    if (event.key === "Enter" && (event.isComposing || event.keyCode === 229)) event.preventDefault();
+  });
+  document.querySelector("#profileNameForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    runActionOnce("profile-name", saveDisplayName);
+  });
   document.querySelector("#backToGoogle")?.addEventListener("click", async () => {
     await resetLogin();
     render();
@@ -2874,6 +2905,7 @@ async function resetLogin() {
     state.pendingNfcClaim = null;
   }
   state.user = null;
+  state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
   nfcManagement.clear();
   state.reviewPickerOpen = false;
   state.reviewDraft = "";
@@ -2955,6 +2987,67 @@ async function startGoogleLogin(intent = "student") {
     state.loginError = error.message || "로그인 처리 중 문제가 생겼습니다.";
     state.route = "login";
     render();
+  }
+}
+
+function openNameEditor() {
+  if (!state.user || state.nameEdit.busy) return;
+  state.nameEdit = { open: true, draft: state.user.name || "", busy: false, error: "", message: "" };
+  render();
+  document.querySelector("#profileName")?.focus();
+}
+
+function cancelNameEditor() {
+  if (state.nameEdit.busy) return;
+  state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
+  render();
+  document.querySelector("#editProfileName")?.focus();
+}
+
+async function saveDisplayName() {
+  const edit = state.nameEdit;
+  if (!state.user || !edit.open || edit.busy) return;
+  const name = edit.draft.trim();
+  edit.error = "";
+  edit.message = "";
+  if (!name || name.length > 60) {
+    edit.error = "이름을 1~60자로 입력해 주세요.";
+    render();
+    document.querySelector("#profileName")?.focus();
+    return;
+  }
+  if (name === state.user.name) { cancelNameEditor(); return; }
+  const actorId = state.user.id;
+  edit.busy = true;
+  render();
+  try {
+    if (isServerMode()) {
+      const updated = await festivalAccount.updateName(name);
+      if (state.nameEdit !== edit || state.user?.id !== actorId) return;
+      if (updated.authUserId !== actorId) throw new Error("PROFILE_CONFLICT");
+      state.user = { ...state.user, name: updated.name };
+    } else {
+      const users = state.db.users.map(user => user.id === actorId ? { ...user, name } : user);
+      const nextDb = { ...state.db, users };
+      const progress = Object.fromEntries(SESSION_FIELDS.map(field => [field, nextDb[field] || []]));
+      if (!writeSessionStorage(SESSION_KEY, JSON.stringify(progress))) throw new Error("NAME_STORAGE_FAILED");
+      state.db = nextDb;
+      state.user = { ...state.user, name };
+    }
+    edit.open = false;
+    edit.draft = "";
+    edit.message = "이름을 변경했어요.";
+  } catch (error) {
+    if (state.nameEdit !== edit || state.user?.id !== actorId) return;
+    edit.error = isServerMode()
+      ? window.FestivalAccount.normalizeError(error).message
+      : "이름을 저장하지 못했어요. 기기의 저장 공간을 확인해 주세요.";
+  } finally {
+    edit.busy = false;
+    if (state.nameEdit === edit && state.user?.id === actorId && ["profile", "home"].includes(state.route)) {
+      render();
+      if (state.route === "profile") document.querySelector(edit.open ? "#profileName" : "#editProfileName")?.focus();
+    }
   }
 }
 
@@ -3379,6 +3472,9 @@ function showStampPop() {
 }
 
 function applyServerProfile(profile) {
+  if (!profile || state.user?.id !== profile.authUserId) {
+    state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
+  }
   if (profile) signInStartedAt = 0; // the login came back; no need to warn about a lost callback
   serverCompletedBooths = profile?.completedBooths || [];
   if (!profile) {

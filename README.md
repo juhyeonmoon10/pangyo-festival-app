@@ -10,6 +10,7 @@
 - 1~4층 학교 지도와 드래그 가능한 Bottom Sheet
 - 부스 검색, 층 선택, 상세 화면
 - 부스 운영 상태: `preparing`, `open`, `paused`, `closed`
+- 내 정보에서 앱 표시 이름 변경: 기존 Supabase Auth 메타데이터 사용, Google 계정 이름·학번·방문 기록 유지
 - 행사 공지와 비상 모드 UI
 - NFC 성공, 중복, 운영 중지, 미등록 태그 결과 UI
 - NFC 실패 시 운영자 수동 승인 안내
