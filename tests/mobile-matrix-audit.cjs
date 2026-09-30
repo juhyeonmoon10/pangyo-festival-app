@@ -154,6 +154,9 @@ async function run() {
     await capture("03-map");
     steps.push(await layout("map"));
 
+    await page.click('[data-floor="2"]');
+    ensure(await page.evaluate(() => state.floor) === 2, `${viewport.name}: 공식 동아리 층 전환 실패`);
+
     await page.click("#sheetToggle");
     ensure(await page.evaluate(() => state.sheetLevel) === "mid", `${viewport.name}: 부스 목록 중간 펼침 실패`);
     const sheetListLayout = await page.locator(".sheet .booth-item").first().evaluate((item) => {
@@ -191,13 +194,13 @@ async function run() {
     await page.evaluate(() => {
       const input = document.querySelector("#searchScreenInput");
       input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-      input.value = "1ㅎ";
-      input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "ㅎ", inputType: "insertCompositionText", isComposing: true }));
-      input.value = "1학년";
-      input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "1학년" }));
+      input.value = "아";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "ㅇ", inputType: "insertCompositionText", isComposing: true }));
+      input.value = "아트 캔버스";
+      input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "아트 캔버스" }));
     });
-    await page.locator(".search-result-meta strong").filter({ hasText: "8개 결과" }).waitFor();
-    ensure(await page.evaluate(() => state.search) === "1학년", `${viewport.name}: 한글 IME 조합이 분리됨`);
+    await page.locator(".search-result-meta strong").filter({ hasText: "1개 결과" }).waitFor();
+    ensure(await page.evaluate(() => state.search) === "아트 캔버스", `${viewport.name}: 한글 IME 조합이 분리됨`);
     await capture("04-search");
     steps.push(await layout("search"));
     await page.click("#closeSearchScreen");
@@ -223,34 +226,44 @@ async function run() {
     await assertBottomNav("nfc");
     await capture("07-nfc-ready");
     steps.push(await layout("nfc-ready"));
-    await page.evaluate(() => {
-      const button = document.querySelector('[data-nfc-test="NFC-G1-01"]');
-      button.click();
-      button.click();
-      button.click();
+    ensure(await page.locator(".nfc-test-panel").count() === 0, `${viewport.name}: 학생에게 모의 NFC 도구가 노출됨`);
+    const blockedStudentMock = await page.evaluate(async () => {
+      const result = await nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-01"), "mock-panel"));
+      return { result, stampCount: state.db.stamps.length };
     });
+    ensure(blockedStudentMock.result.code === "ADMIN_REQUIRED" && blockedStudentMock.stampCount === 0, `${viewport.name}: 학생의 모의 NFC 실행이 차단되지 않음`);
+    await page.click("#clearScanResult");
+    await page.evaluate(() => nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-01"), "tag-url")));
     await page.locator(".scan-pad.success").waitFor({ state: "visible" });
     await page.waitForFunction(() => state.db.stamps.length === 1);
     await capture("08-nfc-success", 1000);
     const stampCountAfterSuccess = await page.evaluate(() => state.db.stamps.length);
 
-    await page.click('[data-nfc-test="NFC-G1-02"]');
+    await page.evaluate(() => nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-02"), "tag-url")));
     await page.waitForFunction(() => state.db.stamps.length === 2 && state.scanResult?.type === "success");
     const stampCountAfterSecond = await page.evaluate(() => state.db.stamps.length);
     await capture("08b-nfc-second-success", 520);
 
-    await page.evaluate(() => {
-      const button = document.querySelector('[data-nfc-test="NFC-G1-01"]');
-      button.click();
-      button.click();
-    });
+    await page.evaluate(() => nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-01"), "tag-url")));
     await page.waitForFunction(() => state.scanResult?.type === "duplicate");
     await capture("09-nfc-duplicate", 520);
     const stampCountAfterDuplicate = await page.evaluate(() => state.db.stamps.length);
     ensure(stampCountAfterSuccess === 1 && stampCountAfterSecond === 2 && stampCountAfterDuplicate === 2, `${viewport.name}: NFC 연속 적립 또는 중복 방지가 실패함`);
 
-    await page.click("#resetNfcTestStamps");
-    await page.waitForFunction(() => state.db.stamps.length === 0 && state.nfcTestMessage.includes("2개"));
+    const studentResetCount = await page.evaluate(() => {
+      const before = state.db.stamps.length;
+      resetNfcTestStamps();
+      return { before, after: state.db.stamps.length };
+    });
+    ensure(studentResetCount.before === 2 && studentResetCount.after === 2, `${viewport.name}: 학생이 테스트 스탬프를 초기화함`);
+    await page.evaluate(() => {
+      state.db.stamps = state.db.stamps.filter((stamp) => stamp.userId !== state.user.id);
+      state.db.idempotencyRecords = state.db.idempotencyRecords.filter((record) => record.actorId !== state.user.id);
+      state.scanResult = null;
+      saveDb();
+      render();
+    });
+    await page.waitForFunction(() => state.db.stamps.length === 0);
     await capture("09b-nfc-reset", 320);
 
     const idempotencyContract = await page.evaluate(async () => {
@@ -287,10 +300,16 @@ async function run() {
       && idempotencyContract.countAfterConflict === 1,
       `${viewport.name}: 멱등성 재시도 중 스탬프 수가 변경됨`,
     );
-    await page.evaluate(() => resetNfcTestStamps());
+    await page.evaluate(() => {
+      state.db.stamps = state.db.stamps.filter((stamp) => stamp.userId !== state.user.id);
+      state.db.idempotencyRecords = state.db.idempotencyRecords.filter((record) => record.actorId !== state.user.id);
+      state.scanResult = null;
+      saveDb();
+      render();
+    });
     await page.waitForFunction(() => state.db.stamps.length === 0);
 
-    await page.click('[data-nfc-test="NFC-G1-02"]');
+    await page.evaluate(() => nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-02"), "tag-url")));
     await page.waitForFunction(() => state.db.stamps.length === 1 && state.scanResult?.type === "success");
     await page.goBack();
     await page.locator(".map-screen").waitFor({ state: "visible" });
@@ -318,6 +337,13 @@ async function run() {
     await assertBottomNav("admin-dashboard");
     await capture("12-admin-dashboard");
     steps.push(await layout("admin-dashboard"));
+
+    await page.click('button[data-route="scan"]');
+    await page.locator(".nfc-test-panel").waitFor({ state: "visible" });
+    ensure(await page.locator('[data-nfc-source="mock-panel"]').count() === 2, `${viewport.name}: 관리자 모의 NFC 도구가 표시되지 않음`);
+    await page.click('button[data-route="profile"]');
+    await page.click('button[data-route="admin"]');
+    await page.locator(".admin-screen").waitFor({ state: "visible" });
 
     await page.click('[data-toggle-menu="admin-tab"]');
     await page.click('[data-admin-tab="booths"]');

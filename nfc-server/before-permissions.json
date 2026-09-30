@@ -1,0 +1,13 @@
+{
+  "project": "vvvkzvxahviwbuyfbwir",
+  "observedOn": "2026-09-09",
+  "table": "public.users",
+  "grants": { "authenticated": ["SELECT", "UPDATE"], "anon": [] },
+  "policies": [
+    { "name": "users_authenticated_select", "command": "SELECT", "roles": ["authenticated"], "using": "true" },
+    { "name": "users_authenticated_update", "command": "UPDATE", "roles": ["authenticated"], "using": "true", "withCheck": "money >= 0" }
+  ],
+  "vaultReadableByAnon": false,
+  "vaultReadableByAuthenticated": false,
+  "festivalNfcPrivateSchemaExisted": false
+}

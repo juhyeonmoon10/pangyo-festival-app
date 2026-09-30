@@ -1,0 +1,7 @@
+{
+  "name": "pangyo-auth-sdk-vendor",
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0"
+  }
+}

@@ -5,7 +5,7 @@ const { pathToFileURL } = require("url");
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || "playwright");
 const chromePath = process.env.CHROME_PATH;
 const screenshotDir = process.env.SCREENSHOT_DIR;
-const appUrl = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
+const appUrl = process.env.APP_URL || pathToFileURL(path.join(__dirname, "..", "index.html")).href;
 
 if (!chromePath) throw new Error("CHROME_PATH is required");
 
@@ -17,6 +17,18 @@ async function run() {
   await page.goto(appUrl, { waitUntil: "load" });
   await page.click("#googleLogin");
   await page.locator(".home-screen").waitFor({ state: "visible" });
+  const clubCatalog = await page.evaluate(() => ({
+    officialCount: state.db.booths.filter((booth) => booth.officialClubId).length,
+    unassignedCount: state.db.booths.filter((booth) => booth.assignmentStatus === "unassigned").length,
+    names: state.db.booths.filter((booth) => booth.officialClubId).map((booth) => booth.name),
+    sourcesValid: state.db.booths.filter((booth) => booth.officialClubId).every((booth) => booth.sourceUrl?.startsWith("https://chatdong.xyz/clubs/")),
+  }));
+  if (clubCatalog.officialCount !== 20 || clubCatalog.unassignedCount !== 4 || !clubCatalog.sourcesValid) {
+    throw new Error(`Official club catalog migration failed: ${JSON.stringify(clubCatalog)}`);
+  }
+  if (clubCatalog.names.includes("지오네틱스(GEONETICS)") || clubCatalog.names.includes("아고라(AGORA)")) {
+    throw new Error("Non-Pangyo clubs were imported into the festival map");
+  }
   if (screenshotDir) {
     fs.mkdirSync(screenshotDir, { recursive: true });
     await page.screenshot({ path: path.join(screenshotDir, "home-320.png"), fullPage: true });
@@ -24,6 +36,19 @@ async function run() {
   await page.click('button[data-route="map"]');
   await page.locator(".map-screen").waitFor({ state: "visible" });
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "map-320.png"), fullPage: true });
+
+  const initialZoom = await page.evaluate(() => state.mapZoom);
+  if (initialZoom !== 1) throw new Error(`unexpected initial map zoom: ${initialZoom}`);
+  await page.click("#mapZoomIn");
+  const zoomedIn = await page.evaluate(() => state.mapZoom);
+  if (zoomedIn !== 1.2) throw new Error(`map zoom in failed: ${zoomedIn}`);
+  await page.click("#mapZoomOut");
+  await page.click("#mapZoomOut");
+  const zoomedOut = await page.evaluate(() => ({ zoom: state.mapZoom, disabled: document.querySelector("#mapZoomOut").disabled }));
+  if (zoomedOut.zoom !== 0.9 || !zoomedOut.disabled) throw new Error(`map zoom out limit failed: ${JSON.stringify(zoomedOut)}`);
+  await page.click("#resetMapView");
+  const resetZoom = await page.evaluate(() => state.mapZoom);
+  if (resetZoom !== 1) throw new Error(`map zoom reset failed: ${resetZoom}`);
 
   await page.click("#mapSearchBtn");
   const stableSearchDom = await page.locator("#searchScreenInput").evaluate((input) => {
@@ -40,23 +65,23 @@ async function run() {
     throw new Error(`Search replaced stable DOM: ${JSON.stringify(stableSearchDom)}`);
   }
   const compositionState = await page.locator("#searchScreenInput").evaluate((input) => {
-    input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "ㅎ" }));
-    input.value = "1ㅎ";
-    input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "ㅎ", inputType: "insertCompositionText", isComposing: true }));
+    input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "ㅇ" }));
+    input.value = "아";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, data: "ㅇ", inputType: "insertCompositionText", isComposing: true }));
     return { connected: input.isConnected, preserved: document.querySelector("#searchScreenInput") === input, stateSearch: state.search };
   });
   if (!compositionState.connected || !compositionState.preserved || compositionState.stateSearch !== "1") {
     throw new Error(`Korean composition was interrupted: ${JSON.stringify(compositionState)}`);
   }
   await page.locator("#searchScreenInput").evaluate((input) => {
-    input.value = "1학년";
-    input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "학년" }));
+    input.value = "아트 캔버스";
+    input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "아트 캔버스" }));
   });
-  await page.locator(".search-result-meta strong").filter({ hasText: "8개 결과" }).waitFor();
+  await page.locator(".search-result-meta strong").filter({ hasText: "1개 결과" }).waitFor();
   const composedQuery = await page.locator("#searchScreenInput").inputValue();
-  if (composedQuery !== "1학년") throw new Error(`Korean query changed to ${composedQuery}`);
+  if (composedQuery !== "아트 캔버스") throw new Error(`Korean query changed to ${composedQuery}`);
 
-  for (const query of ["1학년1반", "1학년 1반", "1학년   1반"]) {
+  for (const query of ["아트캔버스", "아트 캔버스", "아트   캔버스"]) {
     const preserved = await page.locator("#searchScreenInput").evaluate((input, nextQuery) => {
       input.value = nextQuery;
       input.dispatchEvent(new InputEvent("input", { bubbles: true, data: nextQuery, inputType: "insertText" }));
@@ -65,10 +90,13 @@ async function run() {
     if (!preserved) throw new Error(`Search input was replaced for query: ${query}`);
     await page.locator(".search-result-meta strong").filter({ hasText: "1개 결과" }).waitFor();
     const firstResult = await page.locator("#searchResultList .booth-item strong").first().innerText();
-    if (!firstResult.includes("1학년 1반 부스")) {
+    if (!firstResult.includes("아트 캔버스")) {
       throw new Error(`Whitespace-insensitive search failed for ${query}: ${firstResult}`);
     }
   }
+
+  const clubImageLoaded = await page.locator("#searchResultList .club-visual img").first().evaluate((image) => image.complete && image.naturalWidth > 0);
+  if (!clubImageLoaded) throw new Error("Official club image did not load");
 
   const searchItemHeight = await page.locator(".search-result-list .booth-item").first().evaluate((item) => item.getBoundingClientRect().height);
   if (searchItemHeight < 72) throw new Error(`search result card collapsed to ${searchItemHeight}px`);
@@ -110,11 +138,13 @@ async function run() {
   }
 
   await page.click('button[data-route="scan"]');
-  await page.click('button[data-nfc-token]');
+  const studentMockToolCount = await page.locator('.nfc-test-panel, [data-nfc-source="mock-panel"], [data-nfc-source="detail-action"], [data-nfc-source="detail-shortcut"]').count();
+  if (studentMockToolCount !== 0) throw new Error(`student can see ${studentMockToolCount} mock NFC tools`);
+  await page.evaluate(() => nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-01"), "tag-url")));
   await page.locator(".scan-pad.success").waitFor({ state: "visible" });
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, "nfc-success-320.png"), fullPage: true });
   await page.click("#clearScanResult");
-  await page.click('button[data-nfc-token]');
+  await page.evaluate(() => nfcAdapter.scan(createNfcClaim(mockNfcTokenForTagId("NFC-G1-01"), "tag-url")));
   await page.locator(".scan-pad.duplicate").waitFor({ state: "visible" });
   await page.click('button[data-route="stamps"]');
   const earnedPassRows = await page.locator(".pass-row.earned").count();
@@ -154,6 +184,13 @@ async function run() {
   await page.locator(".admin-screen").waitFor({ state: "visible" });
   const adminCopy = await page.locator(".admin-screen").innerText();
   if (adminCopy.includes("리뷰") || adminCopy.includes("음료 교환")) throw new Error("legacy P1 copy is exposed in the P0 admin screen");
+  await page.click('button[data-route="scan"]');
+  await page.locator(".nfc-test-panel").waitFor({ state: "visible" });
+  const adminMockToolCount = await page.locator('[data-nfc-source="mock-panel"]').count();
+  if (adminMockToolCount !== 2) throw new Error(`admin mock NFC tool count is ${adminMockToolCount}`);
+  await page.click('button[data-route="profile"]');
+  await page.click('button[data-route="admin"]');
+  await page.locator(".admin-screen").waitFor({ state: "visible" });
 
   await page.click('[data-toggle-menu="admin-tab"]');
   await page.click('[data-admin-tab="booths"]');
