@@ -306,6 +306,8 @@
 .nfc-enabled-setting input { width: 23px; height: 23px; accent-color: var(--primary); flex-shrink: 0; }
 .nfc-save-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px auto; align-items: center; gap: 8px; padding: 12px 0 20px; border-bottom: 1px solid var(--line); }
 .nfc-save-row > span { flex: 1 1 130px; color: var(--muted); font-size: 12px; }
+.server-admin .nfc-save-row { grid-template-columns: minmax(0, 1fr) max-content; }
+.server-admin .nfc-save-row .primary-btn { white-space: nowrap; }
 .design-ver2 .nfc-save-row .primary-btn { width: auto; min-height: 44px; padding: 10px 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .nfc-manager button:disabled { opacity: .45; cursor: default; }
 .nfc-section-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; margin: 18px 0 12px; }

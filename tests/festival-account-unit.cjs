@@ -166,14 +166,49 @@ test('client refuses impossible review and issue requests before calling the ser
   assert.equal((await account.submitReview('글빛누리', 0, '')).code, 'RATING_REQUIRED');
   assert.equal((await account.submitReview('글빛누리', 3, 'x'.repeat(501))).code, 'REVIEW_TOO_LONG');
   assert.equal((await account.submitReview('', 3, '')).code, 'BOOTH_NOT_FOUND');
-  assert.equal((await account.issueTag('글빛누리', 0)).code, 'INVALID_TAG_ISSUE_REQUEST');
-  assert.equal((await account.issueTag('글빛누리', 10081)).code, 'INVALID_TAG_ISSUE_REQUEST');
+  assert.equal((await account.issueTag('')).code, 'BOOTH_NOT_FOUND');
 });
 test('issued tags must carry a real signed token', () => {
-  const issued = { token, boothKey: '글빛누리', expiresAt: '2026-09-11T00:00:00Z', validMinutes: 60 };
+  const issued = { token, boothKey: '글빛누리', expiresAt: null, validMinutes: null };
   assert.equal(validateIssuedTag(issued).token, token);
   assert.throws(() => validateIssuedTag({ ...issued, token: 'NFC-G1-01' }));
   assert.throws(() => validateIssuedTag({ ...issued, validMinutes: 1.5 }));
+  assert.throws(() => validateIssuedTag({ ...issued, expiresAt: undefined }));
+  assert.throws(() => validateIssuedTag({ ...issued, validMinutes: undefined }));
+  assert.throws(() => validateIssuedTag({ ...issued, expiresAt: '2026-10-01T00:00:00Z', validMinutes: 60 }));
+});
+
+test('new issuance explicitly requests no expiry and validates the booth in the response', async () => {
+  const calls = [];
+  const issued = { token, boothKey: '글빛누리', expiresAt: null, validMinutes: null };
+  const { account } = setup(async (name, args) => { calls.push({ name, args }); return { data: issued }; });
+  assert.deepEqual(await account.issueTag('글빛누리'), { ok: true, ...issued });
+  assert.deepEqual(calls, [{ name: 'festival_nfc_admin_issue', args: { p_booth: '글빛누리', p_valid_minutes: null } }]);
+  issued.boothKey = '네온';
+  assert.equal((await account.issueTag('글빛누리')).ok, false);
+});
+
+test('an old server never silently falls back to a finite tag or reports unlimited success', async () => {
+  for (const response of [
+    { error: { message: 'INVALID_TAG_ISSUE_REQUEST' } },
+    { data: { token, boothKey: '글빛누리', expiresAt: '2026-10-01T00:00:00Z', validMinutes: 60 } },
+    { data: { token, boothKey: '글빛누리' } },
+  ]) {
+    let calls = 0;
+    const { account } = setup(async () => { calls++; return response; });
+    const result = await account.issueTag('글빛누리');
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'NFC_PERMANENT_NOT_READY');
+    assert.equal(result.token, undefined);
+    assert.equal(calls, 1);
+  }
+});
+
+test('permanent issuance preserves server authorization failures', async () => {
+  for (const code of ['ADMIN_REQUIRED', 'AUTH_REQUIRED', 'GOOGLE_AUTH_REQUIRED', 'NFC_DISABLED']) {
+    const { account } = setup(async () => ({ error: { message: code } }));
+    assert.equal((await account.issueTag('글빛누리')).code, code);
+  }
 });
 test('a stamp claim never doubles as a review write', async () => {
   const seen = [];

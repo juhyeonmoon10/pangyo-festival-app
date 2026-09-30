@@ -62,7 +62,8 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
         if (pathname === '/rest/v1/rpc/festival_nfc_admin_issue') {
           const { p_booth: booth, p_valid_minutes: minutes } = req.postDataJSON();
           if (!admin) return route.fulfill({ status: 403, json: { message: 'ADMIN_REQUIRED' } });
-          return route.fulfill({ json: { token: token('issued'), boothKey: booth, issuedAt: '2026-09-11T00:00:00.000Z', expiresAt: '2026-09-11T04:00:00.000Z', validMinutes: minutes } });
+          assert.equal(minutes, null);
+          return route.fulfill({ json: { token: token('issued'), boothKey: booth, issuedAt: '2026-09-30T00:00:00.000Z', expiresAt: null, validMinutes: null } });
         }
         if (pathname === '/auth/v1/logout') return route.fulfill({ status: 204 });
         throw Error(`Unexpected server request ${pathname}`);
@@ -144,7 +145,7 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
       await page.evaluate(() => navigateTo('admin'));
       await page.waitForSelector('#serverAdminForm');
       await page.locator('#serverAdminBooth').selectOption(visited);
-      await page.locator('#serverAdminMinutes').selectOption('240');
+      assert.equal(await page.locator('#serverAdminMinutes').count(), 0);
       await page.locator('#serverAdminIssue').click();
       await page.waitForSelector('#serverAdminUrl');
       const issued = await page.locator('#serverAdminUrl').inputValue();

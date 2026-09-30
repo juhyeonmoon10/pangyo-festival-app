@@ -21,12 +21,14 @@
     REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
     BOOTH_NOT_FOUND: "부스 정보를 확인할 수 없어요. 운영자에게 문의해 주세요.",
     ADMIN_REQUIRED: "운영자 계정만 사용할 수 있는 기능입니다.",
-    INVALID_TAG_ISSUE_REQUEST: "발급 조건을 확인해 주세요. 유효 기간은 1분에서 7일 사이입니다.",
+    INVALID_TAG_ISSUE_REQUEST: "발급할 부스 정보를 확인해 주세요.",
+    NFC_PERMANENT_NOT_READY: "무기한 태그 발급을 위한 서버 업데이트가 필요합니다.",
     SERVER_NOT_READY: "아직 이용할 수 없는 기능이에요. 운영자에게 문의해 주세요.",
   };
 
   function normalizeError(error) {
-    const known = Object.keys(MESSAGES).find(code => String(error?.message || "").includes(code));
+    const codes = String(error?.message || "").match(/[A-Z][A-Z0-9_]+/g) || [];
+    const known = Object.keys(MESSAGES).find(code => codes.includes(code));
     // PGRST202 is PostgREST's "function is not in the schema cache": the install SQL has not
     // been applied yet. Reporting that as a network problem sends people chasing the wrong fix.
     const missing = error?.code === "PGRST202" || /schema cache/i.test(String(error?.message || ""));
@@ -71,8 +73,9 @@
 
   function validateIssuedTag(value) {
     if (!value || !TOKEN_PATTERN.test(String(value.token || "")) || value.token.length > 1024
-      || typeof value.boothKey !== "string" || typeof value.expiresAt !== "string"
-      || !Number.isInteger(value.validMinutes)) throw new Error("INVALID_ISSUE_RESPONSE");
+      || typeof value.boothKey !== "string" || !value.boothKey.trim()) throw new Error("INVALID_ISSUE_RESPONSE");
+    // Missing lifetime fields are not proof that the server issued a permanent tag.
+    if (value.expiresAt !== null || value.validMinutes !== null) throw new Error("NFC_PERMANENT_NOT_READY");
     return { token: value.token, boothKey: value.boothKey, expiresAt: value.expiresAt, validMinutes: value.validMinutes };
   }
 
@@ -248,17 +251,20 @@
     }
 
     // Operator-only. The server re-checks the caller's admin flag; this never grants access.
-    async function issueTag(booth, validMinutes) {
+    async function issueTag(booth) {
       const key = boothKey(booth);
       if (!key) return { ok: false, ...normalizeError({ message: "BOOTH_NOT_FOUND" }) };
-      if (!Number.isInteger(validMinutes) || validMinutes < 1 || validMinutes > 7 * 24 * 60) {
-        return { ok: false, ...normalizeError({ message: "INVALID_TAG_ISSUE_REQUEST" }) };
-      }
       try {
         const { data, error } = await client.rpc("festival_nfc_admin_issue",
-          { p_booth: key, p_valid_minutes: validMinutes });
-        if (error) return { ok: false, ...normalizeError(error) };
-        return { ok: true, ...validateIssuedTag(data) };
+          { p_booth: key, p_valid_minutes: null });
+        if (error) {
+          const failure = normalizeError(error);
+          return { ok: false, ...(failure.code === "INVALID_TAG_ISSUE_REQUEST"
+            ? normalizeError({ message: "NFC_PERMANENT_NOT_READY" }) : failure) };
+        }
+        const issued = validateIssuedTag(data);
+        if (issued.boothKey !== key) throw new Error("INVALID_ISSUE_RESPONSE");
+        return { ok: true, ...issued };
       } catch (error) { return { ok: false, ...normalizeError(error) }; }
     }
 

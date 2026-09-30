@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'" />
+  <base href="../" />
+  <title>NFC permanent tag isolated preview</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="ui-ver2.css" />
+  <link rel="stylesheet" href="web-redesign.css" />
+</head>
+<body class="design-ver2 design-web">
+  <div id="app" class="app-shell"></div>
+  <script src="supabase-catalog.js"></script>
+  <script>
+    // Synthetic accounts and responses only; CSP blocks every external request.
+    window.FestivalCatalog = { ...window.FestivalCatalog, createClient: () => ({
+      getSnapshot: () => ({ status: 'ready', rows: [], updatedAt: Date.now() }),
+      forClub: () => null, subscribe() {}, refresh() {},
+    }) };
+    const fixtureFailure = new URL(location.href).searchParams.has('old-server');
+    const fixtureProfile = { id: 1, authUserId: 'fixture-admin', name: '테스트 운영자', email: 'admin@example.invalid',
+      studentNumber: '21001', needsProfile: false, isAdmin: true, completedBooths: [] };
+    window.supabase = { createClient: () => ({
+      auth: { onAuthStateChange() {}, getSession: async () => ({ data: { session: { user: { id: fixtureProfile.authUserId } } } }) },
+      rpc: async (method, args) => {
+        if (method === 'festival_nfc_profile') return { data: fixtureProfile };
+        if (method === 'festival_my_reviews') return { data: [] };
+        if (method === 'festival_nfc_admin_issue') {
+          if (args.p_valid_minutes !== null) throw Error('Expected explicit permanent request');
+          if (fixtureFailure) return { error: { message: 'INVALID_TAG_ISSUE_REQUEST' } };
+          return { data: { token: `nf1.e30.${'a'.repeat(64)}`, boothKey: args.p_booth, expiresAt: null, validMinutes: null } };
+        }
+        throw Error('Unexpected fixture RPC');
+      },
+    }) };
+  </script>
+  <script src="festival-account.js"></script>
+  <script src="assets/vendor/ui-icons.js"></script>
+  <script src="nfc-manager.js"></script>
+  <script src="assets/vendor/qrcode-1.4.4.js"></script>
+  <script src="programs.js"></script>
+  <script src="web-experience.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Only the output origin is mocked so localhost can exercise the UI. No real tag is created.
+    festivalWeb.webTagUrl = token => `https://fixture.invalid/#t=${token}`;
+  </script>
+</body>
+</html>

@@ -13,7 +13,7 @@ let serverCompletedBooths = [];
 // Server-mode caches. Keys are DB booth enum values, never local booth ids.
 let serverMyReviews = null;
 const serverReviews = new Map();
-const serverAdmin = { busy: false, boothId: null, minutes: 240, result: null };
+const serverAdmin = { busy: false, boothId: null, result: null };
 const MOCK_NFC_TOKEN_PREFIX = "mock-v1.";
 const ADMIN_ONLY_NFC_SOURCES = new Set(["mock-panel", "detail-shortcut", "detail-action"]);
 const CLUB_CATALOG_VERSION = 1;
@@ -2043,7 +2043,6 @@ function stampView() {
   `;
 }
 
-const TAG_DURATIONS = [[30, "30분"], [60, "1시간"], [240, "4시간"], [720, "12시간"], [1440, "1일"], [4320, "3일"], [10080, "7일"]];
 
 // Operator screen for the real server. The DB re-checks the admin flag on every issue call.
 function serverAdminView() {
@@ -2067,12 +2066,6 @@ function serverAdminView() {
               ${booths.map(booth => `<option value="${escapeHtml(booth.id)}" ${selected?.id === booth.id ? "selected" : ""}>${escapeHtml(catalogBooth(booth)?.name || booth.name)} · ${escapeHtml(booth.location)}</option>`).join("")}
             </select>
           </label>
-          <label class="field" for="serverAdminMinutes">유효 기간
-            <select class="select" id="serverAdminMinutes">
-              ${TAG_DURATIONS.map(([value, label]) => `<option value="${value}" ${serverAdmin.minutes === value ? "selected" : ""}>${label}</option>`).join("")}
-            </select>
-          </label>
-          <p class="nfc-field-note">기간이 지나면 카드를 다시 기록해야 합니다. 행사 당일에는 짧게 잡는 편이 안전합니다.</p>
           <div class="nfc-save-row">
             <span id="serverAdminStatus" role="status">${serverAdmin.busy ? "발급하는 중이에요" : "발급 준비됨"}</span>
             <button type="submit" class="primary-btn" id="serverAdminIssue" ${serverAdmin.busy ? "disabled" : ""}>${icon("scan")} 태그 발급</button>
@@ -2569,7 +2562,6 @@ function bindEvents() {
     runActionOnce("server-admin-issue", issueServerTag);
   });
   document.querySelector("#serverAdminBooth")?.addEventListener("change", (event) => { serverAdmin.boothId = event.target.value; });
-  document.querySelector("#serverAdminMinutes")?.addEventListener("change", (event) => { serverAdmin.minutes = Number(event.target.value); });
   document.querySelector('[data-server-admin="copy"]')?.addEventListener("click", copyServerTagUrl);
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
@@ -2876,7 +2868,7 @@ async function resetLogin() {
     serverCompletedBooths = [];
     serverMyReviews = null;
     serverReviews.clear();
-    Object.assign(serverAdmin, { busy: false, boothId: null, minutes: 240, result: null });
+    Object.assign(serverAdmin, { busy: false, boothId: null, result: null });
     state.pendingNfcClaim = null;
   }
   state.user = null;
@@ -3379,11 +3371,9 @@ async function issueServerTag() {
     render(); return;
   }
   const boothId = document.querySelector("#serverAdminBooth")?.value || serverAdmin.boothId;
-  const minutes = Number(document.querySelector("#serverAdminMinutes")?.value || serverAdmin.minutes);
   const booth = state.db.booths.find(item => item.id === boothId);
   const key = boothKeyFor(booth);
   serverAdmin.boothId = boothId;
-  serverAdmin.minutes = Number.isInteger(minutes) ? minutes : 240;
   if (!key) {
     serverAdmin.result = { tone: "error", title: "발급할 수 없습니다", body: "서버 카탈로그에 연결된 부스가 아닙니다." };
     render();
@@ -3393,14 +3383,14 @@ async function issueServerTag() {
   serverAdmin.busy = true;
   serverAdmin.result = null;
   render();
-  const response = await festivalAccount.issueTag(key, serverAdmin.minutes);
+  const response = await festivalAccount.issueTag(key);
   serverAdmin.busy = false;
   if (state.user?.id !== actingUser || !isAdminUser()) return;
   serverAdmin.result = response.ok
     ? {
       tone: "success",
       title: `${catalogBooth(booth)?.name || booth.name} 태그를 발급했습니다`,
-      body: `${new Date(response.expiresAt).toLocaleString("ko-KR")}까지 사용할 수 있습니다. 카드에 기록한 뒤 다시 읽어 주소가 온전한지 확인하세요.`,
+      body: "유효기한 없이 발급했습니다. 카드에 기록한 뒤 다시 읽어 주소가 온전한지 확인하세요.",
       // Kept in memory only: the signed token is never written to storage or logs.
       url: festivalWeb.webTagUrl(response.token),
     }
