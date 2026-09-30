@@ -93,8 +93,11 @@
       } },
     });
     const inFlight = new Map();
+    let actorId = null;
+    const operations = globalThis.FestivalOperations?.create({ rpc: (name,args) => client.rpc(name,args), storage, actor: () => actorId });
     let initializing = true;
     client.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" || event === "SIGNED_IN") actorId = null;
       if (!initializing && ["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
         setTimeout(() => onChange(event), 0);
       }
@@ -103,7 +106,9 @@
     async function readProfile() {
       const { data, error } = await client.rpc("festival_nfc_profile");
       if (error) throw error;
-      return validateProfile(data);
+      const validated = validateProfile(data);
+      actorId = validated.authUserId;
+      return validated;
     }
 
     async function profile() {
@@ -194,7 +199,9 @@
       if (inFlight.has(token)) return inFlight.get(token);
       const request = Promise.resolve().then(async () => {
         try {
-          const { data, error } = await client.rpc("festival_nfc_claim", { p_token: token });
+          const op = operations && await operations.write('claim', { token });
+          if (op && !op.ok) return op;
+          const { data, error } = op || await client.rpc("festival_nfc_claim", { p_token: token });
           if (error) return { ok: false, ...normalizeError(error) };
           if (!data || !["EARNED", "ALREADY_EARNED"].includes(data.result) || typeof data.boothKey !== "string"
             || !Array.isArray(data.completedBooths) || data.completedBooths.some(id => typeof id !== "string")
@@ -216,7 +223,9 @@
       const key = boothKey(booth);
       if (!key) return { ok: false, ...normalizeError({ message: "BOOTH_NOT_FOUND" }) };
       try {
-        const { data, error } = await client.rpc("festival_booth_reviews", { p_booth: key });
+        const op = operations && await operations.read('reviews', { booth: key });
+        if (op && !op.ok) return op;
+        const { data, error } = op && op.data.ready !== false ? op : await client.rpc("festival_booth_reviews", { p_booth: key });
         if (error) return { ok: false, ...normalizeError(error) };
         return { ok: true, ...validateReviews(data) };
       } catch (error) { return { ok: false, ...normalizeError(error) }; }
@@ -224,6 +233,11 @@
 
     async function myReviews() {
       try {
+        if (operations) {
+          const response = await operations.read('me');
+          if (!response.ok) return response;
+          if (response.data.ready) return { ok: true, boothKeys: (response.data.reviews || []).map(r => r.booth_key) };
+        }
         const { data, error } = await client.rpc("festival_my_reviews");
         if (error) return { ok: false, ...normalizeError(error) };
         if (!Array.isArray(data) || data.length > 500 || data.some(id => typeof id !== "string")) {
@@ -242,7 +256,9 @@
       const text = String(content ?? "").trim();
       if (text.length > 500) return { ok: false, ...normalizeError({ message: "REVIEW_TOO_LONG" }) };
       try {
-        const { data, error } = await client.rpc("festival_review_submit",
+        const op = operations && await operations.write('review_save', { booth: key, rating, content: text });
+        if (op && !op.ok) return op;
+        const { data, error } = op || await client.rpc("festival_review_submit",
           { p_booth: key, p_rating: rating, p_content: text || null });
         if (error) return { ok: false, ...normalizeError(error) };
         if (data?.result !== "SAVED") throw new Error("INVALID_REVIEW_RESPONSE");
@@ -288,7 +304,7 @@
     }
 
     return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
-      reviews, myReviews, submitReview, issueTag,
+      reviews, myReviews, submitReview, issueTag, operations,
       signOut: () => client.auth.signOut({ scope: "local" }), normalizeError };
   }
   return { createAccount, normalizeError, validateProfile, validateReviews, validateIssuedTag, TOKEN_PATTERN };

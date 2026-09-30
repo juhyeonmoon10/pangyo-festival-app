@@ -7,7 +7,7 @@ const output = path.join(root, '.vercel', 'output');
 const entries = [
   'index.html', 'app.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css',
   'web-experience.js', 'programs.js', 'supabase-catalog.js',
-  'festival-account.js', 'nfc-manager.js',
+  'festival-account.js', 'nfc-manager.js', 'festival-operations.js', 'operations-ui.js', 'operations.css',
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
   'assets/vendor/ui-icons.js', 'assets/vendor/LUCIDE-LICENSE.txt',
   'assets/vendor/qrcode-1.4.4.js',
@@ -42,7 +42,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.2',
+    version: '1.3',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,

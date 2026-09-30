@@ -25,6 +25,8 @@ const festivalWeb = (() => {
   function ownReview(id) {
     if (!state.user) return null;
     if (!isServerMode()) return state.db.reviews.find(r => r.userId === state.user.id && r.boothId === id) || null;
+    const saved = festivalOpsUI.snapshot()?.reviews?.find(r => r.booth_key === boothKeyFor(state.db.booths.find(b => b.id === id)));
+    if (saved) return saved;
     const remote = serverReviewState(id);
     return remote?.reviews?.find(r => r.mine) || (remote?.myRating ? { rating: remote.myRating, unknownContent: true } : null);
   }
@@ -73,9 +75,9 @@ const festivalWeb = (() => {
     saveProgress(value);
   }
 
-  function points() { return isServerMode() ? null : Object.values(progress().points).reduce((a, b) => a + Number(b), 0); }
-  function coupons() { return isServerMode() ? [] : progress().coupons; }
-  function couponState(c) { return c.redeemedAt ? "used" : new Date(c.expiresAt) <= new Date() ? "expired" : "available"; }
+  function points() { return isServerMode() ? festivalOpsUI.snapshot()?.points ?? null : Object.values(progress().points).reduce((a, b) => a + Number(b), 0); }
+  function coupons() { return isServerMode() ? festivalOpsUI.snapshot()?.vouchers || [] : progress().coupons; }
+  function couponState(c) { return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : new Date(c.expiresAt) <= new Date() ? "expired" : "available"; }
   function boothName(booth) { return escapeHtml(catalogBooth(booth)?.name || booth.name); }
 
   function header(title, subtitle = "") {
@@ -118,6 +120,7 @@ const festivalWeb = (() => {
     const earned = completed();
     const pending = waiting();
     const goal = earned.length >= 5 ? 10 : 5;
+    const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
     return `<main class="screen web-page web-stamps">${header("나의 스탬프", "방문하고, 평가하고, 차곡차곡")}
       <section class="web-stamp-summary"><span class="web-kicker">PANGYO STAMP</span><h2>오늘 모은 스탬프 <b>${earned.length}</b></h2><p>${isServerMode() ? "별점까지 등록한 방문 기록이에요." : goal > earned.length ? `다음 체험 바우처까지 ${goal - earned.length}개 남았어요.` : "모든 체험 바우처를 받았어요."}</p>
         <div class="web-stamp-grid">${Array.from({length: Math.max(10, earned.length)}, (_, i) => {
@@ -127,8 +130,9 @@ const festivalWeb = (() => {
         }).join("")}</div>
       </section>
       ${pending.length ? `<section class="web-section"><div class="section-heading"><h2>날인 대기 <span>${pending.length}</span></h2></div><p class="web-muted">방문 인증은 보관됐어요. 별점을 남기면 날인이 완료돼요.</p>${pending.map(visitRow).join("")}</section>` : ""}
-      <button type="button" class="web-pending voucher-link" data-route="vouchers">${icon("ticket")}<span><strong>내 바우처 확인</strong><small>${isServerMode() ? "쿠폰 서비스 준비 중" : "쿠폰마다 별도의 QR로 확인"}</small></span>${icon("arrow")}</button>
+      <button type="button" class="web-pending voucher-link" data-route="vouchers">${icon("ticket")}<span><strong>내 바우처 확인</strong><small>쿠폰마다 별도의 QR로 확인</small></span>${icon("arrow")}</button>
       <section class="web-section"><div class="section-heading"><h2>완료한 방문</h2><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button></div>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</section>
+      ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
   }
 
@@ -136,7 +140,7 @@ const festivalWeb = (() => {
     const booths = state.db.booths.filter(b => repo.hasStamp(state.user.id, b.id));
     const pending = booths.filter(reviewPending);
     return `<main class="screen web-page">${header("나의 리뷰", "별점은 필수, 글 후기는 선택")}
-      <section class="web-review-benefit">${icon("message")}<div><h2>못 남긴 이야기, 이어서</h2><p>${isServerMode() ? "기존 별점에 추가하는 글은 이 탭에만 임시저장돼요. 탭을 닫으면 사라지며 포인트는 적립되지 않아요." : `글 후기를 처음 등록하면 체험 포인트 ${REVIEW_POINTS}P를 받아요. 부스당 한 번만 지급돼요.`}</p></div></section>
+      <section class="web-review-benefit">${icon("message")}<div><h2>못 남긴 이야기, 이어서</h2><p>${isServerMode() ? `글 후기를 처음 등록하면 ${festivalOpsUI.snapshot()?.event?.review_points || 0}P를 받아요. 부스당 한 번만 지급돼요.` : `글 후기를 처음 등록하면 체험 포인트 ${REVIEW_POINTS}P를 받아요. 부스당 한 번만 지급돼요.`}</p></div></section>
       <section class="web-section"><div class="section-heading"><h2>작성할 후기 <span>${pending.length}</span></h2></div>${pending.length ? pending.map(b => visitRow({boothId: b.id})).join("") : `<div class="web-empty-inline">${icon("check")}<p>${booths.length ? "모든 후기를 남겼어요." : "부스 방문 후 후기를 남길 수 있어요."}</p></div>`}</section>
       <section class="web-section"><div class="section-heading"><h2>남긴 후기</h2></div>${booths.filter(b => !reviewPending(b)).map(b => `<article class="web-written"><header><strong>${boothName(b)}</strong><span>${icon("star")} ${ownReview(b.id).rating}</span></header><p>${escapeHtml(ownReview(b.id).content)}</p></article>`).join("") || `<p class="web-muted">아직 글 후기가 없어요.</p>`}</section>
       ${bottomNav("reviews")}</main>`;
@@ -206,6 +210,7 @@ const festivalWeb = (() => {
   }
 
   function program(booth) {
+    if (isServerMode() && booth.opsRecord?.description) return `<section class="web-program section"><h2>프로그램 안내</h2><p>${escapeHtml(booth.opsRecord.description)}</p></section>`;
     const p = (!isServerMode() && booth.program) || window.FestivalPrograms?.[booth.officialClubId || booth.id];
     return `<section class="web-program section"><div class="section-heading"><h2>프로그램 안내</h2><span>${p ? "행사 프로그램" : "안내 준비 중"}</span></div>${p ? `<h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.description)}</p><dl>${[["운영 시간", p.hours], ["소요 시간", p.duration], ["참여 방법", p.participation], ["준비물", p.materials]].map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value || "추후 안내")}</dd></div>`).join("")}</dl>` : `<p>이 동아리의 행사 프로그램은 아직 등록되지 않았어요. 확정된 활동과 참여 방법이 이곳에 표시됩니다.</p><dl><div><dt>운영 시간</dt><dd>추후 안내</dd></div><div><dt>참여 방법</dt><dd>현장 운영자에게 문의</dd></div></dl>`}${canUseMockNfcTools() ? programEditor(booth, p) : ""}</section>`;
   }

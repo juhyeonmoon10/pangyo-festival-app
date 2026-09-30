@@ -275,6 +275,7 @@ function canUseMockNfcTools() {
 
 // The DB booth enum value for a local booth, or null for local-only facility rows.
 function boothKeyFor(booth) {
+  if (booth?.opsKey) return booth.opsKey;
   if (!booth?.officialClubId) return null;
   return window.FestivalCatalog.CLUB_IDS[booth.officialClubId] || null;
 }
@@ -711,6 +712,8 @@ const repo = {
     return state.db.stamps.filter((stamp) => stamp.boothId === boothId && stamp.status !== "revoked").length;
   },
   stampsForUser(userId) {
+    if (isServerMode() && festivalOpsUI.snapshot()?.ready) return userId === state.user?.id
+      ? festivalOpsUI.snapshot().visits.map(v => ({ boothId: boothForKey(v.booth_key)?.id, userId, status: "active", method: v.method, createdAt: v.created_at })).filter(v => v.boothId) : [];
     if (isServerMode()) return userId === state.user?.id ? state.db.booths
       .filter(booth => serverCompletedBooths.includes(boothKeyFor(booth)))
       .map(booth => ({ boothId: booth.id, userId, status: "active", method: "nfc", createdAt: null })) : [];
@@ -905,8 +908,11 @@ function createHttpStampGateway() {
 const stampGateway = isServerMode() ? {
   async claimNfc({ nfcToken }) {
     if (!festivalAccount) return nfcFailure("AUTH_REQUIRED", "로그인이 필요합니다.");
+    const actingUser = state.user?.id;
     const result = await festivalAccount.claim(nfcToken);
     if (!result.ok) return result;
+    await festivalOpsUI.refresh(false);
+    if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었어요. 다시 확인해 주세요.");
     serverCompletedBooths = result.completedBooths;
     const booth = state.db.booths.find(item => window.FestivalCatalog.CLUB_IDS[item.officialClubId] === result.boothKey);
     return { ...result, boothId: booth?.id || null, earnedAt: null };
@@ -1105,7 +1111,7 @@ function refreshVisitIndicators() {
 }
 
 function statusInfo(status) {
-  if (isServerMode()) return { label: "상태 미등록", tone: "muted" };
+  if (isServerMode() && (!festivalOpsUI.snapshot()?.ready || status === 'unregistered')) return { label: "상태 미등록", tone: "muted" };
   return BOOTH_STATUS[status] || BOOTH_STATUS.preparing;
 }
 
@@ -1236,6 +1242,7 @@ try { publicCatalogStorage = window.localStorage; } catch { /* Storage is option
 const publicCatalog = window.FestivalCatalog.createClient({ storage: publicCatalogStorage });
 
 function catalogBooth(booth) {
+  if (isServerMode() && booth.opsRecord) return { name: booth.opsRecord.name, position: booth.opsRecord.location, rating: serverReviewState(booth.id)?.average || Number(booth.opsRecord.rating) || 0 };
   return publicCatalog.forClub(booth.officialClubId);
 }
 
@@ -1310,7 +1317,7 @@ function render() {
     if (state.route === "scan") app.innerHTML = scanView();
     if (state.route === "detail") app.innerHTML = detailView();
     if (state.route === "stamps") app.innerHTML = festivalWeb.stamps();
-    if (state.route === "vouchers") app.innerHTML = festivalWeb.vouchers();
+    if (state.route === "vouchers") app.innerHTML = isServerMode() ? festivalOpsUI.vouchers() : festivalWeb.vouchers();
     if (state.route === "reviews") app.innerHTML = festivalWeb.reviews();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
@@ -2014,7 +2021,7 @@ function reviewForm({ enabled, message }) {
       </div>
       <label class="review-field" for="reviewContent">글 후기 <small>선택 · 최대 500자</small></label>
       <textarea id="reviewContent" class="textarea" maxlength="500" placeholder="좋았던 경험을 나눠주세요." ${enabled ? "" : "disabled"}>${escapeHtml(state.reviewDraft)}</textarea>
-      ${isServerMode() ? (own ? `<p class="web-review-hint">기존 별점에 추가하는 글은 이 탭에만 임시저장돼요. 탭을 닫으면 사라지며 포인트는 적립되지 않아요.</p>` : "") : `<p class="web-review-hint">글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번</p>`}
+      ${isServerMode() ? `<p class="web-review-hint">글 후기 최초 등록 시 ${festivalOpsUI.snapshot()?.event?.review_points || 0}P · 부스당 한 번</p>` : `<p class="web-review-hint">글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번</p>`}
       <p class="review-feedback" id="reviewFeedback" role="status" aria-live="polite"></p>
       <button id="submitReview" type="button" class="primary-btn full-action" ${enabled && !state.reviewBusy ? "" : "disabled"}>${state.reviewBusy ? "등록 중..." : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료"}</button>
       ${enabled ? `<button id="saveReviewDraft" class="ghost-btn full-action" type="button">임시저장하고 나중에 쓰기</button>` : ""}
@@ -2076,7 +2083,7 @@ function stampView() {
 
 // Operator screen for the real server. The DB re-checks the admin flag on every issue call.
 function serverAdminView() {
-  const booths = state.db.booths.filter(booth => boothKeyFor(booth));
+  const booths = state.db.booths.filter(booth => booth.officialClubId && boothKeyFor(booth));
   const selected = booths.find(booth => booth.id === serverAdmin.boothId) || booths[0] || null;
   const result = serverAdmin.result;
   return `
@@ -2086,6 +2093,7 @@ function serverAdminView() {
         <div class="top-title"><strong>운영자 도구</strong><span>NFC 태그 발급</span></div>
         <span class="icon-btn" aria-hidden="true"></span>
       </header>
+      ${festivalOpsUI.navigation()}
       <section class="nfc-manager">
         <header class="nfc-manager-heading"><div><h1>NFC 태그 발급</h1><p>부스 카드에 기록할 서명 주소를 만듭니다</p></div><span class="nfc-demo-badge">서버 연결</span></header>
         <p class="nfc-scope-note">발급한 주소는 학생 계정에서 방문 인증에 사용됩니다. 화면을 공유하거나 촬영하지 마세요.</p>
@@ -2123,7 +2131,7 @@ function serverAdminView() {
 function adminView() {
   if (isServerMode()) {
     if (!isAdminUser()) return `<main class="screen"><h1>운영자 전용</h1><p>이 계정에는 운영자 권한이 없습니다. 담당 선생님이나 운영진에게 문의해 주세요.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
-    return serverAdminView();
+    return festivalOpsUI.admin();
   }
   if (!canUseMockNfcTools()) return `<main class="screen"><h1>관리자 접근 제한</h1><p>서버 관리자 기능은 아직 연결되지 않았습니다.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
   const tabs = [
@@ -2609,6 +2617,7 @@ function bindEvents() {
   document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => runActionOnce(`admin:exchange:${button.dataset.exchange}`, () => completeExchange(button.dataset.exchange))));
   nfcManagement.bind();
   festivalWeb.bind();
+  festivalOpsUI.bind();
 }
 
 function closeMenus() {
@@ -3224,11 +3233,6 @@ async function submitReview() {
   const existing = festivalWeb.ownReview(boothId);
   if (existing?.content?.trim()) { setFeedback("이미 글 후기를 남긴 부스예요."); return; }
   if (existing && !content) { setFeedback("별점은 저장되어 있어요. 추가할 글 후기를 입력해 주세요."); return; }
-  if (isServerMode() && repo.hasReview(state.user.id, boothId)) {
-    const saved = festivalWeb.saveDraft();
-    setFeedback(saved ? "추가 후기를 이 탭에 임시저장했어요. 아직 게시되지 않았으며 탭을 닫으면 사라져요." : "추가 후기를 임시저장하지 못했어요. 입력한 글은 그대로 두었어요.", saved ? "info" : "error");
-    return;
-  }
   if (isServerMode()) {
     const booth = state.db.booths.find(item => item.id === boothId);
     const key = boothKeyFor(booth);
@@ -3252,6 +3256,7 @@ async function submitReview() {
     }
     serverReviews.set(key, { ...response, status: "ready" });
     serverMyReviews?.add(key);
+    await festivalOpsUI.refresh(false);
     state.reviewRating = 0;
     state.reviewDraft = "";
     festivalWeb.clearDraft(boothId);
