@@ -209,7 +209,7 @@
 .empty-state h3 { margin: 12px 0 6px; font-size: 16px; color: var(--text); }
 .empty-state p { margin: 0; font-size: 14px; }
 
-/* NFC feedback never replaces the focused input or interrupts map gestures. */
+/* Feedback is mounted separately so closing it preserves the underlying view. */
 .nfc-feedback { position: fixed; z-index: 180; top: calc(12px + env(safe-area-inset-top)); left: max(12px, calc(50% - 224px)); right: max(12px, calc(50% - 224px)); border: 1px solid #c9d9ce; border-left: 4px solid var(--primary); border-radius: 8px; padding: 16px 46px 16px 12px; background: #fff; box-shadow: 0 10px 36px #18352a26; }
 .nfc-feedback.error, .nfc-feedback.blocked { border-left-color: #c75345; }
 .nfc-feedback-content { display: flex; gap: 10px; align-items: start; }
@@ -219,6 +219,25 @@
 .design-ver2 .feedback-close { position: absolute; right: 0; top: 0; border: 0; background: transparent; }
 .feedback-action { display: flex; align-items: center; gap: 8px; margin: 10px 0 -6px 32px; padding: 0 8px 0 0; min-height: 44px; color: var(--primary); background: transparent; font-size: 14px; font-weight: 700; }
 .feedback-action .ui-icon { width: 17px; height: 17px; }
+.nfc-feedback.is-complete { inset: 0; margin: auto; width: min(400px, calc(100% - 32px)); max-width: none; max-height: calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); border: 1px solid var(--line); padding: 32px 24px 24px; color: var(--text); text-align: center; overflow-y: auto; overscroll-behavior: contain; }
+.nfc-feedback.is-complete::backdrop { background: #152c246b; backdrop-filter: blur(4px); }
+body:has(.nfc-feedback.is-complete[open]) { overflow: hidden; }
+.nfc-complete-icon { display: grid; place-items: center; width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 50%; color: var(--primary); background: #e4f3ec; }
+.nfc-complete-icon .ui-icon { width: 44px; height: 44px; stroke-width: 2.5; }
+.nfc-feedback.is-complete h2 { margin: 0; font-size: 24px; line-height: 1.4; overflow-wrap: anywhere; }
+.nfc-feedback.is-complete .nfc-complete-booth { margin: 12px 0 0; color: var(--text); font-size: 17px; font-weight: 700; }
+.nfc-feedback.is-complete p { margin: 10px 0 0; font-size: 15px; line-height: 1.6; }
+.nfc-complete-actions { display: grid; gap: 10px; margin-top: 28px; }
+.design-ver2 .nfc-feedback.is-complete .feedback-close, .nfc-feedback.is-complete .feedback-action { position: static; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin: 0; padding: 12px 16px; border-radius: 8px; font-size: 16px; font-weight: 700; }
+.design-ver2 .nfc-feedback.is-complete .primary-btn { color: #fff; background: var(--primary); border: 1px solid var(--primary); }
+.design-ver2 .nfc-feedback.is-complete .secondary-btn { color: var(--muted); background: #fff; border: 1px solid var(--line); }
+.nfc-feedback.is-complete button:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+@media (max-height: 480px) {
+  .nfc-feedback.is-complete { padding: 20px; }
+  .nfc-complete-icon { width: 56px; height: 56px; margin-bottom: 12px; }
+  .nfc-complete-icon .ui-icon { width: 32px; height: 32px; }
+  .nfc-complete-actions { margin-top: 16px; }
+}
 .review-picker-backdrop { position: fixed; inset: 0; z-index: 160; background: #172d254d; backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: end; }
 .review-picker { width: min(100%, 480px); max-height: 78dvh; background: #fff; border-radius: 8px 8px 0 0; padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
 .review-picker > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }

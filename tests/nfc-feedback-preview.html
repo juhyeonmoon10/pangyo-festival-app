@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'" />
+  <base href="../" />
+  <title>NFC completion isolated preview</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="ui-ver2.css" />
+  <link rel="stylesheet" href="web-redesign.css" />
+</head>
+<body class="design-ver2 design-web">
+  <div id="app" class="app-shell"></div>
+  <script src="supabase-catalog.js"></script>
+  <script>
+    window.FestivalCatalog = { ...window.FestivalCatalog, createClient: () => ({
+      getSnapshot: () => ({ status: 'ready', rows: [] }), forClub: () => null, subscribe() {}, refresh() {},
+    }) };
+    window.FestivalAccount = { createAccount: () => ({
+      initialize: async () => ({ id: 1, authUserId: 'fixture', name: '테스트 학생', email: 'fixture@example.invalid',
+        studentNumber: '21001', needsProfile: false, isAdmin: false, completedBooths: [] }),
+      pending: () => null, myReviews: async () => ({ ok: false }),
+      reviews: async () => ({ ok: false, message: 'Synthetic review data unavailable' }),
+    }) };
+  </script>
+  <script src="assets/vendor/ui-icons.js"></script>
+  <script src="nfc-manager.js"></script>
+  <script src="assets/vendor/qrcode-1.4.4.js"></script>
+  <script src="programs.js"></script>
+  <script src="web-experience.js"></script>
+  <script src="app.js"></script>
+  <aside style="position:fixed;bottom:90px;left:8px;z-index:190;display:flex;gap:4px;flex-wrap:wrap;max-width:300px" aria-label="Fixture controls">
+    <button id="fixtureComplete">인증 완료 표시</button>
+    <button id="fixtureRepeat">연속 인증 표시</button>
+    <button id="fixtureRated">완성 표시</button>
+    <button id="fixtureTyping">입력 보존 확인</button>
+    <output id="fixtureReport"></output>
+  </aside>
+  <script>
+    // Only synthetic UI state is changed. No account, visit, or review is sent anywhere.
+    function fixtureComplete(duplicate = false) {
+      const booth = state.db.booths.find(item => item.officialClubId) || state.db.booths[0];
+      serverCompletedBooths = [boothKeyFor(booth)];
+      state.scanResult = { type: duplicate ? 'duplicate' : 'success', boothId: booth.id,
+        title: '스탬프가 완성됐어요', body: '방문 기록을 보관했어요.' };
+      showNfcFeedback();
+    }
+    document.querySelector('#fixtureComplete').onclick = () => fixtureComplete();
+    document.querySelector('#fixtureRepeat').onclick = () => { fixtureComplete(); fixtureComplete(true); };
+    document.querySelector('#fixtureRated').onclick = () => {
+      const original = repo.hasReview; repo.hasReview = () => true; fixtureComplete(); repo.hasReview = original;
+    };
+    document.querySelector('#fixtureTyping').onclick = () => {
+      state.route = 'map'; state.searchOpen = true; render();
+      const input = document.querySelector('input[type="search"]') || document.querySelector('input');
+      input.focus(); input.value = '1학년 1반'; input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.setSelectionRange(2, 2);
+      fixtureComplete();
+      document.querySelector('#nfcFeedback').addEventListener('close', () => {
+        document.querySelector('#fixtureReport').textContent = JSON.stringify({
+          sameInput: input.isConnected, value: input.value, focused: document.activeElement === input,
+          caret: input.selectionStart,
+        });
+      });
+    };
+  </script>
+</body>
+</html>

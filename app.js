@@ -123,6 +123,7 @@ function initializeNavigation() {
   if (current?.key === HISTORY_KEY) navigationIndex = Number(current.index) || 0;
   writeNavigationHistory("replace");
   window.addEventListener("popstate", (event) => {
+    dismissNfcFeedback();
     const snapshot = event.state;
     if (!snapshot || snapshot.key !== HISTORY_KEY) return;
     navigationIndex = Number(snapshot.index) || 0;
@@ -1026,10 +1027,15 @@ const nfcAdapter = {
   },
 };
 
-let nfcFeedbackTimer;
 function dismissNfcFeedback() {
-  clearTimeout(nfcFeedbackTimer);
-  document.querySelector("#nfcFeedback")?.remove();
+  const node = document.querySelector("#nfcFeedback");
+  const previous = node?.returnFocus;
+  if (node?.open) node.close();
+  node?.remove();
+  if (previous?.element?.isConnected) {
+    previous.element.focus({ preventScroll: true });
+    if (Number.isInteger(previous.start)) previous.element.setSelectionRange(previous.start, previous.end, previous.direction);
+  }
 }
 
 function showNfcFeedback() {
@@ -1038,12 +1044,21 @@ function showNfcFeedback() {
   if (!result || !state.user) return;
   const booth = state.db.booths.find(item => item.id === result.boothId);
   const canReview = booth && ["success", "duplicate"].includes(result.type) && !repo.hasReview(state.user.id, booth.id);
-  const node = document.createElement("aside");
+  const completed = ["success", "duplicate"].includes(result.type);
+  const node = document.createElement(completed ? "dialog" : "aside");
   node.id = "nfcFeedback";
-  node.className = `nfc-feedback ${result.type}`;
-  node.innerHTML = `<div class="nfc-feedback-content" role="status" aria-live="polite"><span class="nfc-feedback-icon">${icon(result.type === "success" ? "check" : result.type === "duplicate" ? "stamp" : "notice")}</span><div><strong>${escapeHtml(result.title)}</strong><p>${escapeHtml(booth?.name || result.body)}</p></div></div>
+  node.className = `nfc-feedback ${result.type}${completed ? " is-complete" : ""}`;
+  node.innerHTML = completed ? `
+    <span class="nfc-complete-icon" aria-hidden="true">${icon("check")}</span>
+    <h2 id="nfcFeedbackTitle">${canReview ? "방문 인증 완료" : escapeHtml(result.title)}</h2>
+    ${booth ? `<p class="nfc-complete-booth">${escapeHtml(booth.name)}</p>` : ""}
+    <p id="nfcFeedbackDescription">${canReview ? `${result.type === "duplicate" ? "이미 인증한 부스예요. " : ""}별점을 남기면 스탬프가 완성돼요.` : escapeHtml(result.body)}</p>
+    <div class="nfc-complete-actions">
+      ${canReview ? `<button type="button" class="primary-btn feedback-action" autofocus>별점 남기기 ${icon("arrow")}</button>` : ""}
+      <button type="button" class="${canReview ? "secondary-btn" : "primary-btn"} feedback-close" ${canReview ? "" : "autofocus"}>${canReview ? "나중에" : "확인"}</button>
+    </div>` : `<div class="nfc-feedback-content" role="status" aria-live="polite"><span class="nfc-feedback-icon">${icon("notice")}</span><div><strong>${escapeHtml(result.title)}</strong><p>${escapeHtml(booth?.name || result.body)}</p></div></div>
     <button type="button" class="icon-btn feedback-close" aria-label="인증 알림 닫기">${icon("close")}</button>
-    ${canReview ? `<button type="button" class="feedback-action">별점 남기기 ${icon("arrow")}</button>` : result.retryable ? `<button type="button" class="feedback-action">다시 시도 ${icon("refresh")}</button>` : ""}`;
+    ${result.retryable ? `<button type="button" class="feedback-action">다시 시도 ${icon("refresh")}</button>` : ""}`;
   node.querySelector(".feedback-close").onclick = dismissNfcFeedback;
   node.querySelector(".feedback-action")?.addEventListener("click", () => {
     dismissNfcFeedback();
@@ -1051,7 +1066,22 @@ function showNfcFeedback() {
     else if (state.pendingNfcClaim) runActionOnce("nfc-claim", () => nfcAdapter.scan(state.pendingNfcClaim));
   });
   document.body.append(node);
-  if (!canReview && !result.retryable && ["success", "duplicate"].includes(result.type)) nfcFeedbackTimer = setTimeout(dismissNfcFeedback, 3000);
+  if (completed) {
+    const element = document.activeElement;
+    node.returnFocus = { element, start: element?.selectionStart, end: element?.selectionEnd, direction: element?.selectionDirection };
+    node.setAttribute("aria-labelledby", "nfcFeedbackTitle");
+    node.setAttribute("aria-describedby", "nfcFeedbackDescription");
+    node.addEventListener("cancel", event => { event.preventDefault(); dismissNfcFeedback(); });
+    node.addEventListener("keydown", event => {
+      if (event.key !== "Tab") return;
+      const buttons = [...node.querySelectorAll("button:not([disabled])")];
+      const first = buttons[0], last = buttons.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    });
+    node.addEventListener("close", () => node.remove());
+    node.showModal();
+  }
 }
 
 function refreshVisitIndicators() {
@@ -3513,10 +3543,13 @@ window.addEventListener("beforeunload", event => {
   if (nfcManagement.hasDrafts()) { event.preventDefault(); event.returnValue = ""; }
 });
 document.addEventListener("keydown", event => {
+  if (document.querySelector("#nfcFeedback")) {
+    if (event.key === "Escape") { event.preventDefault(); dismissNfcFeedback(); }
+    return;
+  }
   const dialog = document.querySelector(".review-picker");
   if (event.key === "Escape") {
     if (dialog) dialog.querySelector("[data-close-reviews]")?.click();
-    else if (document.querySelector("#nfcFeedback")) dismissNfcFeedback();
     else if (state.searchOpen) document.querySelector("#closeSearchScreen")?.click();
   }
   if (!dialog || event.key !== "Tab") return;
