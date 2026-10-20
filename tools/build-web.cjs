@@ -11,6 +11,7 @@ const entries = [
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
   'assets/vendor/ui-icons.js', 'assets/vendor/LUCIDE-LICENSE.txt',
   'assets/vendor/qrcode-1.4.4.js',
+  'assets/festival-school-1.4.webp', 'assets/festival-map-1.4.webp',
 ];
 
 function publicFiles() {
@@ -42,7 +43,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.3',
+    version: '1.4',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,
