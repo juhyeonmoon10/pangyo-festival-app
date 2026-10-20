@@ -1555,7 +1555,11 @@ function profileView() {
         <div><span>행사</span><strong>${state.db.event.name}</strong></div>
         <div><span>방문 기록</span><strong>${stampCount}개</strong></div>
         <div><span>완성한 스탬프</span><strong>${festivalWeb.completed().length}개</strong></div>
+        <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
       </section>
+      <nav class="profile-shortcuts" aria-label="내 축제 메뉴">
+        ${[["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
+      </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 도구 열기"}</button>` : ""}
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
@@ -2331,13 +2335,10 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
+  const current = active === "scan" ? "stamps" : ["profile", "admin", "vouchers", "reviews"].includes(active) ? "profile" : active;
   return `
     <nav class="bottom-nav" aria-label="주요 메뉴">
-      <button class="nav-btn ${active === "home" ? "active" : ""}" data-route="home"><span>${icon("home")}</span><span>홈</span></button>
-      <button class="nav-btn ${active === "map" ? "active" : ""}" data-route="map"><span>${icon("map")}</span><span>부스</span></button>
-      <button class="nav-btn ${active === "stamps" || active === "scan" ? "active" : ""}" data-route="stamps"><span>${icon("stamp")}</span><span>스탬프</span></button>
-      <button class="nav-btn ${active === "vouchers" ? "active" : ""}" data-route="vouchers"><span>${icon("ticket")}</span><span>바우처</span></button>
-      <button class="nav-btn ${active === "reviews" ? "active" : ""}" data-route="reviews"><span>${icon("message")}</span><span>리뷰</span></button>
+      ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}
     </nav>
   `;
 }
