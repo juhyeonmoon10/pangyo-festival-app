@@ -23,8 +23,8 @@ async function setup({ server = false, updateName = async name => ({ ...profile,
     history: { state: null, replaceState() {}, pushState() {} },
     document: { querySelector: selector => selector === '#app' ? app : inputs.get(selector) || null, querySelectorAll: () => [],
       getElementById: () => null, addEventListener() {}, body: {} },
-    addEventListener() {}, setTimeout: () => 0, clearTimeout() {},
-    festivalWeb: { afterRender() {}, bind() {}, completed: () => [], header: () => '', home: () => '' },
+    addEventListener() {}, setTimeout: () => 0, clearTimeout() {}, clearInterval() {}, queueMicrotask,
+    festivalWeb: { afterRender() {}, bind() {}, completed: () => [], points: () => null, header: () => '', home: () => '' },
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({ getSnapshot: () => ({ status: 'idle', rows: [] }),
       forClub: () => null, subscribe() {}, refresh() {} }) },
     FestivalAccount: { normalizeError, createAccount: () => ({ initialize: async () => profile, pending: () => null,
@@ -32,7 +32,7 @@ async function setup({ server = false, updateName = async name => ({ ...profile,
     fetch: () => { throw Error('Unit tests must not contact any server'); },
   });
   context.window = context;
-  for (const file of ['nfc-manager.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+  for (const file of ['nfc-manager.js', 'operations-ui.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   await new Promise(setImmediate);
   const api = vm.runInContext('({state, openNameEditor, cancelNameEditor, saveDisplayName, profileView, profileForm, completeProfile, loadDb, applyServerProfile})', context);
   if (!server) api.state.user = api.state.db.users[0];

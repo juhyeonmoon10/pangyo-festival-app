@@ -43,4 +43,13 @@
 .ops-rule { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid #dce3e0; }
 .ops-rule span { min-width:0; overflow-wrap:anywhere; }
 .ops-rule button { flex-shrink:0; }
+.design-web .ops-nav { padding:12px 0 18px; border-color:var(--line); }
+.design-web .ops-body { padding:20px 0; }
+.design-web .ops-section { border-color:var(--line); }
+.design-web .ops-dialog { border-color:var(--line); border-radius:20px; color:var(--text); }
+.design-web .ops-dialog::backdrop { background:#162a244d; backdrop-filter:blur(5px); }
+.design-web .ops-voucher { border-color:#eee4c8; border-radius:16px; background:#fffcf4; }
+.design-web .ops-voucher>div>.ui-icon { color:#b98200; }
+.design-web .ops-table-wrap th { color:var(--primary-dark); background:#edf7f1; }
+.design-web .ops-checkbox input { accent-color:var(--primary); }
 @media(min-width:700px) { .ops-form { grid-template-columns:1fr 1fr; } .ops-form>button,.ops-form-status { grid-column:1/-1; } }
