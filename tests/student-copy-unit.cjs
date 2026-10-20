@@ -56,6 +56,42 @@ test('profile and login omit storage and connection diagnostics in both modes', 
   }
 });
 
+test('login has one brand heading and retains the original Google action', async () => {
+  const api = await setup();
+  const html = api.loginView();
+  assert.equal((html.match(/<h1\b/g) || []).length, 1);
+  assert.match(html, /class="login-art"/);
+  assert.match(html, /id="googleLogin"/);
+  assert.match(html, /Google 계정으로 계속/);
+  assert.doesNotMatch(html, /auth-step|1단계|2단계|id="adminLogin"|id="switchMode"/);
+});
+
+test('login loading, error and pending NFC states remain accessible', async () => {
+  const api = await setup();
+  api.state.loginBusy = true;
+  api.state.pendingNfcClaim = { token: 'fixture' };
+  api.state.loginError = '<img src=x onerror=alert(1)>';
+  const html = api.loginView();
+  assert.match(html, /aria-busy="true" disabled/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /로그인하면 방문 인증이 이어집니다/);
+});
+
+test('first-login profile stays compact and preserves the student-number action', async () => {
+  const api = await setup();
+  api.state.authStep = 'profile';
+  api.state.pendingGoogle = { displayName: 'Student', email: 'fixture@example.invalid' };
+  const html = api.loginView();
+  assert.match(html, /login-profile/);
+  assert.doesNotMatch(html, /class="login-art"|id="name"|auth-step/);
+  assert.match(html, /id="studentNumber"/);
+  assert.match(html, /id="profileSubmit"/);
+  assert.match(html, /id="backToGoogle"/);
+});
+
 test('student routes do not expose backend implementation notices', async () => {
   const api = await setup();
   for (const html of [api.mapView(), api.detailView(), api.scanView(), api.festivalWeb.home(),

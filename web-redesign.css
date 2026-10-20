@@ -312,10 +312,40 @@
 .design-web .detail-screen .review-section .star { border-radius: 12px; }
 .design-web .review-section .star.on { background: #fff3d5; color: #bd880c; }
 .design-web .web-qr-dialog, .design-web dialog.nfc-feedback { border-radius: 20px; }
-.design-web .login-screen { background: #f7fcf9; }
-.design-web .login-screen .brand-mark { background: var(--primary); border-radius: 18px; box-shadow: none; }
-.design-web .login-screen .panel { padding: 24px 0 0; border: 0; border-top: 1px solid #dce9e1; border-radius: 0; background: transparent; box-shadow: none; }
-.design-web .login-screen .auth-step { color: var(--primary-dark); background: #e5f3eb; }
+.design-web .login-screen { display: flex; flex-direction: column; gap: 0; min-height: 100svh; padding: max(24px, env(safe-area-inset-top)) 24px max(20px, env(safe-area-inset-bottom)); background: #fff; }
+.login-brand { display: flex; align-items: center; gap: 9px; min-height: 32px; color: #557467; font-size: 11px; font-weight: 750; }
+.login-brand .brand-symbol { flex-basis: 28px; width: 28px; height: 28px; border-radius: 7px; font-size: 21px; }
+.login-intro { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; padding: 34px 0 24px; text-align: center; }
+.login-kicker { margin: 0 0 12px; color: #5b7167; font-size: 14px; line-height: 1.5; word-break: keep-all; }
+.login-intro .title { color: #153b2e; font-size: 36px; font-weight: 850; line-height: 1.3; word-break: keep-all; }
+.login-art { display: block; width: calc(100% + 16px); max-width: 400px; height: auto; aspect-ratio: 3 / 2; object-fit: contain; margin: 26px -8px 0; }
+.login-panel { flex: 0 0 auto; width: 100%; padding: 0; }
+.login-panel .auth-card { gap: 12px; }
+.design-web .login-screen .google-btn { display: grid; grid-template-columns: 22px minmax(0, 1fr) 22px; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 14px 18px; border: 1px solid #c9d5ce; border-radius: 8px; box-shadow: 0 2px 3px #153b2e05; background: #fff; color: #223b30; font-size: 15px; font-weight: 650; line-height: 1.5; }
+.login-screen .google-btn::after { content: ""; width: 22px; }
+.login-screen .google-btn:not(:disabled):hover { border-color: #09865e; background: #f3faf6; }
+.login-screen .google-btn:focus-visible { outline: 3px solid #09865e; outline-offset: 4px; }
+.login-screen .google-btn:disabled { opacity: .6; cursor: wait; }
+.google-symbol { display: block; width: 22px; height: 22px; }
+.login-note { margin: 0; color: #67796f; text-align: center; font-size: 12px; line-height: 1.6; }
+.login-footer { margin-top: 28px; color: #79877f; text-align: center; font-size: 10px; line-height: 1.5; }
+.login-panel .success-text { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; border-radius: 8px; color: #096748; font-size: 13px; font-weight: 500; line-height: 1.6; }
+.login-panel .success-text .ui-icon { width: 22px; height: 22px; flex: 0 0 auto; }
+.login-panel .error-text { border-radius: 8px; color: #9f2635; font-weight: 500; }
+.login-profile .login-intro { flex: 0 0 auto; align-items: flex-start; min-height: 0; padding: 40px 0 28px; text-align: left; }
+.login-profile .login-intro .title { font-size: 28px; }
+.login-profile .login-panel { padding-top: 24px; border-top: 1px solid var(--line); }
+.login-profile .login-footer { margin-top: auto; padding-top: 28px; }
+@media (max-width: 359px) {
+  .design-web .login-screen { padding-inline: 20px; }
+  .login-intro .title { font-size: 32px; }
+  .design-web .login-screen .google-btn { padding-inline: 12px; gap: 8px; font-size: 14px; }
+}
+@media (max-height: 650px) {
+  .login-intro { min-height: 0; padding-top: 24px; padding-bottom: 20px; }
+  .login-art { max-width: 260px; margin-top: 16px; }
+  .login-footer { margin-top: 20px; }
+}
 .design-web .nfc-manager-heading h1, .design-web .ops-body > h1 { font-size: 23px; }
 .design-web .nfc-manager .nfc-summary { border-color: var(--line); }
 .design-web .server-admin .nfc-manager { border: 0; box-shadow: none; }
