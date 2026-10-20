@@ -1336,15 +1336,17 @@ function render() {
 function loginView() {
   const profileStep = state.authStep === "profile" && state.pendingGoogle;
   return `
-    <main class="screen login-screen">
-      <div>
-        <div class="brand-mark">P</div>
-        <h1 class="title">판교고 축제<br />스탬프 맵</h1>
-        <p class="subtitle">${isServerMode() ? "Google 계정으로 로그인해 내 방문 기록을 확인하세요." : "앱을 닫으면 사라지는 체험용입니다. 스탬프를 남기려면 Google 로그인을 사용하세요."}</p>
+    <main class="screen login-screen${profileStep ? " login-profile" : ""}">
+      <header class="login-brand"><span class="brand-symbol" aria-hidden="true">P.</span><span>PANGYO FESTIVAL</span></header>
+      <div class="login-intro">
+        <p class="login-kicker">${profileStep ? "만나서 반가워요" : "오늘의 우리, 오래 남을 순간"}</p>
+        <h1 class="title">판교고 축제</h1>
+        ${profileStep ? "" : `<img class="login-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />`}
       </div>
-      <section class="panel">
+      <section class="login-panel" aria-label="${profileStep ? "참가자 정보 확인" : "축제 로그인"}">
         ${profileStep ? profileForm() : googleForm()}
       </section>
+      <footer class="login-footer">PANGYO HIGH SCHOOL</footer>
     </main>
   `;
 }
@@ -1352,12 +1354,13 @@ function loginView() {
 function googleForm() {
   return `
     <div class="auth-card">
-      <div class="auth-step">1단계</div>
-      <h2>${isServerMode() ? "축제 로그인" : "데모 입장"}</h2>
-      <p class="subtitle">${isServerMode() ? "Google 계정 이름을 사용하며, 첫 로그인에 학번만 확인합니다." : "체험 기록은 앱을 닫으면 사라집니다."}</p>
-      ${state.pendingNfcClaim ? `<p class="success-text">NFC 태그 인식됨 · 로그인 후 자동 적립 대기 중</p>` : ""}
-      ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
-      <button id="googleLogin" type="button" class="primary-btn google-btn" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</button>
+      ${state.pendingNfcClaim ? `<p class="success-text" role="status">${icon("stamp")}<span>방문 태그를 읽었어요.<br />로그인하면 방문 인증이 이어집니다.</span></p>` : ""}
+      ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
+      <button id="googleLogin" type="button" class="primary-btn google-btn" aria-busy="${Boolean(state.loginBusy)}" ${state.loginBusy ? "disabled" : ""}>
+        <svg class="google-symbol" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65Z"/><path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.79-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"/></svg>
+        <span>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</span>
+      </button>
+      <p class="login-note">${isServerMode() ? "처음 한 번, 학번만 확인해요." : "체험 기록은 앱을 닫으면 사라집니다."}</p>
       ${isServerMode() ? "" : `<button id="adminLogin" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>관리자 데모로 계속</button>`}
       ${isServerMode() ? "" : `<button id="switchMode" type="button" class="ghost-btn">실제 로그인으로 돌아가기</button>`}
     </div>
@@ -1369,7 +1372,6 @@ function profileForm() {
   const needsName = !isServerMode() || !google.displayName?.trim() || google.displayName.trim().length > 60;
   return `
     <div class="auth-card">
-      <div class="auth-step">2단계</div>
       <h2>${needsName ? "학생 정보 등록" : "학번 확인"}</h2>
       <p class="account-chip">${needsName ? "인증됨" : escapeHtml(google.displayName)} · ${escapeHtml(google.email)}</p>
       ${state.loginError ? `<p class="error-text">${escapeHtml(state.loginError)}</p>` : ""}
