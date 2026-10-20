@@ -90,22 +90,61 @@ const festivalWeb = (() => {
     const count = completed().length;
     const pending = waiting().length;
     const notice = isServerMode() ? null : state.db.announcements[0];
+    const reviewCount = state.db.booths.filter(b => repo.hasReview(state.user.id, b.id)).length;
     return `<main class="web-home">
-      <header class="web-brand"><span class="brand-symbol">P.</span><strong>판교고 축제</strong><span class="web-mode">MY FESTIVAL</span><button type="button" class="icon-btn" data-route="profile" aria-label="내 정보">${icon("user")}</button></header>
-      <section class="web-welcome"><p>${/^\d{5}$/.test(state.user.studentNumber) ? escapeHtml(state.user.studentNumber) : "나의 축제 기록"}</p><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 채워보세요.</h1>
-        <div class="web-my-stats"><button data-route="stamps"><span>스탬프</span><strong data-complete-count>${count}<small>개</small></strong></button><button data-route="vouchers"><span>바우처</span><strong>${coupons().filter(c => couponState(c) === "available").length}<small>장</small></strong></button><button data-route="reviews"><span>${isServerMode() ? "리뷰 포인트" : "체험 포인트"}</span><strong>${points() ?? "—"}<small>P</small></strong></button></div>
+      <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-home-notices aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
+      <section class="web-welcome">
+        <div class="welcome-copy"><h1>${escapeHtml(state.user.name)}님,<br><em>오늘 어디부터</em> 가볼까요?</h1><p>즐기고, 모으고, 기록하는<br>우리의 축제.</p></div>
+        <img class="welcome-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />
       </section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
-      <nav class="web-shortcuts" aria-label="축제 바로가기">
-        ${[["map", "map", "부스 지도", "층별 부스 찾기"], ["stamps", "stamp", "스탬프", "나의 방문 기록"], ["vouchers", "ticket", "바우처", "쿠폰과 QR"], ["reviews", "message", "나의 리뷰", "못 쓴 후기 이어쓰기"]].map(([route, symbol, title, text]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${title}</strong><small>${text}</small>${icon("arrow")}</button>`).join("")}
+      <button type="button" class="web-map-action" data-route="map">
+        <span class="map-action-copy"><small>지금 가장 먼저!</small><strong>부스 찾아보기 ${icon("arrow")}</strong><span>어떤 즐거움이 기다릴까요?</span></span>
+        <img class="map-action-art" src="./assets/festival-map-1.4.webp" width="1536" height="1024" alt="" />
+      </button>
+      <section class="web-section home-quick-section">
+        <div class="section-heading"><h2>빠른 실행</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 보기 ${icon("arrow")}</button></div>
+        <nav class="web-shortcuts" aria-label="축제 바로가기">
+          ${[["stamps", "stamp", "내 스탬프", "차곡차곡 모은 방문 기록"], ["vouchers", "ticket", "바우처 보기", "내가 받은 쿠폰 확인"], ["reviews", "message", "방문한 부스 리뷰 쓰기", "좋았던 순간을 남겨보세요."]].map(([route, symbol, title, text]) => `<button type="button" class="shortcut-${route}" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><span class="shortcut-copy"><strong>${title}</strong><small>${text}</small></span>${icon("arrow")}</button>`).join("")}
       </nav>
-      ${pending ? `<button class="web-pending" data-route="stamps">${icon("star")}<span><strong>별점을 기다리는 방문 ${pending}개</strong><small>별점을 남기면 스탬프가 완성돼요.</small></span>${icon("arrow")}</button>` : ""}
-      <section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
-        ${visits.length ? `<div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>` : `<div class="web-empty-inline">${icon("stamp")}<p>아직 방문한 부스가 없어요.<br><span>첫 번째 축제 기록을 남겨보세요.</span></p></div>`}
       </section>
-      <section class="web-section web-announcement">${icon("notice")}<div><h2>축제 소식</h2><strong>${notice ? escapeHtml(notice.title) : "등록된 공지가 없어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div></section>
+      ${pending ? `<button class="web-pending" data-route="stamps">${icon("star")}<span><strong>별점을 기다리는 방문 ${pending}개</strong><small>별점을 남기면 스탬프가 완성돼요.</small></span>${icon("arrow")}</button>` : ""}
+      <section class="web-section home-stats-section">
+        <div class="section-heading"><h2>나의 축제 현황</h2><button type="button" class="text-link" data-route="profile">MY 페이지 ${icon("arrow")}</button></div>
+        <div class="web-my-stats">
+          <button type="button" data-route="stamps"><span class="stat-symbol stamps">${icon("stamp")}</span><span class="stat-copy"><span>스탬프</span><strong><b data-complete-count>${count}</b><small>개</small></strong></span></button>
+          <button type="button" data-route="vouchers"><span class="stat-symbol vouchers">${icon("ticket")}</span><span class="stat-copy"><span>바우처</span><strong>${coupons().filter(c => couponState(c) === "available").length}<small>장</small></strong></span></button>
+          <button type="button" data-route="reviews"><span class="stat-symbol reviews">${icon("message")}</span><span class="stat-copy"><span>리뷰</span><strong>${reviewCount}<small>개</small></strong></span></button>
+        </div>
+      </section>
+      <section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
+        ${visits.length ? `<div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>` : `<div class="web-empty-inline home-empty"><span class="empty-symbol">${icon("stamp")}</span><p>아직 방문한 부스가 없어요.<br><span>첫 번째 축제 기록을 남겨보세요.</span></p><button type="button" class="text-link" data-route="map">부스 찾아보기 ${icon("arrow")}</button></div>`}
+      </section>
+      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><h2>축제 소식</h2><strong>${notice ? escapeHtml(notice.title) : "등록된 공지가 없어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
+      ${bottomNav("home")}
     </main>`;
+  }
+
+  function showMenu(opener) {
+    if (document.querySelector(".web-menu-dialog")) return;
+    const dialog = document.createElement("dialog");
+    const items = [["map", "map", "부스 지도"], ["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"], ["profile", "user", "내 정보"]];
+    if (isAdminUser()) items.push(["admin", "admin", "운영자 도구"]);
+    dialog.className = "web-menu-dialog";
+    dialog.setAttribute("aria-labelledby", "festivalMenuTitle");
+    dialog.innerHTML = `<header><h2 id="festivalMenuTitle">전체 메뉴</h2><button type="button" class="icon-btn" data-menu-close aria-label="닫기">${icon("close")}</button></header><nav aria-label="전체 메뉴">${items.map(([route, symbol, label]) => `<button type="button" data-menu-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}</nav>`;
+    const close = () => { dialog.close(); dialog.remove(); opener?.focus({ preventScroll: true }); };
+    dialog.querySelector("[data-menu-close]").onclick = close;
+    dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
+    dialog.addEventListener("click", event => { if (event.target === dialog) close(); });
+    dialog.querySelectorAll("[data-menu-route]").forEach(button => button.onclick = () => {
+      const route = button.dataset.menuRoute;
+      close();
+      navigateTo(route);
+    });
+    document.body.append(dialog);
+    dialog.showModal();
   }
 
   function visitRow(visit) {
@@ -312,6 +351,12 @@ const festivalWeb = (() => {
   }
 
   function bind() {
+    document.querySelector("[data-home-menu]")?.addEventListener("click", event => showMenu(event.currentTarget));
+    document.querySelector("[data-home-notices]")?.addEventListener("click", () => {
+      const section = document.querySelector("#homeNews");
+      section?.scrollIntoView({ block: "center", behavior: "instant" });
+      section?.focus({ preventScroll: true });
+    });
     document.querySelectorAll("[data-voucher-filter]").forEach(b => b.onclick = () => { voucherFilter = b.dataset.voucherFilter; render(); });
     document.querySelectorAll("[data-voucher]").forEach(b => b.onclick = () => showVoucher(b.dataset.voucher, b));
     document.querySelector("#webNfcScan")?.addEventListener("click", startScan);

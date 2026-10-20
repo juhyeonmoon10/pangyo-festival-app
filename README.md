@@ -6,7 +6,9 @@
 
 ## 현재 구현
 
-- 홈, 부스, NFC, 축제 패스, 내 정보의 5개 학생 화면
+- 홈, 부스 지도, 스탬프, MY의 4개 하단 탭
+- 홈의 부스 찾기, 빠른 실행, 내 축제 현황, 최근 방문 기록
+- 바우처와 리뷰는 홈 바로가기, 전체 메뉴, MY에서 접근
 - 1~4층 학교 지도와 드래그 가능한 Bottom Sheet
 - 부스 검색, 층 선택, 상세 화면
 - 부스 운영 상태: `preparing`, `open`, `paused`, `closed`
@@ -74,15 +76,15 @@ index.html?nfc=NFC-G1-01
 
 ## 자동 테스트
 
-`tests/map-performance-smoke.cjs`는 다음 흐름을 확인합니다.
+UI 1.4의 회귀 검사는 다음 파일을 사용합니다.
 
-- 320px 가로 넘침
-- 하단 메뉴 5개와 화면 전환
-- 지도 반복 렌더링 성능
-- NFC 샘플 적립과 중복 처리
-- 축제 패스 반영
+- `tests/web-redesign-browser.cjs`: 320/390/430/1024px, 4개 탭, 전체 메뉴, 한글 검색, NFC 완료창, 별점·후기, 바우처, 중복 방지, 긴 이름과 관리자 화면
+- `tests/festival-ui-server-browser.cjs`: 같은 화면 크기의 서버 모드 UI와 운영 메뉴 9개. 모든 외부 응답을 가짜 데이터로 대체하고 쓰기 요청을 금지합니다.
+- `tests/web-build-unit.cjs`: 정적 빌드 의존 파일, UI 이미지 포함, 비공개 파일 제외, NFC 경로
 
-테스트에는 Playwright와 Chrome 경로가 필요합니다.
+2026-10-21 검증: 단위·클라이언트·빌드 검사 73개 통과, 위 두 브라우저 검사 모두 통과. 실제 서버와 실물 NFC 검증을 대신하지 않습니다.
+
+브라우저 검사에는 Playwright와 Chrome이 필요합니다. `CHROME_PATH`로 Chrome 실행 파일을 지정합니다. `web-redesign-browser.cjs`에는 `FESTIVAL_TEST_URL`로 로컬 `index.html`의 `file:///` URL을 전달할 수 있습니다.
 
 ## 저장소 경계
 
