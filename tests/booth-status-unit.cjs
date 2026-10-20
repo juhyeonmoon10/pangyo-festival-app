@@ -21,7 +21,7 @@ function setup({ url = 'https://fixture.invalid/?demo=1', rememberedDemo = false
     history: { state: null, replaceState() {}, pushState() {} },
     document: { querySelector: selector => selector === '#app' ? app : null, querySelectorAll: () => [],
       getElementById: () => null, addEventListener() {}, body: {} },
-    addEventListener() {}, setTimeout: () => 0, clearTimeout() {},
+    addEventListener() {}, setTimeout: () => 0, clearTimeout() {}, clearInterval() {}, queueMicrotask,
     festivalWeb: { afterRender() {}, bind() {} },
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({ getSnapshot: () => ({ status: 'idle', rows: [] }),
       forClub: () => null, subscribe() {}, refresh() {} }) },
@@ -30,7 +30,7 @@ function setup({ url = 'https://fixture.invalid/?demo=1', rememberedDemo = false
   });
   context.window = context;
   if (rememberedDemo) context.localStorage.setItem('festival-demo-mode', '1');
-  for (const file of ['nfc-manager.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+  for (const file of ['nfc-manager.js', 'operations-ui.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   const api = vm.runInContext('({state, seed, BOOTH_STATUS, loadDb, mockStampGateway, mockNfcTokenForTagId, adminPanel, nfcManagement, googleForm, isServerMode})', context);
   api.state.user = api.state.db.users[0];
   return { ...api, local: context.localStorage, session: context.sessionStorage };

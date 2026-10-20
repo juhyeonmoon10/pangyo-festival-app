@@ -24,7 +24,7 @@ async function setup(server = true) {
     history: { state: null, replaceState() {}, pushState() {} },
     document: { querySelector: selector => selector === '#app' ? app : null,
       querySelectorAll: selector => slots.get(selector) || [], getElementById: () => null, addEventListener() {}, body: {} },
-    addEventListener() {}, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+    addEventListener() {}, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, queueMicrotask,
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({
       getSnapshot: () => ({ status: catalog.status, rows: catalog.row ? [catalog.row] : [] }),
       forClub: () => catalog.row, subscribe: callback => { catalog.subscriber = callback; },
@@ -35,7 +35,7 @@ async function setup(server = true) {
     fetch: () => { throw Error('No network in copy tests'); },
   });
   context.window = context;
-  for (const file of ['web-experience.js', 'nfc-manager.js', 'app.js']) {
+  for (const file of ['web-experience.js', 'nfc-manager.js', 'operations-ui.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
   await new Promise(setImmediate);
@@ -82,11 +82,13 @@ test('removing diagnostics does not stop catalog refresh or in-place updates', a
   assert.equal(ratingSlot.textContent, '4.5점 · 이전 정보');
 });
 
-test('unavailable services, provisional locations, and draft limits remain explicit', async () => {
+test('unavailable services, provisional locations, and review rules remain explicit', async () => {
   const api = await setup();
   assert.match(api.detailView(), /실제 부스 위치는 운영 안내를 확인/);
   assert.match(api.festivalWeb.vouchers(), /아직 이용할 수 없어요/);
-  assert.match(api.festivalWeb.reviews(), /탭을 닫으면 사라지며 포인트는 적립되지/);
+  assert.match(api.festivalWeb.reviews(), /별점은 필수, 글 후기는 선택/);
+  assert.match(api.festivalWeb.reviews(), /부스당 한 번만 지급/);
+  assert.doesNotMatch(api.festivalWeb.reviews(), /탭을 닫으면 사라지며 포인트는 적립되지/);
   api.state.loginError = '저장하지 못했어요. 다시 시도해 주세요.';
   assert.match(api.profileView(), /저장하지 못했어요/);
   for (const code of ['AUTH_REQUIRED', 'SERVER_NOT_READY', 'NFC_DISABLED', 'BOOTH_NOT_FOUND', 'NETWORK_ERROR']) {
