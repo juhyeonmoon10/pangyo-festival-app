@@ -56,6 +56,64 @@ test('profile and login omit storage and connection diagnostics in both modes', 
   }
 });
 
+test('login has one brand heading and retains the original Google action', async () => {
+  const api = await setup();
+  const html = api.loginView();
+  assert.equal((html.match(/<h1\b/g) || []).length, 1);
+  assert.match(html, /class="login-art"/);
+  assert.match(html, /class="login-content"/);
+  assert.match(html, /id="googleLogin"/);
+  assert.match(html, /Google 계정으로 계속/);
+  assert.doesNotMatch(html, /처음 한 번, 학번만 확인해요|class="login-note"/);
+  assert.doesNotMatch(html, /auth-step|1단계|2단계|login-footer|id="adminLogin"|id="switchMode"/);
+});
+
+test('explicit demo keeps its temporary-record disclaimer', async () => {
+  const api = await setup(false);
+  assert.match(api.loginView(), /class="login-note">체험 기록은 앱을 닫으면 사라집니다\./);
+});
+
+test('login loading, error and pending NFC states remain accessible', async () => {
+  const api = await setup();
+  api.state.loginBusy = true;
+  api.state.pendingNfcClaim = { token: 'fixture' };
+  api.state.loginError = '<img src=x onerror=alert(1)>';
+  const html = api.loginView();
+  assert.match(html, /aria-busy="true" disabled/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /로그인하면 방문 인증이 이어집니다/);
+});
+
+test('first-login profile stays compact and preserves the student-number action', async () => {
+  const api = await setup();
+  api.state.authStep = 'profile';
+  api.state.pendingGoogle = { displayName: 'Student', email: 'fixture@example.invalid' };
+  const html = api.loginView();
+  assert.match(html, /login-profile/);
+  assert.doesNotMatch(html, /class="login-art"|id="name"|auth-step/);
+  assert.match(html, /id="studentNumber"/);
+  assert.match(html, /id="profileSubmit"/);
+  assert.match(html, /id="backToGoogle"/);
+  assert.match(html, /class="login-account"/);
+  assert.doesNotMatch(html, /account-chip/);
+});
+
+test('profile identity and error feedback remain escaped and announced', async () => {
+  const api = await setup();
+  api.state.authStep = 'profile';
+  api.state.pendingGoogle = { displayName: '<Student>', email: 'student+<layout>@example.invalid' };
+  api.state.loginBusy = true;
+  api.state.loginError = '<Save failed>';
+  const html = api.loginView();
+  assert.match(html, /&lt;Student&gt;/);
+  assert.match(html, /student\+&lt;layout&gt;@example.invalid/);
+  assert.match(html, /role="alert">&lt;Save failed&gt;/);
+  assert.match(html, /id="profileSubmit"[^>]*aria-busy="true" disabled/);
+});
+
 test('student routes do not expose backend implementation notices', async () => {
   const api = await setup();
   for (const html of [api.mapView(), api.detailView(), api.scanView(), api.festivalWeb.home(),
