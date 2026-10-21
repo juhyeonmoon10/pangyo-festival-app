@@ -1357,7 +1357,7 @@ function googleForm() {
       ${state.pendingNfcClaim ? `<p class="success-text" role="status">${icon("stamp")}<span>방문 태그를 읽었어요.<br />로그인하면 방문 인증이 이어집니다.</span></p>` : ""}
       ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn" aria-busy="${Boolean(state.loginBusy)}" ${state.loginBusy ? "disabled" : ""}>
-        <svg class="google-symbol" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65Z"/><path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.79-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"/></svg>
+        ${isServerMode() ? `<svg class="google-symbol" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65Z"/><path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.79-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"/></svg>` : `<span class="google-symbol" aria-hidden="true">${icon("user")}</span>`}
         <span>${state.loginBusy ? "확인 중..." : isServerMode() ? "Google 계정으로 계속" : "학생 데모로 계속"}</span>
       </button>
       <p class="login-note">${isServerMode() ? "처음 한 번, 학번만 확인해요." : "체험 기록은 앱을 닫으면 사라집니다."}</p>
@@ -1533,7 +1533,7 @@ function profileView() {
   const stampCount = repo.stampsForUser(state.user.id).length;
   return `
     <main class="screen p0-page profile-screen">
-      ${festivalWeb.header("내 정보", isServerMode() ? "내 축제 기록" : "체험 중인 축제 기록")}
+      ${festivalWeb.header("내 정보", isServerMode() ? "내 축제 기록" : "체험 중인 축제 기록", true)}
       <section class="profile-card">
         <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>

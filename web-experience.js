@@ -80,8 +80,33 @@ const festivalWeb = (() => {
   function couponState(c) { return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : new Date(c.expiresAt) <= new Date() ? "expired" : "available"; }
   function boothName(booth) { return escapeHtml(catalogBooth(booth)?.name || booth.name); }
 
-  function header(title, subtitle = "") {
-    return `<header class="web-header"><button type="button" class="icon-btn" data-history-back="home" aria-label="뒤로 가기">${icon("back")}</button><div><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ""}</div><button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button></header>`;
+  // Tab roots (stamps, MY) are reached from the bottom nav, so they skip back/home buttons.
+  function header(title, subtitle = "", root = false) {
+    const copy = `<div><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ""}</div>`;
+    if (root) return `<header class="web-header root">${copy}</header>`;
+    return `<header class="web-header"><button type="button" class="icon-btn" data-history-back="home" aria-label="뒤로 가기">${icon("back")}</button>${copy}<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button></header>`;
+  }
+
+  // Demo vouchers drop at 5 and 10 stamps; server rules are operator-set, so no slot is marked there.
+  function rewardSlot(index) { return !isServerMode() && (index === 4 || index === 9); }
+
+  // Five slots toward the next demo voucher.
+  function stampCard(count) {
+    const goal = count >= 5 ? 10 : 5;
+    const slots = Array.from({ length: 5 }, (_, i) => {
+      const n = goal - 5 + i + 1;
+      const state = count >= n ? "on" : n === count + 1 ? "next" : "";
+      return `<span class="punch ${state}">${count >= n ? icon("stamp") : n}${rewardSlot(n - 1) && count < n ? `<i>${icon("ticket")}</i>` : ""}</span>`;
+    }).join("");
+    const text = isServerMode()
+      ? "부스 방문 후 별점까지 남기면 스탬프가 찍혀요."
+      : !count ? "부스의 NFC 태그에 휴대폰을 대고 별점을 남기면 스탬프가 찍혀요."
+        : count >= 10 ? "체험 바우처를 모두 받았어요." : `${goal - count}개 더 모으면 체험 바우처를 받아요.`;
+    return `<section class="home-stamp-card" aria-labelledby="homeStampTitle">
+      <div class="section-heading"><h2 id="homeStampTitle">내 스탬프 <b data-complete-count>${count}</b>개</h2><button type="button" class="text-link" data-route="stamps">스탬프 판 ${icon("arrow")}</button></div>
+      <p>${text}</p>
+      <div class="punch-row" aria-hidden="true">${slots}</div>
+    </section>`;
   }
 
   function home() {
@@ -91,35 +116,30 @@ const festivalWeb = (() => {
     const pending = waiting().length;
     const notice = isServerMode() ? null : state.db.announcements[0];
     const reviewCount = state.db.booths.filter(b => repo.hasReview(state.user.id, b.id)).length;
+    const toWrite = state.db.booths.filter(reviewPending).length;
+    const voucherCount = coupons().filter(c => couponState(c) === "available").length;
     return `<main class="web-home">
       <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-home-notices aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
       <section class="web-welcome">
-        <div class="welcome-copy"><h1>${escapeHtml(state.user.name)}님,<br><em>오늘 어디부터</em> 가볼까요?</h1><p>즐기고, 모으고, 기록하는<br>우리의 축제.</p></div>
+        <div class="welcome-copy"><h1>${escapeHtml(state.user.name)}님,<br>오늘 어디부터 가볼까요?</h1><p>즐기고, 모으고, 기록하는<br>우리의 축제.</p></div>
         <img class="welcome-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />
       </section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       <button type="button" class="web-map-action" data-route="map">
-        <span class="map-action-copy"><small>지금 가장 먼저!</small><strong>부스 찾아보기 ${icon("arrow")}</strong><span>어떤 즐거움이 기다릴까요?</span></span>
+        <span class="map-action-copy"><strong>부스 찾아보기 ${icon("arrow")}</strong><span>층별 지도에서 부스 위치와 운영 상태를 확인해요.</span></span>
         <img class="map-action-art" src="./assets/festival-map-1.4.webp" width="1536" height="1024" alt="" />
       </button>
-      <section class="web-section home-quick-section">
-        <div class="section-heading"><h2>빠른 실행</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 보기 ${icon("arrow")}</button></div>
-        <nav class="web-shortcuts" aria-label="축제 바로가기">
-          ${[["stamps", "stamp", "내 스탬프", "차곡차곡 모은 방문 기록"], ["vouchers", "ticket", "바우처 보기", "내가 받은 쿠폰 확인"], ["reviews", "message", "방문한 부스 리뷰 쓰기", "좋았던 순간을 남겨보세요."]].map(([route, symbol, title, text]) => `<button type="button" class="shortcut-${route}" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><span class="shortcut-copy"><strong>${title}</strong><small>${text}</small></span>${icon("arrow")}</button>`).join("")}
-      </nav>
-      </section>
+      ${stampCard(count)}
       ${pending ? `<button class="web-pending" data-route="stamps">${icon("star")}<span><strong>별점을 기다리는 방문 ${pending}개</strong><small>별점을 남기면 스탬프가 완성돼요.</small></span>${icon("arrow")}</button>` : ""}
-      <section class="web-section home-stats-section">
-        <div class="section-heading"><h2>나의 축제 현황</h2><button type="button" class="text-link" data-route="profile">MY 페이지 ${icon("arrow")}</button></div>
-        <div class="web-my-stats">
-          <button type="button" data-route="stamps"><span class="stat-symbol stamps">${icon("stamp")}</span><span class="stat-copy"><span>스탬프</span><strong><b data-complete-count>${count}</b><small>개</small></strong></span></button>
-          <button type="button" data-route="vouchers"><span class="stat-symbol vouchers">${icon("ticket")}</span><span class="stat-copy"><span>바우처</span><strong>${coupons().filter(c => couponState(c) === "available").length}<small>장</small></strong></span></button>
-          <button type="button" data-route="reviews"><span class="stat-symbol reviews">${icon("message")}</span><span class="stat-copy"><span>리뷰</span><strong>${reviewCount}<small>개</small></strong></span></button>
-        </div>
+      <section class="web-section home-quick-section">
+        <div class="section-heading"><h2>바로가기</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 ${icon("arrow")}</button></div>
+        <nav class="web-shortcuts" aria-label="축제 바로가기">
+          ${[["vouchers", "ticket", "바우처", `사용 가능 ${voucherCount}장`], ["reviews", "message", "리뷰", toWrite ? `작성할 후기 ${toWrite}개` : `남긴 리뷰 ${reviewCount}개`]].map(([route, symbol, title, text]) => `<button type="button" class="shortcut-${route}" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><span class="shortcut-copy"><strong>${title}</strong><small>${text}</small></span>${icon("arrow")}</button>`).join("")}
+        </nav>
       </section>
-      <section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
-        ${visits.length ? `<div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>` : `<div class="web-empty-inline home-empty"><span class="empty-symbol">${icon("stamp")}</span><p>아직 방문한 부스가 없어요.<br><span>첫 번째 축제 기록을 남겨보세요.</span></p><button type="button" class="text-link" data-route="map">부스 찾아보기 ${icon("arrow")}</button></div>`}
-      </section>
+      ${visits.length ? `<section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
+        <div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>
+      </section>` : ""}
       <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><h2>축제 소식</h2><strong>${notice ? escapeHtml(notice.title) : "등록된 공지가 없어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
       ${bottomNav("home")}
@@ -160,12 +180,12 @@ const festivalWeb = (() => {
     const pending = waiting();
     const goal = earned.length >= 5 ? 10 : 5;
     const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
-    return `<main class="screen web-page web-stamps">${header("나의 스탬프", "방문하고, 평가하고, 차곡차곡")}
-      <section class="web-stamp-summary"><span class="web-kicker">PANGYO STAMP</span><h2>오늘 모은 스탬프 <b>${earned.length}</b></h2><p>${isServerMode() ? "별점까지 등록한 방문 기록이에요." : goal > earned.length ? `다음 체험 바우처까지 ${goal - earned.length}개 남았어요.` : "모든 체험 바우처를 받았어요."}</p>
+    return `<main class="screen web-page web-stamps">${header("나의 스탬프", "방문하고, 평가하고, 차곡차곡", true)}
+      <section class="web-stamp-summary"><h2>모은 스탬프 <b>${earned.length}</b>개</h2><p>${isServerMode() ? "별점까지 등록한 방문 기록이에요." : goal > earned.length ? `다음 체험 바우처까지 ${goal - earned.length}개 남았어요.` : "모든 체험 바우처를 받았어요."}</p>
         <div class="web-stamp-grid">${Array.from({length: Math.max(10, earned.length)}, (_, i) => {
           const visit = earned[i];
           const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
-          return booth ? `<button class="web-stamp-cell earned" data-list-select="${booth.id}" aria-label="${boothName(booth)} 날인 완료"><span>${icon("stamp")}</span><small>${boothName(booth)}</small></button>` : `<div class="web-stamp-cell ${i === earned.length ? "next" : ""}"><span>${i === 4 || i === 9 ? icon("ticket") : i + 1}</span><small>${i === 4 || i === 9 ? "바우처" : i === earned.length ? "다음 스탬프" : ""}</small></div>`;
+          return booth ? `<button class="web-stamp-cell earned" data-list-select="${booth.id}" aria-label="${boothName(booth)} 날인 완료"><span>${icon("stamp")}</span><small>${boothName(booth)}</small></button>` : `<div class="web-stamp-cell ${i === earned.length ? "next" : ""} ${rewardSlot(i) ? "reward" : ""}"><span>${i + 1}${rewardSlot(i) ? `<i>${icon("ticket")}</i>` : ""}</span><small>${rewardSlot(i) ? "바우처" : i === earned.length ? "다음 스탬프" : ""}</small></div>`;
         }).join("")}</div>
       </section>
       ${pending.length ? `<section class="web-section"><div class="section-heading"><h2>날인 대기 <span>${pending.length}</span></h2></div><p class="web-muted">방문 인증은 보관됐어요. 별점을 남기면 날인이 완료돼요.</p>${pending.map(visitRow).join("")}</section>` : ""}
