@@ -174,20 +174,53 @@ const festivalWeb = (() => {
     return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span><em class="${rated ? "done" : "pending"}">${rated ? "날인 완료" : "별점 필요"}</em>${icon("arrow")}</button>`;
   }
 
+  // Zigzag stamp path: earned, then visits waiting for a rating, then empty slots.
+  // Demo vouchers sit on the path as chests after the 5th and 10th stamp.
+  const PATH_SWAY = [0, 44, 72, 44, 0, -44, -72, -44];
+  function stampPath(earned, pending) {
+    const filled = earned.length + pending.length;
+    const steps = [];
+    for (let i = 0; i < Math.max(10, filled + 1); i++) {
+      steps.push({ i });
+      if (rewardSlot(i)) steps.push({ chest: i + 1 });
+    }
+    const nodes = steps.map((step, k) => {
+      const sway = `style="--sway:${PATH_SWAY[k % PATH_SWAY.length]}px"`;
+      if (step.chest) {
+        const open = earned.length >= step.chest;
+        return `<li class="path-step chest" ${sway}>${open
+          ? `<button type="button" class="path-node chest open" data-route="vouchers" aria-label="스탬프 ${step.chest}개 바우처 받음, 바우처 보기">${icon("ticket")}</button><small>바우처 받음</small>`
+          : `<span class="path-node chest" role="img" aria-label="스탬프 ${step.chest}개를 모으면 바우처">${icon("ticket")}</span><small>스탬프 ${step.chest}개</small>`}</li>`;
+      }
+      const { i } = step;
+      const visit = i < earned.length ? earned[i] : pending[i - earned.length];
+      const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
+      if (booth && i < earned.length) {
+        return `<li class="path-step" ${sway}><button type="button" class="path-node earned" data-list-select="${booth.id}" aria-label="${i + 1}번째 스탬프, ${boothName(booth)} 날인 완료">${icon("stamp")}</button><small>${boothName(booth)}</small></li>`;
+      }
+      if (booth) {
+        const first = i === earned.length;
+        return `<li class="path-step" ${sway}>${first ? `<span class="path-bubble" aria-hidden="true">별점을 남기면 완성!</span>` : ""}<button type="button" class="path-node rate" data-list-select="${booth.id}" aria-label="${i + 1}번째 스탬프, ${boothName(booth)} 별점 남기기">${icon("star")}</button><small>${boothName(booth)}</small></li>`;
+      }
+      const next = i === filled && !pending.length;
+      return `<li class="path-step" ${sway}>${next ? `<span class="path-bubble" aria-hidden="true">다음 스탬프</span>` : ""}<span class="path-node ${next ? "next" : "locked"}" role="img" aria-label="${i + 1}번째 스탬프, 비어 있음">${i + 1}</span></li>`;
+    }).join("");
+    return `<ol class="stamp-path" aria-label="스탬프 길">${nodes}</ol>`;
+  }
+
   function stamps() {
     syncRewards();
     const earned = completed();
     const pending = waiting();
     const goal = earned.length >= 5 ? 10 : 5;
     const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
+    const tier = Math.min(Math.max(earned.length - (goal - 5), 0), 5);
     return `<main class="screen web-page web-stamps">${header("나의 스탬프", "방문하고, 평가하고, 차곡차곡", true)}
-      <section class="web-stamp-summary"><h2>모은 스탬프 <b>${earned.length}</b>개</h2><p>${isServerMode() ? "별점까지 등록한 방문 기록이에요." : goal > earned.length ? `다음 체험 바우처까지 ${goal - earned.length}개 남았어요.` : "모든 체험 바우처를 받았어요."}</p>
-        <div class="web-stamp-grid">${Array.from({length: Math.max(10, earned.length)}, (_, i) => {
-          const visit = earned[i];
-          const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
-          return booth ? `<button class="web-stamp-cell earned" data-list-select="${booth.id}" aria-label="${boothName(booth)} 날인 완료"><span>${icon("stamp")}</span><small>${boothName(booth)}</small></button>` : `<div class="web-stamp-cell ${i === earned.length ? "next" : ""} ${rewardSlot(i) ? "reward" : ""}"><span>${i + 1}${rewardSlot(i) ? `<i>${icon("ticket")}</i>` : ""}</span><small>${rewardSlot(i) ? "바우처" : i === earned.length ? "다음 스탬프" : ""}</small></div>`;
-        }).join("")}</div>
+      <section class="web-stamp-summary"><h2>모은 스탬프 <b>${earned.length}</b>개</h2>
+        ${isServerMode() ? `<p>별점까지 등록한 방문 기록이에요.</p>` : `<div class="stamp-meter" role="progressbar" aria-label="다음 체험 바우처까지" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${tier}"><span class="stamp-meter-track"><span style="width:${tier * 20}%"></span></span><i aria-hidden="true">${icon("ticket")}</i></div>
+        <p>${goal > earned.length ? `다음 체험 바우처까지 ${goal - earned.length}개 남았어요.` : "모든 체험 바우처를 받았어요."}</p>`}
       </section>
+      ${stampPath(earned, pending)}
       ${pending.length ? `<section class="web-section"><div class="section-heading"><h2>날인 대기 <span>${pending.length}</span></h2></div><p class="web-muted">방문 인증은 보관됐어요. 별점을 남기면 날인이 완료돼요.</p>${pending.map(visitRow).join("")}</section>` : ""}
       <button type="button" class="web-pending voucher-link" data-route="vouchers">${icon("ticket")}<span><strong>내 바우처 확인</strong><small>쿠폰마다 별도의 QR로 확인</small></span>${icon("arrow")}</button>
       <section class="web-section"><div class="section-heading"><h2>완료한 방문</h2><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button></div>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</section>

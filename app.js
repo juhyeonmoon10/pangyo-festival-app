@@ -1723,11 +1723,14 @@ function mapPlanMarkup(plan, booths) {
       if (!booth) return `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms"><span>${item.label}</span></div>`;
       const visited = repo.hasStamp(state.user.id, booth.id);
       const selected = state.selectedBoothId === booth.id;
+      const status = statusInfo(booth.status);
+      // An unregistered server status is neither open nor closed, so it keeps the plain booth fill.
+      const live = status.label === "상태 미등록" ? "state-unknown" : booth.status === "open" ? "state-open" : "state-off";
+      const name = escapeHtml(booth.name);
       return `
-        <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${booth.name}, ${statusInfo(booth.status).label}" title="${booth.name}">
+        <button type="button" class="plan-room ${item.type} booth-room ${booth.category === "class" ? "booth-class" : "booth-info"} ${live} status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${name}, ${status.label}${visited ? ", 방문 완료" : ""}" title="${name}">
           <span>${item.label}</span>
-          <small>${booth.category === "class" ? "부스" : "안내"}</small>
-          <i class="room-state" aria-hidden="true"></i>
+          ${visited ? `<i class="room-stamp" aria-hidden="true">${icon("stamp")}</i>` : ""}
         </button>
       `;
     }).join("")}
@@ -1743,7 +1746,7 @@ function mapCanvasView(booths, plan) {
   const placed = new Set(plan.rooms.map(item => boothForPlanRoom(item, booths)?.id).filter(Boolean));
   const selected = booths.find(booth => booth.id === state.selectedBoothId);
   return `<div class="map-card ${selected ? "has-preview" : ""}" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
-    <div class="map-canvas"><div class="map-grid"></div><div class="school-label">PANGYO HIGH SCHOOL · ${state.floor}층</div>${mapPlanMarkup(plan, booths)}
+    <div class="map-canvas"><div class="map-grid"></div>${mapPlanMarkup(plan, booths)}
       ${booths.filter(booth => !placed.has(booth.id)).map(booth => {
         const position = boothMapPosition(booth);
         return `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${position.x}%;top:${position.y}%" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}" title="${escapeHtml(booth.name)}"><span aria-hidden="true">${icon("map")}</span></button>`;
@@ -1782,9 +1785,10 @@ function mapView() {
           <button type="button" id="resetMapView" aria-label="지도 처음 보기" title="지도 처음 보기">${icon("refresh")}</button>
         </div>
         <div class="map-legend" aria-label="지도 범례">
-          <span><i class="classroom"></i>학급</span>
-          <span><i class="facility"></i>시설</span>
-          <span><i class="visited"></i>방문 완료</span>
+          <span><i class="booth-class"></i>학급 부스</span>
+          <span><i class="booth-info"></i>안내</span>
+          <span><i class="state-off"></i>운영 안 함</span>
+          <span><i class="visited">${icon("stamp")}</i>방문</span>
         </div>
         ${mapCanvasView(booths, plan)}
       </section>
