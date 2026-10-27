@@ -432,69 +432,60 @@
   .punch-row { gap: 6px; }
 }
 
-/* Stamp path: visual progress only; visit order and reward rules stay unchanged. */
-.stamp-path-page { --path-offset: 68px; }
-.stamp-path-page .web-header { padding-bottom: 20px; margin-bottom: 0; }
-.stamp-path-summary { padding: 20px 0 25px; border-top: 1px solid var(--line); }
-.stamp-path-total { display: flex; align-items: center; gap: 12px; }
-.stamp-total-icon { display: grid; place-items: center; flex: 0 0 46px; width: 46px; height: 46px; background: #e9f8df; color: #347b0b; border-radius: 50%; }
-.stamp-total-icon .ui-icon { width: 27px; height: 27px; }
-.stamp-path-total > div > span { display: block; color: #52645a; font-size: 13px; font-weight: 650; }
-.stamp-path-total strong { display: block; color: #25392e; font-size: 32px; font-weight: 800; line-height: 1.2; }
-.stamp-path-total strong small { margin-left: 4px; font-size: 16px; font-weight: 700; }
-.stamp-voucher-shortcut { display: flex; align-items: center; gap: 6px; margin-left: auto; min-height: 48px; padding: 10px 0 10px 10px; color: #805b0c; background: transparent; font-size: 13px; font-weight: 750; }
-.stamp-voucher-shortcut > .ui-icon:first-child { width: 22px; height: 22px; }
-.stamp-voucher-shortcut > .ui-icon:last-child { width: 16px; height: 16px; }
-.stamp-progress-copy { display: flex; justify-content: space-between; gap: 12px; margin: 20px 0 9px; color: #52645a; font-size: 12px; line-height: 1.5; }
-.stamp-progress-copy b { color: #377b14; white-space: nowrap; }
-.stamp-path-progress { display: block; appearance: none; width: 100%; height: 14px; overflow: hidden; border: 0; border-radius: 7px; background: #edf0ed; color: #68c829; }
-.stamp-path-progress::-webkit-progress-bar { background: #edf0ed; border-radius: 7px; }
-.stamp-path-progress::-webkit-progress-value { background: #68c829; border-radius: 7px; box-shadow: inset 0 4px #ffffff38; }
-.stamp-path-progress::-moz-progress-bar { background: #68c829; border-radius: 7px; }
-.stamp-path-chapters { margin-inline: -20px; }
-.stamp-chapter-heading { display: flex; align-items: center; gap: 12px; padding: 19px 20px; background: #eff9e9; border-block: 1px solid #d8eccd; }
-.stamp-chapter-symbol { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border: 2px solid #bdddab; border-radius: 8px; color: #3c7e20; }
-.stamp-chapter-symbol .ui-icon { width: 24px; height: 24px; }
-.stamp-chapter-heading p { margin: 0 0 3px; color: #527a3c; font-size: 12px; font-weight: 650; }
-.stamp-chapter-heading h2 { margin: 0; color: #284a19; font-size: 19px; line-height: 1.4; font-weight: 800; word-break: keep-all; }
-.stamp-chapter-complete { margin-left: auto; color: #3c701d; font-size: 12px; font-weight: 750; white-space: nowrap; }
-.stamp-path-list { list-style: none; padding: 32px 20px 0; margin: 0; }
-.stamp-path-step { position: relative; height: 150px; }
-.stamp-path-stop { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; width: 132px; margin-inline: auto; padding-top: 22px; transform: translateX(calc(var(--step-offset) * var(--path-offset))); }
-.stamp-path-node { display: grid; place-items: center; width: 82px; height: 72px; flex: 0 0 72px; padding: 0; border: 2px solid #dae0dd; border-radius: 50%; background: #edf0ee; color: #84938a; box-shadow: 0 7px 0 #d4dcd6; }
-.stamp-path-face { display: grid; place-items: center; width: 60px; height: 53px; border: 2px solid #ffffff80; border-radius: 50%; }
-.stamp-path-face .ui-icon { width: 31px; height: 31px; stroke-width: 2.6; }
-.stamp-path-step.is-earned .stamp-path-node { background: #72d52f; border-color: #59bb1a; color: #224f08; box-shadow: 0 7px 0 #419b0d; }
-.stamp-path-step.is-current .stamp-path-node { background: #27b5ed; border-color: #149bd4; color: #073e61; box-shadow: 0 7px 0 #087fb5, 0 0 0 7px #e3f5fe; }
-.stamp-path-step.is-current .stamp-path-face .ui-icon { fill: #fff; stroke: #07547a; }
-.stamp-path-step button.stamp-path-node { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
-.stamp-path-step button.stamp-path-node:active { transform: translateY(5px); box-shadow: 0 2px 0 #087fb5; }
-.stamp-path-step.is-earned button.stamp-path-node:active { box-shadow: 0 2px 0 #419b0d; }
-.stamp-path-node:focus-visible, .stamp-path-milestone:focus-visible, .stamp-voucher-shortcut:focus-visible { outline: 3px solid #155e9a; outline-offset: 5px; }
-.stamp-next-label { position: absolute; bottom: calc(100% - 10px); white-space: nowrap; padding: 6px 10px; border: 2px solid #bce6f8; border-bottom-width: 3px; border-radius: 8px; background: #fff; color: #08628c; font-size: 12px; font-weight: 800; line-height: 1.3; }
-.stamp-next-label::after { position: absolute; content: ""; left: calc(50% - 5px); bottom: -7px; width: 8px; height: 8px; background: #fff; border-right: 2px solid #bce6f8; border-bottom: 2px solid #bce6f8; transform: rotate(45deg); }
-.stamp-path-caption { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; width: 100%; margin-top: 14px; min-height: 40px; text-align: center; color: #5b6e61; font-size: 12px; font-weight: 650; line-height: 19px; overflow-wrap: anywhere; }
-.is-earned .stamp-path-caption { color: #3c6a26; }
-.is-current .stamp-path-caption { color: #08628c; font-size: 13px; font-weight: 800; }
-.stamp-path-link { position: absolute; left: calc(50% + var(--step-offset) * var(--path-offset) + var(--link-direction) * 22px); top: 76px; height: 115px; border-left: 6px dotted #e2e9e4; transform: rotate(calc(var(--link-direction) * -27deg)); transform-origin: top; pointer-events: none; }
-.is-earned .stamp-path-link { border-color: #c5e9ae; }
-.stamp-path-milestone { display: flex; align-items: center; gap: 12px; width: calc(100% - 40px); margin: 2px 20px 28px; padding: 18px 0; background: #fff; border-block: 1px solid #eee2bc; text-align: left; color: #816113; }
-.stamp-path-milestone > span { display: grid; place-items: center; width: 48px; height: 45px; flex: 0 0 48px; background: #ffedb1; border: 2px solid #efce62; border-radius: 8px; box-shadow: 0 4px 0 #dcb949; }
-.stamp-path-milestone > span .ui-icon { width: 27px; height: 27px; }
-.stamp-path-milestone strong, .stamp-path-milestone small { display: block; }
-.stamp-path-milestone strong { color: #6d520d; font-size: 14px; line-height: 1.5; }
-.stamp-path-milestone small { color: #7a6c49; font-size: 12px; margin-top: 3px; line-height: 1.5; }
-.stamp-path-milestone > .ui-icon { flex: 0 0 18px; width: 18px; height: 18px; margin-left: auto; }
+/* Scrollable stamp board. DOM order remains chronological on alternating rows. */
+.stamp-path-page { --stamp-row: 154px; }
+.stamp-board-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 26px 0 22px; }
+.stamp-board-header h1 { margin: 0; font-size: 30px; line-height: 1.2; font-weight: 850; color: #171c21; }
+.stamp-path-summary { padding: 0 0 26px; }
+.stamp-voucher-shortcut { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 7px; margin-left: auto; min-height: 44px; padding: 10px 12px; border: 1px solid #d6dbdf; border-radius: 8px; color: #222b30; background: #fff; font-size: 13px; font-weight: 750; line-height: 20px; cursor: pointer; }
+.stamp-voucher-shortcut > .ui-icon { width: 20px; height: 20px; flex: 0 0 20px; }
+.stamp-voucher-shortcut > i { position: absolute; top: -4px; right: -3px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: #05b96d; }
+.stamp-voucher-shortcut:hover { background: #f1f5f3; }
+.stamp-voucher-shortcut:active { background: #e4ece7; }
+.stamp-progress-copy { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin: 0 0 15px; color: #636c70; font-size: 13px; line-height: 1.5; }
+.stamp-progress-copy strong { margin-left: 5px; color: #00965e; font-size: 26px; font-weight: 800; }
+.stamp-progress-copy strong small { margin-left: 2px; font-size: 13px; }
+.stamp-progress-copy > b { color: #273c32; font-size: 12px; font-weight: 650; }
+.stamp-path-progress { display: block; appearance: none; width: 100%; height: 8px; overflow: hidden; border: 0; border-radius: 4px; background: #e9eeec; color: #03b96f; }
+.stamp-path-progress::-webkit-progress-bar { background: #e9eeec; border-radius: 4px; }
+.stamp-path-progress::-webkit-progress-value { background: #03b96f; border-radius: 4px; }
+.stamp-path-progress::-moz-progress-bar { background: #03b96f; border-radius: 4px; }
+.stamp-path-track { margin-inline: -20px; background: #f4f6f8; border-block: 1px solid #edf0f2; }
+.stamp-path-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); list-style: none; padding: 40px 36px 8px; margin: 0; }
+.stamp-path-step { position: relative; height: var(--stamp-row); min-width: 0; }
+.stamp-path-stop { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
+.stamp-path-node { position: relative; display: grid; place-items: center; width: 78px; height: 78px; flex: 0 0 78px; padding: 5px; border: 2px solid #e8ebf0; border-radius: 50%; background: #e1e5eb; color: #7a828f; box-shadow: 0 3px 1px #ccd2db, inset 0 2px 2px #ffffffc9; }
+.stamp-path-face { position: relative; display: grid; place-items: center; width: 100%; height: 100%; border: 1px solid #f9fafc; border-radius: 50%; box-shadow: inset 0 1px 4px #aeb7c535; }
+.stamp-path-face b { font-size: 27px; font-weight: 750; line-height: 1; }
+.stamp-path-face > .ui-icon { width: 30px; height: 30px; stroke-width: 2.4; }
+.stamp-path-face > i { position: absolute; bottom: -7px; right: -7px; display: grid; place-items: center; width: 23px; height: 23px; border: 2px solid #f4f6f8; border-radius: 50%; color: #fff; background: #007e4e; }
+.stamp-path-face > i .ui-icon { width: 13px; height: 13px; stroke-width: 3; }
+.stamp-path-step.is-earned .stamp-path-node { background: #16ce87; border-color: #79e5b8; color: #004e30; box-shadow: 0 3px 1px #05a66a, inset 0 2px 2px #b3f1d7; }
+.stamp-path-step.is-earned .stamp-path-face { border-color: #91edc8; }
+.stamp-path-step.is-current .stamp-path-node { background: #fff; border-color: #04b96e; color: #008e54; box-shadow: 0 3px 1px #afd7c3, 0 0 0 5px #dfefe6; }
+.stamp-path-step.is-reward .stamp-path-node { color: #2a3038; }
+.stamp-path-step.is-reward.is-earned .stamp-path-node { background: #252d35; border-color: #525c65; color: #b2ffce; box-shadow: 0 3px 1px #121a20, inset 0 2px 2px #69727b; }
+.stamp-path-step.is-reward.is-earned .stamp-path-face { border-color: #69747d; }
+.stamp-path-step button.stamp-path-node { cursor: pointer; transition: transform .12s ease; }
+.stamp-path-step button.stamp-path-node:active { transform: translateY(2px); }
+.stamp-path-node:focus-visible, .stamp-voucher-shortcut:focus-visible { outline: 3px solid #287db5; outline-offset: 6px; }
+.stamp-path-link { position: absolute; left: 50%; top: 42px; width: 100%; height: 10px; background: #e7ecef; pointer-events: none; }
+.stamp-path-step.is-reverse .stamp-path-link { left: auto; right: 50%; }
+.stamp-path-link.is-turn { width: calc(50% + 18px); height: calc(var(--stamp-row) + 10px); border: 10px solid #e7ecef; border-left: 0; border-radius: 0 82px 82px 0; background: transparent; }
+.stamp-path-step.is-reverse .stamp-path-link.is-turn { border: 10px solid #e7ecef; border-right: 0; border-radius: 82px 0 0 82px; }
+.stamp-reward-marker { display: grid; place-items: center; min-height: 25px; max-width: 100%; padding: 3px 8px; margin-top: 12px; border-radius: 6px; background: #252d35; color: #fff; font-size: 11px; font-weight: 750; line-height: 17px; white-space: nowrap; }
+.stamp-path-step.is-earned .stamp-reward-marker { color: #b2ffce; }
+.stamp-current-label { margin-top: 12px; color: #008453; font-size: 11px; font-weight: 750; line-height: 20px; }
 .stamp-rating-pending { padding: 18px 0 22px; border-top: 1px solid var(--line); }
 .stamp-rating-pending h2 { display: flex; align-items: center; gap: 6px; color: #8b6415; font-size: 16px; }
 .stamp-rating-pending h2 > .ui-icon { width: 20px; height: 20px; }
 .stamp-rating-pending .web-visit { min-height: 72px; }
 @media (max-width: 359px) {
-  .stamp-path-page { --path-offset: 54px; }
-  .stamp-path-stop { width: 122px; }
-  .stamp-chapter-heading { gap: 9px; }
-  .stamp-chapter-heading h2 { font-size: 17px; }
-  .stamp-path-link { transform: rotate(calc(var(--link-direction) * -23deg)); }
+  .stamp-path-list { padding-inline: 28px; }
+  .stamp-path-node { width: 68px; height: 68px; flex-basis: 68px; }
+  .stamp-path-link { top: 37px; }
+  .stamp-path-face b { font-size: 24px; }
+  .stamp-reward-marker { padding-inline: 6px; font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .stamp-path-step button.stamp-path-node { transition: none; }
@@ -506,3 +497,21 @@
 .review-compose [hidden] { display: none !important; }
 .review-guidance, .review-identity, .review-roster-clubs legend { word-break: keep-all; overflow-wrap: anywhere; }
 .ops-form-status[data-tone="success"] { color: #087e5a; }
+.reward-choice-section { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.reward-choice-section > p { margin: 8px 0 16px; font-size: 14px; color: var(--muted); }
+.reward-choice-section fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.reward-choice-section .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.reward-choice-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+.reward-option { position: relative; min-width: 0; cursor: pointer; }
+.reward-option > input { position: absolute; top: 12px; left: 12px; accent-color: var(--primary); width: 18px; height: 18px; }
+.reward-option > span { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 12px 16px; min-height: 106px; border: 1px solid var(--line); border-radius: 8px; text-align: center; font-size: 14px; word-break: keep-all; overflow-wrap: anywhere; }
+.reward-option svg { color: #ad642b; width: 28px; height: 28px; }
+.reward-option input:checked + span { background: #edf8f2; border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.reward-option input:focus-visible + span { outline: 3px solid #2872b8; outline-offset: 2px; }
+.reward-option:has(input:disabled) { opacity: .6; cursor: default; }
+.reward-choice-note, .reward-choice-status { font-size: 13px; margin: 10px 0; overflow-wrap: anywhere; }
+.reward-choice-status { color: #a62936; }
+.reward-earned-steps { list-style: none; padding: 0; margin: 16px 0 0; }
+.reward-earned-steps li { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 8px; padding: 14px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.reward-earned-steps strong { color: var(--primary); font-size: 12px; }
+.design-web .punch-row { grid-template-columns: repeat(6,minmax(0,1fr)); }

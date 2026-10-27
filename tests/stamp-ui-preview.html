@@ -41,6 +41,7 @@
       const pending = Math.min(3, Math.max(0, Number(params.get('pending') || 0) || 0));
       state.user = { ...state.db.users[0], id: 'stamp-ui-fixture', name: '테스트 학생', role: 'user' };
       state.db.users = [state.user];
+      state.db.reviewIdentities = [{userId:state.user.id,verified:true,realName:'테스트 학생',boothIds:[]}];
       const booths = state.db.booths.slice(0, count + pending);
       if (params.has('long') && booths[0]) booths[0].name = '아주 긴 이름의 동아리와 함께하는 축제 프로그램';
       state.db.stamps = booths.map((b, i) => ({ id: `fixture-${i}`, userId: state.user.id, boothId: b.id,

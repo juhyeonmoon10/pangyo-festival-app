@@ -14,6 +14,10 @@
     OWN_CLUB_REVIEW: '본인 동아리에는 별점과 후기를 남길 수 없어요.',
     REVIEW_IDENTITY_REQUIRED: '운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.',
     REVIEW_POLICY_REQUIRED: '리뷰 작성 가능 여부를 확인하지 못했어요. 다시 시도해 주세요.',
+    REWARD_CHOICE_LOCKED: '이미 선택한 바우처는 바꿀 수 없어요.',
+    REWARD_NOT_READY: '바우처 발급 준비 중이에요.',
+    REWARD_ORDER_REQUIRED: '앞선 바우처부터 선택해 주세요.',
+    REWARD_MIGRATION_REQUIRED: '기존 발급 바우처의 이관 확인이 필요해요.',
     REQUEST_CONFLICT: '이전 요청과 내용이 달라요. 화면을 새로고침해 주세요.',
     POINTS_INSUFFICIENT: '포인트 잔액이 부족해요.', SELF_ADJUSTMENT: '본인 포인트는 직접 조정할 수 없어요.',
     VOUCHER_USED: '이미 사용한 바우처예요.', VOUCHER_EXPIRED: '만료된 바우처예요.', VOUCHER_VOID: '취소된 바우처예요.',
@@ -23,6 +27,9 @@
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
   const writeKinds = new Set(['event_save', 'booth_save', 'claim', 'visit_approve', 'review_save', 'points_adjust', 'rule_save', 'voucher_issue', 'voucher_claim', 'voucher_qr', 'voucher_redeem', 'voucher_void']);
+  readKinds.add('reward_status');
+  writeKinds.add('reward_choose');
+  writeKinds.add('reward_config');
   function error(value) {
     const found = Object.keys(messages).find(key => String(value?.message || '').includes(key));
     const code = found || (value?.code === 'PGRST202' ? 'OPS_NOT_READY' : ['23514','23502','22P02','22007'].includes(value?.code) ? 'INVALID_INPUT' : 'NETWORK_ERROR');
@@ -52,7 +59,7 @@
       const id = actor();
       if (!id) return error(Error('AUTH_REQUIRED'));
       try {
-        const result = await rpc('festival_ops_read', { p_kind: kind, p_query: query });
+        const result = kind === 'reward_status' ? await rpc('festival_reward_read', {}) : await rpc('festival_ops_read', { p_kind: kind, p_query: query });
         if (actor() !== id) return error(Error('AUTH_REQUIRED'));
         if (result.error) return error(result.error);
         return { ok: true, data: validate(result.data) };
@@ -75,7 +82,7 @@
         values[hash] = request;
         persist(id, values);
         try {
-          const result = await rpc('festival_ops_write', { p_action: action, p_payload: body, p_request_id: request });
+          const result = await rpc(action.startsWith('reward_') ? 'festival_reward_write' : 'festival_ops_write', { p_action: action, p_payload: body, p_request_id: request });
           if (actor() !== id) return error(Error('AUTH_REQUIRED'));
           if (result.error) {
             const failure = error(result.error);
