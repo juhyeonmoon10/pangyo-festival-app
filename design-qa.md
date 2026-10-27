@@ -1,3 +1,27 @@
+**Named Review / Club Membership Audit: 2026-10-28**
+
+- Local implementation only; no shared DB access, commit, push, or deployment.
+- An operator-confirmed roster determines review names and excluded club booths.
+  Missing/unverified membership denies writes. Profile aliases are not trusted.
+- Own-club stars and later text additions are blocked. NFC visits remain visible;
+  these excluded visits do not invent reviews, completion credit, or vouchers.
+- New reviews snapshot the verified name; existing anonymous reviews stay anonymous
+  unless their author explicitly submits a new text addition under the named policy.
+  Public reviews contain neither student numbers nor email addresses.
+- Operator flow: Participants > Review identity > select participant > confirmed
+  name and ALL booths for ALL memberships > verification checkbox > reason > save.
+  An empty selection means confirmed no club. New club booths require roster review.
+- Pending approval: `operations-server/review-identity.draft.sql` adds one private
+  roster table, one nullable author column, an admin RPC, and write guards. It blocks
+  legacy `booth_ratings` writes, so team dependency checks are required before rollout.
+  The new client intentionally cannot submit reviews to the old server contract.
+- Synthetic PostgreSQL checks: 18/18, including old-RPC bypass, duplicate requests,
+  membership revocation, cross-event/stale roster edits, and anonymous-history privacy.
+  This is PGlite with auth/Vault shims, not live Supabase or concurrent-session proof.
+- Mobile browser checks: 12/12 at 320/390/430px, covering own-club, allowed, unverified,
+  and admin roster states. External traffic blocked; all fixture saves are in memory.
+- Evidence: `artifacts/review-identity/isolated.json`, `browser.json`, and screenshot PNGs.
+
 **Login UI Audit: 2026-10-21**
 
 Scope: local login and first-login profile only. This is an incremental improvement,

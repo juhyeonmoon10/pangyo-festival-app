@@ -52,7 +52,7 @@ const festivalOpsUI = (() => {
       serverMyReviews=new Set((mine.reviews || []).map(x=>x.booth_key));
       for(const r of mine.reviews || []) {
         const before=serverReviews.get(r.booth_key);
-        if(before) serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:'나',createdAt:r.created_at}]});
+        if(before) serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:r.author_name || '참여자',createdAt:r.created_at}]});
       }
       if(state.route==='admin' && isAdminUser() && tab!=='nfc') {
         if(tab==='catalog') data=a.data;
@@ -113,7 +113,7 @@ const festivalOpsUI = (() => {
     if(!event) return eventForm();
     if(tab==='dashboard') return `<dl class="ops-stats">${[['방문 참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['발급',data?.issued],['사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${eventForm()}`;
     if(tab==='catalog') return boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
-    if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging();
+    if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><form id="reviewRosterLookup" class="ops-form">${select('userId','참여자',(data?.items || []).map(p=>[p.id,`${p.name} (#${p.id})`]),null)}<p role="status"></p><button class="primary-btn" type="submit">명단 확인</button></form></section>`;
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',participant()+select('booth','방문 부스',options(),null)+reason(),'방문 승인')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['부스','booth_key'],['방식','method'],['사유','reason']])+paging();
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['변경','delta'],['사유','reason']])+paging();
     if(tab==='rules') return ruleForm()+table(data?.items,[['이름','title'],['목표','target'],['발급','issued'],['한도','stock'],['활성',r=>r.enabled?'예':'아니오']]);
@@ -138,6 +138,33 @@ const festivalOpsUI = (() => {
       selectedBooth=response.data.booth || selectedBooth; selectedRule=response.data.id && action==='rule_save'?response.data.id:selectedRule;
       await refresh();
     } finally { busy=false; if(form.isConnected) form.querySelector('button[type=submit]').disabled=false; }
+  }
+
+  async function reviewRoster(e) {
+    e.preventDefault();
+    const lookup=e.currentTarget, actor=state.user?.id, userId=Number(lookup.elements.userId.value);
+    if(!Number.isInteger(userId) || !event || !isAdminUser()) return;
+    const response=await festivalAccount.reviewIdentity('get',{eventId:event.id,userId});
+    if(state.user?.id!==actor) return;
+    if(!response.ok) { lookup.querySelector('[role=status]').textContent=response.message; return; }
+    const row=response.data, d=dialog('리뷰 실명·소속 확인'), body=d.querySelector('.ops-dialog-content');
+    body.innerHTML=`<form class="ops-form" id="reviewRosterForm"><p>${h(row.accountName)} (#${userId})</p>${field('realName','확인한 실명',row.realName || '', 'required maxlength="60"')}<fieldset class="review-roster-clubs"><legend>소속 동아리 부스 (모두 선택)</legend>${options().map(([key,name])=>`<label class="ops-checkbox"><input type="checkbox" name="boothKeys" value="${h(key)}" ${row.boothKeys?.includes(key)?'checked':''}>${h(name)}</label>`).join('')}</fieldset><label class="ops-checkbox"><input name="verified" type="checkbox" ${row.verified?'checked':''}>학교 명단으로 이름과 모든 소속을 확인했음 (무소속 포함)</label>${reason()}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit">확인 명단 저장</button></form>`;
+    body.querySelector('form').onsubmit=async ev=>{
+      ev.preventDefault(); const f=ev.currentTarget, button=f.querySelector('button[type=submit]'), note=f.querySelector('[role=status]');
+      if(button.disabled) return;
+      button.disabled=true;
+      note.dataset.tone=''; note.textContent='저장 중...';
+      try {
+        const values=new FormData(f);
+        const result=await festivalAccount.reviewIdentity('save',{eventId:row.eventId,userId,version:row.version,
+          realName:String(values.get('realName')).trim(),boothKeys:values.getAll('boothKeys'),verified:f.elements.verified.checked,reason:String(values.get('reason')).trim()});
+        if(state.user?.id!==actor || !d.isConnected) return;
+        if(!result.ok) { note.textContent=result.message; return; }
+        row.version=result.data.version; serverReviews.clear();
+        note.dataset.tone='success';
+        note.textContent='명단을 저장했어요.';
+      } finally { if(f.isConnected) button.disabled=false; }
+    };
   }
   async function redeem(e) {
     e.preventDefault(); if(busy) return;
@@ -212,6 +239,7 @@ const festivalOpsUI = (() => {
     document.querySelector('#opsSearch')?.addEventListener('submit',e=>{e.preventDefault();search=e.target.elements.search.value;offset=0;refresh();});
     document.querySelectorAll('[data-ops-page]').forEach(b=>b.onclick=()=>{offset=Math.max(0,offset+Number(b.dataset.opsPage));refresh();});
     document.querySelector('#opsRedeem')?.addEventListener('submit',redeem);
+    document.querySelector('#reviewRosterLookup')?.addEventListener('submit',reviewRoster);
     document.querySelector('[data-ops-camera]')?.addEventListener('click',camera);
     document.querySelectorAll('[data-ops-qr]').forEach(b=>b.onclick=()=>qr(b.dataset.opsQr));
     document.querySelectorAll('[data-ops-claim]').forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await api().write('voucher_claim',{ruleId:b.dataset.opsClaim});if(r.ok)await refresh();else{document.querySelector('#opsVoucherStatus').textContent=r.message;b.disabled=false;}});
