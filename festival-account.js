@@ -111,20 +111,38 @@
     });
     const inFlight = new Map();
     let actorId = null;
+    let sessionActorId;
+    let authGeneration = 0;
     const operations = globalThis.FestivalOperations?.create({ rpc: (name,args) => client.rpc(name,args), storage, actor: () => actorId });
     let initializing = true;
-    client.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT" || event === "SIGNED_IN") actorId = null;
+    client.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        actorId = null;
+        sessionActorId = null;
+        authGeneration++;
+      } else if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
+        const nextActorId = typeof session?.user?.id === "string" && session.user.id ? session.user.id : null;
+        if (sessionActorId !== undefined && sessionActorId !== nextActorId) authGeneration++;
+        sessionActorId = nextActorId;
+        // Refocusing a tab can emit SIGNED_IN for the already verified account.
+        // Session identity can invalidate an actor, but only the profile RPC can establish one.
+        if (actorId !== nextActorId) actorId = null;
+      }
       if (!initializing && ["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
         setTimeout(() => onChange(event), 0);
       }
     });
 
     async function readProfile() {
+      const generation = authGeneration;
       const { data, error } = await client.rpc("festival_nfc_profile");
       if (error) throw error;
       const validated = validateProfile(data);
+      if (generation !== authGeneration || (sessionActorId !== undefined && sessionActorId !== validated.authUserId)) {
+        throw new Error("AUTH_REQUIRED");
+      }
       actorId = validated.authUserId;
+      sessionActorId = validated.authUserId;
       return validated;
     }
 

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'">
+  <base href="../"><title>Isolated operator stamp simulator</title>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="ui-ver2.css"><link rel="stylesheet" href="web-redesign.css"><link rel="stylesheet" href="operations.css">
+</head>
+<body class="design-ver2 design-web"><div id="app" class="app-shell"></div>
+<script>
+  for(const key of ['localStorage','sessionStorage']) {
+    const values=new Map(); Object.defineProperty(window,key,{value:{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,String(v)),removeItem:k=>values.delete(k)}});
+  }
+  window.fixtureCalls=[];
+  const fixtureEvent={id:'fixture-event',name:'운영자 테스트 행사',state:'open',review_points:10};
+  const fixtureBooths=['글빛누리','매커니즘','인사이트','패러다임','리켐','인벨릭스','모멘트','네온','아트 캔버스','월드 스코프','티치스트','방송부'].map((name,i)=>({key:`test-${i+1}`,name,status:'open',floor:2,location:`2층 테스트 ${i+1}`}));
+  const fixtureRole=new URL(location.href).searchParams.get('role')==='user'?'user':'admin';
+  window.FestivalCatalog={CLUB_IDS:{},createClient:()=>({getSnapshot:()=>({status:'ready',rows:[]}),forClub:()=>null,subscribe(){},refresh(){}})};
+  window.FestivalAccount={normalizeError:()=>({message:'테스트 오류'}),createAccount:()=>({
+    initialize:async()=>({id:1,authUserId:'fixture-operator',name:'테스트 운영자',email:'fixture@example.invalid',studentNumber:'21001',completedBooths:[],needsProfile:false,isAdmin:fixtureRole==='admin'}),
+    pending:()=>null,myReviews:async()=>({ok:true,boothKeys:[]}),
+    operations:{read:async(kind)=>{
+      fixtureCalls.push({type:'read',kind});
+      if(kind==='catalog')return {ok:true,data:{event:fixtureEvent,items:fixtureBooths}};
+      if(kind==='reward_status')return {ok:true,data:{version:2,eventId:fixtureEvent.id,ready:true,count:0,firstTarget:3,secondTarget:6,issuedCount:0,firstChoice:null,secondIssued:false,canChoose:false,options:[{kind:'photo',title:'포토부스 이용권',available:true},{kind:'food',title:'푸드트럭 교환권',available:true}]}};
+      return {ok:true,data:{ready:true,event:fixtureEvent,items:[],reviews:[],visits:[],vouchers:[],rules:[],points:0}};
+    },write:async()=>{fixtureCalls.push({type:'write'});throw Error('No real writes allowed');}}
+  })};
+</script>
+<script src="assets/vendor/ui-icons.js"></script><script src="assets/vendor/qrcode-1.4.4.js"></script>
+<script src="nfc-manager.js"></script><script src="programs.js"></script><script src="web-experience.js"></script><script src="stamp-simulator.js"></script><script src="operations-ui.js"></script><script src="app.js"></script>
+<script>
+  window.addEventListener('load',()=>{
+    if(!isServerMode()) { state.user={id:'demo-operator',name:'테스트 운영자',role:fixtureRole}; state.db.event.id=fixtureEvent.id; state.adminTab='stamp-simulator'; }
+    navigateTo('admin',{replace:true});
+  });
+</script>
+</body></html>

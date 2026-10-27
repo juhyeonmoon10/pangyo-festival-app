@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, '.vercel', 'output');
 const entries = [
   'index.html', 'app.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css',
-  'web-experience.js', 'programs.js', 'supabase-catalog.js',
+  'web-experience.js', 'stamp-simulator.js', 'programs.js', 'supabase-catalog.js',
   'festival-account.js', 'nfc-manager.js', 'festival-operations.js', 'operations-ui.js', 'operations.css',
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
   'assets/vendor/ui-icons.js', 'assets/vendor/LUCIDE-LICENSE.txt',
