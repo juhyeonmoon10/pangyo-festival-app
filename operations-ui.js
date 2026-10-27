@@ -5,7 +5,7 @@ const festivalOpsUI = (() => {
   let stream=null, cameraTimer=null, qrTimer=null;
   let lastRoute=null;
   let refreshQueued=false, queuedRepaint=false, notice='';
-  const labels={dashboard:'운영 현황',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급'};
+  const labels={dashboard:'운영 현황',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급'};
   const h=value=>escapeHtml(String(value ?? ''));
   const api=()=>festivalAccount?.operations;
   const active=()=>isServerMode() && !!state.user;
@@ -27,7 +27,7 @@ const festivalOpsUI = (() => {
   function selectTab(next) {
     if(!Object.hasOwn(labels,next)) return;
     if(owner!==state.user?.id) reset();
-    tab=next; offset=0; search=''; data=null; failure=''; notice=''; loaded=next==='nfc';
+    tab=next; offset=0; search=''; data=null; failure=''; notice=''; loaded=['nfc','stamp-simulator'].includes(next);
     closeDialog();
     render();
   }
@@ -77,7 +77,7 @@ const festivalOpsUI = (() => {
         const before=serverReviews.get(r.booth_key);
         if(before) serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:r.author_name || '참여자',createdAt:r.created_at}]});
       }
-      if(state.route==='admin' && isAdminUser() && requestedTab!=='nfc') {
+      if(state.route==='admin' && isAdminUser() && !['nfc','stamp-simulator'].includes(requestedTab)) {
         if(requestedTab==='catalog') data=a.data;
         else {
           const r=await api().read(requestedTab,query);
@@ -177,6 +177,7 @@ const festivalOpsUI = (() => {
   }
   function admin() {
     if(tab==='nfc') return serverAdminView();
+    if(tab==='stamp-simulator') return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>운영자 도구</strong></div></header>${navigation()}${typeof festivalStampSimulator==='undefined'?'':festivalStampSimulator.view()}${bottomNav('admin')}</main>`;
     return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>운영자 도구</strong><span>${h(event?.name || '행사 준비')}</span></div></header>${navigation()}<div class="ops-body" aria-busy="${!loaded}"><h1>${labels[tab]}</h1>${notice?`<p class="ops-form-status" data-tone="success" role="status">${h(notice)}</p>`:''}${failure?`<p class="ops-alert" role="alert">${h(failure)}</p>`:''}${!loaded?'<p role="status">불러오는 중...</p>':failure?'':content()}</div>${bottomNav('admin')}</main>`;
   }
   async function save(e) {
@@ -317,5 +318,5 @@ const festivalOpsUI = (() => {
     document.querySelectorAll('[data-ops-claim]').forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await api().write('voucher_claim',{ruleId:b.dataset.opsClaim});if(r.ok)await refresh();else{document.querySelector('#opsVoucherStatus').textContent=r.message;b.disabled=false;}});
     if(!['admin','vouchers'].includes(state.route)) closeDialog();
   }
-  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward};
+  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward,eventId:()=>owner===state.user?.id?event?.id ?? null:null};
 })();

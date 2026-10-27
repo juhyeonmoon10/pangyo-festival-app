@@ -1,5 +1,6 @@
 /* Festival 1.4: shared mint, rose, gold and sky accents across student and operator views. */
 .design-web { --text: #141d2c; --muted: #66727c; --primary: #09865e; --primary-dark: #096748; --line: #e7ecea; --surface-2: #f3f7f5; --soft-shadow: 0 4px 18px #163c2c08; background: #edf2f0; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif; }
+.design-web { --stamp-fill: #e3f4ed; --stamp-edge: #83b8a0; --stamp-idle: #e9eeeb; --stamp-track: #dce6df; --reward-fill: #fff0c9; --reward-ink: #946400; --reward-edge: #e8ca7c; }
 .design-web button { color: inherit; }
 .design-web .primary-btn { color: #fff; }
 .design-web h1, .design-web h2, .design-web h3, .design-web p { overflow-wrap: anywhere; }
@@ -26,12 +27,13 @@
 .map-action-art { flex: 0 0 100px; width: 100px; height: 96px; object-fit: contain; }
 .web-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .web-shortcuts button { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 100px; text-align: left; padding: 14px 12px; border-radius: 16px; }
-.web-shortcuts .shortcut-stamps { background: #fff1f5; }
+.web-shortcuts .shortcut-stamps { background: var(--surface-2); }
 .web-shortcuts .shortcut-vouchers { background: #fff8e8; }
 .web-shortcuts .shortcut-reviews { grid-column: 1 / -1; grid-template-columns: 42px minmax(0, 1fr) 18px; min-height: 82px; background: #eff6ff; padding: 16px; }
 .shortcut-symbol { display: grid; place-items: center; width: 34px; height: 40px; border-radius: 11px; flex: 0 0 auto; }
 .shortcut-symbol.map, .shortcut-symbol.stamps { background: #ffe3ec; color: #d34569; }
 .shortcut-symbol.map { background: #e3f4ed; color: var(--primary); }
+.shortcut-symbol.stamps { background: var(--stamp-fill); color: var(--primary-dark); }
 .shortcut-symbol.vouchers { background: #fff0c9; color: #b98200; }
 .shortcut-symbol.reviews { background: #dceaff; color: #3574d8; }
 .shortcut-symbol.profile, .shortcut-symbol.admin { background: #edf0f4; color: #657383; }
@@ -401,17 +403,18 @@
 .web-welcome .welcome-copy p { grid-column: 1; align-self: center; }
 .web-welcome .welcome-art { position: static; grid-column: 2; grid-row: 2; width: 150px; height: 100px; margin: 2px -14px 0 0; }
 .map-action-copy > span { font-size: 13px; word-break: keep-all; }
-.home-stamp-card { margin-top: 14px; padding: 16px 18px 20px; border: 1px solid #f6e3ea; border-radius: 18px; background: #fff7f9; }
+.home-stamp-card { margin-top: 14px; padding: 16px 18px 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
 .home-stamp-card .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .home-stamp-card h2 { margin: 0; font-size: 19px; }
-.home-stamp-card h2 b { font: inherit; color: #c63b62; }
-.home-stamp-card .text-link { color: #6d5f66; }
-.home-stamp-card > p { margin: 0 0 16px; color: #6d5f66; font-size: 13px; line-height: 1.6; word-break: keep-all; }
+.home-stamp-card h2 b { font: inherit; color: var(--primary-dark); }
+.home-stamp-card .text-link { color: var(--muted); }
+.home-stamp-card > p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6; word-break: keep-all; }
 .punch-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.punch { position: relative; justify-self: center; display: grid; place-items: center; width: 100%; max-width: 54px; aspect-ratio: 1; border: 1px solid #efd5de; border-radius: 50%; background: #fff; color: #74636b; font-size: 15px; font-weight: 650; }
+.punch { position: relative; justify-self: center; display: grid; place-items: center; width: 100%; max-width: 54px; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); font-size: 15px; font-weight: 650; }
 .design-web .web-stamp-cell > span { color: #74636b; }
-.punch.next { border: 1.5px dashed #cb6480; color: #b43a5d; }
-.punch.on { border: 2px solid #e192a3; background: #ffe7ef; color: #d33c66; }
+.punch.next { border: 1.5px solid var(--primary); color: var(--primary-dark); }
+.punch.on { border: 1px solid var(--stamp-edge); background: var(--stamp-fill); color: var(--primary-dark); }
+.punch.on::after { content: ""; position: absolute; inset: 4px; border: 1px dashed var(--stamp-edge); border-radius: 50%; pointer-events: none; }
 .punch.on .ui-icon { width: 24px; height: 24px; }
 .punch i, .web-stamp-cell.reward > span i { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #fff0c9; color: #9a6b00; box-shadow: 0 0 0 2px #fff; }
 .punch i .ui-icon, .web-stamp-cell.reward > span i .ui-icon { width: 14px; height: 14px; }
@@ -432,60 +435,76 @@
   .punch-row { gap: 6px; }
 }
 
-/* Scrollable stamp board. DOM order remains chronological on alternating rows. */
-.stamp-path-page { --stamp-row: 154px; }
-.stamp-board-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 26px 0 22px; }
-.stamp-board-header h1 { margin: 0; font-size: 30px; line-height: 1.2; font-weight: 850; color: #171c21; }
-.stamp-path-summary { padding: 0 0 26px; }
-.stamp-voucher-shortcut { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 7px; margin-left: auto; min-height: 44px; padding: 10px 12px; border: 1px solid #d6dbdf; border-radius: 8px; color: #222b30; background: #fff; font-size: 13px; font-weight: 750; line-height: 20px; cursor: pointer; }
+/* Ink stamps share the home/map palette; DOM order remains chronological. */
+.stamp-path-page { --stamp-row: 152px; --stamp-size: 76px; }
+.design-web .stamp-path-page { padding-top: 0; }
+.stamp-board-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; padding: 8px 0; }
+.stamp-board-header h1 { margin: 0; font-size: 24px; line-height: 1.3; font-weight: 750; color: var(--text); }
+.stamp-path-summary { padding: 20px 0 26px; }
+.design-web .stamp-voucher-shortcut { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 7px; min-height: 44px; padding: 10px 0 10px 10px; border: 0; border-radius: 4px; color: var(--text); background: transparent; font-size: 14px; font-weight: 650; line-height: 20px; cursor: pointer; }
 .stamp-voucher-shortcut > .ui-icon { width: 20px; height: 20px; flex: 0 0 20px; }
-.stamp-voucher-shortcut > i { position: absolute; top: -4px; right: -3px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: #05b96d; }
-.stamp-voucher-shortcut:hover { background: #f1f5f3; }
-.stamp-voucher-shortcut:active { background: #e4ece7; }
-.stamp-progress-copy { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin: 0 0 15px; color: #636c70; font-size: 13px; line-height: 1.5; }
-.stamp-progress-copy strong { margin-left: 5px; color: #00965e; font-size: 26px; font-weight: 800; }
-.stamp-progress-copy strong small { margin-left: 2px; font-size: 13px; }
-.stamp-progress-copy > b { color: #273c32; font-size: 12px; font-weight: 650; }
-.stamp-path-progress { display: block; appearance: none; width: 100%; height: 8px; overflow: hidden; border: 0; border-radius: 4px; background: #e9eeec; color: #03b96f; }
-.stamp-path-progress::-webkit-progress-bar { background: #e9eeec; border-radius: 4px; }
-.stamp-path-progress::-webkit-progress-value { background: #03b96f; border-radius: 4px; }
-.stamp-path-progress::-moz-progress-bar { background: #03b96f; border-radius: 4px; }
-.stamp-path-track { margin-inline: -20px; background: #f4f6f8; border-block: 1px solid #edf0f2; }
-.stamp-path-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); list-style: none; padding: 40px 36px 8px; margin: 0; }
+.stamp-voucher-shortcut > i { align-self: flex-start; width: 6px; height: 6px; margin: 0 0 0 -3px; border-radius: 50%; background: var(--primary); }
+.design-web .stamp-voucher-shortcut:hover { color: var(--primary-dark); }
+.stamp-count-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 14px; }
+.stamp-count-line strong { color: var(--text); font-size: 46px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stamp-count-line strong small { margin-left: 5px; color: var(--muted); font-size: 15px; font-weight: 500; }
+.stamp-progress-copy { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin: 24px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.stamp-progress-copy > b { color: var(--text); font-size: 14px; font-weight: 650; }
+.stamp-path-progress { display: block; appearance: none; width: 100%; height: 5px; overflow: hidden; border: 0; border-radius: 3px; background: var(--stamp-idle); color: var(--primary); }
+.stamp-path-progress::-webkit-progress-bar { background: var(--stamp-idle); border-radius: 3px; }
+.stamp-path-progress::-webkit-progress-value { background: var(--primary); border-radius: 3px; }
+.stamp-path-progress::-moz-progress-bar { background: var(--primary); border-radius: 3px; }
+.stamp-path-track { margin-inline: -20px; background: var(--surface-2); }
+.stamp-path-list { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); max-width: 430px; list-style: none; padding: 28px 24px 0; margin: 0 auto; }
 .stamp-path-step { position: relative; height: var(--stamp-row); min-width: 0; }
 .stamp-path-stop { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
-.stamp-path-node { position: relative; display: grid; place-items: center; width: 78px; height: 78px; flex: 0 0 78px; padding: 5px; border: 2px solid #e8ebf0; border-radius: 50%; background: #e1e5eb; color: #7a828f; box-shadow: 0 3px 1px #ccd2db, inset 0 2px 2px #ffffffc9; }
-.stamp-path-face { position: relative; display: grid; place-items: center; width: 100%; height: 100%; border: 1px solid #f9fafc; border-radius: 50%; box-shadow: inset 0 1px 4px #aeb7c535; }
-.stamp-path-face b { font-size: 27px; font-weight: 750; line-height: 1; }
-.stamp-path-face > .ui-icon { width: 30px; height: 30px; stroke-width: 2.4; }
-.stamp-path-face > i { position: absolute; bottom: -7px; right: -7px; display: grid; place-items: center; width: 23px; height: 23px; border: 2px solid #f4f6f8; border-radius: 50%; color: #fff; background: #007e4e; }
-.stamp-path-face > i .ui-icon { width: 13px; height: 13px; stroke-width: 3; }
-.stamp-path-step.is-earned .stamp-path-node { background: #16ce87; border-color: #79e5b8; color: #004e30; box-shadow: 0 3px 1px #05a66a, inset 0 2px 2px #b3f1d7; }
-.stamp-path-step.is-earned .stamp-path-face { border-color: #91edc8; }
-.stamp-path-step.is-current .stamp-path-node { background: #fff; border-color: #04b96e; color: #008e54; box-shadow: 0 3px 1px #afd7c3, 0 0 0 5px #dfefe6; }
-.stamp-path-step.is-reward .stamp-path-node { color: #2a3038; }
-.stamp-path-step.is-reward.is-earned .stamp-path-node { background: #252d35; border-color: #525c65; color: #b2ffce; box-shadow: 0 3px 1px #121a20, inset 0 2px 2px #69727b; }
-.stamp-path-step.is-reward.is-earned .stamp-path-face { border-color: #69747d; }
-.stamp-path-step button.stamp-path-node { cursor: pointer; transition: transform .12s ease; }
-.stamp-path-step button.stamp-path-node:active { transform: translateY(2px); }
-.stamp-path-node:focus-visible, .stamp-voucher-shortcut:focus-visible { outline: 3px solid #287db5; outline-offset: 6px; }
-.stamp-path-link { position: absolute; left: 50%; top: 42px; width: 100%; height: 10px; background: #e7ecef; pointer-events: none; }
+.design-web .stamp-path-node { position: relative; display: grid; place-items: center; width: var(--stamp-size); height: var(--stamp-size); flex: 0 0 var(--stamp-size); padding: 5px; border: 1px solid var(--line); border-radius: 50%; background: var(--stamp-idle); color: var(--muted); box-shadow: none; }
+.stamp-path-face { position: relative; display: grid; place-items: center; width: 100%; height: 100%; border: 1px solid transparent; border-radius: 50%; }
+.stamp-path-face b { font-size: 27px; font-weight: 650; line-height: 1; }
+.stamp-path-face > .ui-icon { width: 29px; height: 29px; stroke-width: 1.8; }
+.design-web .stamp-path-step.is-earned .stamp-path-node { background: var(--stamp-fill); border-color: var(--stamp-edge); color: var(--primary-dark); }
+.stamp-path-step.is-earned .stamp-path-face { border-color: var(--stamp-edge); border-style: dashed; }
+.stamp-path-step.is-earned:not(.is-reward) .stamp-path-face::after { content: ""; position: absolute; bottom: 5px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.stamp-path-step.is-earned:not(.is-reward) .stamp-path-node { transform: rotate(-5deg); }
+.stamp-path-step.is-earned:nth-child(even):not(.is-reward) .stamp-path-node { transform: rotate(5deg); }
+.design-web .stamp-path-step.is-current .stamp-path-node { background: #fff; border: 2px solid var(--primary); color: var(--primary-dark); }
+.design-web .stamp-path-step.is-reward .stamp-path-node { background: var(--reward-fill); color: var(--reward-ink); border-color: var(--reward-edge); }
+.stamp-path-step.is-reward .stamp-path-face b { position: absolute; top: 3px; font-size: 12px; font-weight: 650; }
+.stamp-path-step.is-reward .stamp-path-face > .ui-icon { margin-top: 10px; }
+.stamp-path-step.is-reward.is-earned .stamp-path-face { border-color: var(--reward-edge); }
+.design-web .stamp-path-step.is-reward.is-current .stamp-path-node { border-color: var(--primary); }
+.design-web .stamp-path-step.is-reward.is-claimable .stamp-path-node { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 0 0 4px var(--surface-2), 0 0 0 5px var(--stamp-edge); }
+.stamp-path-step.is-claimable .stamp-path-face { border-color: transparent; }
+.stamp-path-step button.stamp-path-node { cursor: pointer; transition: scale .12s ease; }
+.stamp-path-step button.stamp-path-node:active { scale: .96; }
+.stamp-path-node:focus-visible, .stamp-voucher-shortcut:focus-visible, .stamp-visit-history > summary:focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 6px; }
+.stamp-path-link { position: absolute; left: 50%; top: calc(var(--stamp-size) / 2 + 7px); width: 100%; height: 2px; background: var(--stamp-track); pointer-events: none; }
 .stamp-path-step.is-reverse .stamp-path-link { left: auto; right: 50%; }
-.stamp-path-link.is-turn { width: calc(50% + 18px); height: calc(var(--stamp-row) + 10px); border: 10px solid #e7ecef; border-left: 0; border-radius: 0 82px 82px 0; background: transparent; }
-.stamp-path-step.is-reverse .stamp-path-link.is-turn { border: 10px solid #e7ecef; border-right: 0; border-radius: 82px 0 0 82px; }
-.stamp-reward-marker { display: grid; place-items: center; min-height: 25px; max-width: 100%; padding: 3px 8px; margin-top: 12px; border-radius: 6px; background: #252d35; color: #fff; font-size: 11px; font-weight: 750; line-height: 17px; white-space: nowrap; }
-.stamp-path-step.is-earned .stamp-reward-marker { color: #b2ffce; }
-.stamp-current-label { margin-top: 12px; color: #008453; font-size: 11px; font-weight: 750; line-height: 20px; }
+.stamp-path-link.is-turn { width: calc(50% + 8px); height: calc(var(--stamp-row) + 2px); border: 2px solid var(--stamp-track); border-left: 0; border-radius: 0 78px 78px 0; background: transparent; }
+.stamp-path-step.is-reverse .stamp-path-link.is-turn { border: 2px solid var(--stamp-track); border-right: 0; border-radius: 78px 0 0 78px; }
+.stamp-reward-marker { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 22px; max-width: 100%; margin-top: 12px; color: var(--muted); font-size: 12px; font-weight: 550; line-height: 20px; white-space: nowrap; }
+.stamp-reward-marker > .ui-icon { width: 13px; height: 13px; }
+.stamp-path-step.is-claimable .stamp-reward-marker { color: var(--primary-dark); font-weight: 650; }
+.stamp-current-label { margin-top: 12px; color: var(--primary-dark); font-size: 12px; font-weight: 550; line-height: 20px; }
+.stamp-visit-history { margin-top: 24px; border-block: 1px solid var(--line); }
+.stamp-visit-history > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 16px 0; list-style: none; cursor: pointer; color: var(--text); font-size: 15px; font-weight: 650; }
+.stamp-visit-history > summary::-webkit-details-marker { display: none; }
+.stamp-visit-history > summary > span:last-child { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 500; }
+.stamp-visit-history > summary .ui-icon { width: 17px; height: 17px; transform: rotate(90deg); }
+.stamp-visit-history[open] > summary .ui-icon { transform: rotate(-90deg); }
+.stamp-history-body { border-top: 1px solid var(--line); padding-bottom: 10px; }
+.stamp-history-body > .text-link { display: flex; margin-left: auto; }
 .stamp-rating-pending { padding: 18px 0 22px; border-top: 1px solid var(--line); }
 .stamp-rating-pending h2 { display: flex; align-items: center; gap: 6px; color: #8b6415; font-size: 16px; }
 .stamp-rating-pending h2 > .ui-icon { width: 20px; height: 20px; }
 .stamp-rating-pending .web-visit { min-height: 72px; }
 @media (max-width: 359px) {
-  .stamp-path-list { padding-inline: 28px; }
-  .stamp-path-node { width: 68px; height: 68px; flex-basis: 68px; }
-  .stamp-path-link { top: 37px; }
+  .stamp-path-page { --stamp-size: 68px; }
+  .stamp-path-list { padding-inline: 20px; }
   .stamp-path-face b { font-size: 24px; }
-  .stamp-reward-marker { padding-inline: 6px; font-size: 10px; }
+}
+@media (max-width: 350px) {
+  .stamp-path-track { margin-inline: -16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .stamp-path-step button.stamp-path-node { transition: none; }
@@ -515,3 +534,57 @@
 .reward-earned-steps li { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 8px; padding: 14px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .reward-earned-steps strong { color: var(--primary); font-size: 12px; }
 .design-web .punch-row { grid-template-columns: repeat(6,minmax(0,1fr)); }
+
+/* A memory-only operator tool, visually distinct from actual issuance forms. */
+.stamp-simulator { padding: 22px 0; color: var(--text); }
+.stamp-sim-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.stamp-sim-heading h1 { margin: 0; font-size: 23px; line-height: 1.4; }
+.stamp-sim-heading > span { border-radius: 4px; padding: 5px 8px; color: var(--reward-ink); background: var(--reward-fill); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.stamp-sim-boundary { margin: 16px 0 0; border-left: 3px solid var(--reward-edge); padding: 2px 0 2px 12px; color: var(--muted); font-size: 13px; line-height: 1.7; word-break: keep-all; }
+.stamp-sim-stats { display: grid; grid-template-columns: 1fr 1fr; margin: 24px 0; padding: 20px 0; border-block: 1px solid var(--line); }
+.stamp-sim-stats > div { padding-inline: 16px; }
+.stamp-sim-stats > div:first-child { padding-left: 0; border-right: 1px solid var(--line); }
+.stamp-sim-stats dt { font-size: 13px; color: var(--muted); }
+.stamp-sim-stats dd { margin: 8px 0 0; font-size: 32px; font-weight: 750; color: var(--primary-dark); }
+.stamp-sim-stats small { font-size: 13px; font-weight: 500; margin-left: 5px; color: var(--muted); }
+.stamp-sim-form { display: grid; grid-template-columns: minmax(0,1fr); gap: 10px; }
+.stamp-sim-form > label { font-size: 14px; font-weight: 650; }
+.stamp-sim-form .select { width: 100%; min-width: 0; min-height: 48px; }
+.stamp-simulator .primary-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: 8px; font-size: 15px; }
+.stamp-simulator .primary-btn:disabled { opacity: .55; cursor: default; }
+.stamp-simulator .primary-btn .ui-icon { width: 20px; height: 20px; }
+.stamp-sim-status { min-height: 22px; margin: 12px 0; color: var(--primary-dark); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.stamp-sim-status[data-tone="error"] { color: #a62936; }
+.stamp-sim-actions { display: grid; grid-template-columns: minmax(0,1fr) 48px; gap: 10px; }
+.stamp-sim-actions .ghost-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: 8px; font-size: 14px; }
+.stamp-sim-actions .icon-btn { width: 48px; height: 48px; }
+.stamp-sim-actions .ui-icon { width: 20px; height: 20px; }
+.stamp-sim-rewards { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--line); }
+.stamp-sim-rewards h2 { margin: 0 0 14px; font-size: 18px; }
+.stamp-sim-note { margin: 10px 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.stamp-sim-rewards fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+.stamp-sim-rewards legend { color: var(--primary-dark); margin-bottom: 12px; font-size: 13px; font-weight: 650; }
+.stamp-sim-rewards label { display: flex; align-items: center; gap: 10px; padding: 12px; min-height: 48px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; font-size: 14px; cursor: pointer; }
+.stamp-sim-rewards label:has(:checked) { border-color: var(--primary); background: var(--stamp-fill); }
+.stamp-sim-rewards input[type="radio"] { width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--primary); }
+.stamp-sim-rewards button { width: 100%; }
+.stamp-sim-vouchers, .stamp-sim-history ul { list-style: none; padding: 0; margin: 14px 0 0; }
+.stamp-sim-vouchers li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.stamp-sim-vouchers li > span { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+.stamp-sim-vouchers .ui-icon { color: var(--reward-ink); width: 20px; height: 20px; flex: none; }
+.stamp-sim-vouchers small { font-size: 12px; color: var(--muted); }
+.stamp-sim-history { margin-top: 24px; border-top: 1px solid var(--line); }
+.stamp-sim-history summary { min-height: 48px; padding-block: 14px; font-size: 14px; cursor: pointer; }
+.stamp-sim-history summary span { color: var(--primary-dark); margin-left: 5px; }
+.stamp-sim-history li { display: flex; justify-content: space-between; gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.stamp-sim-history li > span { min-width: 0; overflow-wrap: anywhere; }
+.stamp-sim-history time { flex: none; color: var(--muted); }
+.stamp-sim-dialog { padding: 0; width: min(430px,calc(100% - 24px)); max-height: calc(100dvh - 32px); border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: #fff; overflow-y: auto; }
+.stamp-sim-dialog::backdrop { background: #102b2466; }
+.stamp-sim-dialog > header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line); background: #fff; }
+.stamp-sim-dialog h2 { margin: 0 0 4px; font-size: 18px; }
+.stamp-sim-dialog header span { font-size: 12px; color: var(--reward-ink); }
+.stamp-sim-board > .stamp-count-line { padding: 22px 20px; }
+.stamp-sim-board .stamp-path-track { margin-inline: 0; }
+.stamp-sim-board .stamp-path-node { pointer-events: none; }
+@media (max-width: 380px) { .stamp-sim-dialog .stamp-path-page { --stamp-size: 64px; } .stamp-sim-dialog .stamp-path-list { padding-inline: 16px; } }

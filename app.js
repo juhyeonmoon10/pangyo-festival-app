@@ -2130,6 +2130,7 @@ function adminView() {
   const tabs = [
     ["dashboard", "현황"],
     ["booths", "NFC 관리"],
+    ["stamp-simulator", "스탬프 모의 발급"],
     ["visits", "방문 기록"],
     ["users", "참여자"],
   ];
@@ -2160,6 +2161,7 @@ function adminView() {
 }
 
 function adminPanel() {
+  if (state.adminTab === "stamp-simulator") return typeof festivalStampSimulator === "undefined" ? "" : festivalStampSimulator.view();
   const regularUsers = state.db.users.filter((user) => user.role !== "admin");
   const totalVisits = state.db.stamps.length;
   const activeBooths = state.db.booths.filter((booth) => booth.status === "open").length;
@@ -2607,6 +2609,7 @@ function bindEvents() {
   nfcManagement.bind();
   festivalWeb.bind();
   festivalOpsUI.bind();
+  if (typeof festivalStampSimulator !== "undefined") festivalStampSimulator.bind();
 }
 
 function closeMenus() {

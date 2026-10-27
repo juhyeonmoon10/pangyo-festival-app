@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function setup({ count = 0, pending = 0, server = false, name = 'Test booth' } = {}) {
+function setup({ count = 0, pending = 0, server = false, rewardProgram = null, name = 'Test booth' } = {}) {
   const records = new Map();
   let nextId=0;
   const booths = Array.from({ length: 25 }, (_, i) => ({ id: `booth-${i}`, name: i ? `Booth ${i}` : name, location: '2F' }));
@@ -14,7 +14,7 @@ function setup({ count = 0, pending = 0, server = false, name = 'Test booth' } =
   const context = vm.createContext({
     state: { user: { id: 'fixture' }, db: { booths, reviews } },
     repo: { stampsForUser: () => visits, hasReview: (_id, boothId) => reviews.some(r => r.boothId === boothId) },
-    isServerMode: () => server, festivalOpsUI: { snapshot: () => null },
+    isServerMode: () => server, festivalOpsUI: { snapshot: () => rewardProgram ? { rewardProgram } : null },
     reviewEligibility: () => ({ allowed: true, authorName: 'Fixture' }),
     readSessionStorage: key => records.get(key), writeSessionStorage: (key, value) => { records.set(key, value); return true; },
     escapeHtml, icon: key => `<svg data-icon="${key}" aria-hidden="true"></svg>`,
@@ -42,7 +42,7 @@ test('rated visits alone become completed nodes; the next action opens a pending
   const html = api.stamps();
   assert.equal((html.match(/stamp-path-step is-earned/g) || []).length, 3);
   assert.match(html, /class="stamp-path-node" data-review-booth="booth-3"/);
-  assert.match(html, /max="6" value="3"/);
+  assert.match(html, /max="3" value="3"/);
   assert.equal(visits.length, 5);
   assert.equal(reviews.length, 3);
 });
@@ -58,7 +58,7 @@ test('completed nodes retain booth navigation and escape long or HTML-like names
 test('five stamps do not auto-pick a reward; a confirmed choice grants only one', async () => {
   const { api } = setup({ count: 5 });
   const html = api.stamps();
-  assert.match(html, /max="6" value="5"/);
+  assert.match(html, /max="3" value="2"/);
   assert.equal((html.match(/class="stamp-reward-marker"/g) || []).length, 5);
   assert.doesNotMatch(html, /stamp-path-chapter|stamp-path-milestone/);
   assert.equal(api.coupons().length, 0);
@@ -167,4 +167,57 @@ test('upcoming slots are not fake buttons and layout styles honor reduced motion
   const css = fs.readFileSync(path.join(__dirname, '../web-redesign.css'), 'utf8');
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(css, /stamp-path-node:focus-visible/);
+});
+
+test('ink stamps distinguish claimable, issued and future reward milestones', async () => {
+  const { api, records } = setup({ count: 9 });
+  let html = api.stamps();
+  assert.equal((html.match(/is-claimable/g) || []).length, 1);
+  assert.equal((html.match(/is-issued/g) || []).length, 0);
+  assert.match(html, /3번째 스탬프, 받기 가능/);
+  assert.match(html, /<b>3<\/b><svg data-icon="ticket"/);
+  assert.match(html, /9번째 스탬프, 바우처 확인/);
+  await api.chooseReward('photo', 3);
+  html = api.stamps();
+  assert.equal((html.match(/is-issued/g) || []).length, 2);
+  assert.match(html, /9번째 스탬프, 받기 가능/);
+  await api.chooseReward('food', 9);
+  const value = JSON.parse(records.get('festival-web-demo:fixture'));
+  value.coupons[0].state = 'void';
+  value.coupons[1].redeemedAt = '2026-10-28T01:00:00Z';
+  value.coupons[2].expiresAt = '2020-01-01T00:00:00Z';
+  records.set('festival-web-demo:fixture', JSON.stringify(value));
+  html = api.stamps();
+  assert.equal((html.match(/is-issued/g) || []).length, 3);
+  assert.equal((html.match(/is-claimable/g) || []).length, 0);
+  assert.match(html, /max="3" value="0"/);
+  assert.match(html, /다음 바우처까지 3개/);
+});
+
+test('server snapshot drives received indicators without fabricating local rewards', () => {
+  const { api, records } = setup({ count: 9, server: true, rewardProgram: {
+    ready:true, count:9, firstTarget:9, secondTarget:12, firstChoice:null, secondIssued:false,
+  } });
+  const html = api.stamps();
+  assert.equal((html.match(/is-issued/g) || []).length, 2);
+  assert.equal((html.match(/is-claimable/g) || []).length, 1);
+  assert.match(html, /9번째 스탬프, 받기 가능/);
+  assert.equal(records.size, 0);
+});
+
+test('completed visit history is collapsed but its detail and review actions remain', () => {
+  const html = setup({ count: 4 }).api.stamps();
+  assert.match(html, /<details class="stamp-visit-history"><summary>/);
+  assert.doesNotMatch(html, /<details[^>]*\bopen\b/);
+  assert.match(html, /data-route="reviews"/);
+  assert.match(html, /data-review-booth="booth-3"/);
+});
+
+test('operator preview reuses the ink board without live navigation or reward actions', () => {
+  const { api, records, visits } = setup({ count: 3 });
+  const html = api.previewStamps(visits, {ready:true,count:3,firstTarget:3,secondTarget:6,firstChoice:null,secondIssued:false});
+  assert.match(html, /모의 스탬프판/);
+  assert.equal((html.match(/stamp-path-step is-earned/g) || []).length, 3);
+  assert.doesNotMatch(html, /<button|data-route|data-list-select|data-review-booth/);
+  assert.equal(records.size, 0);
 });

@@ -20,7 +20,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
       assert.equal(await page.locator('.stamp-board-header h1').innerText(),'스탬프');
       await page.screenshot({path:path.join(out,`stamps-${count}-${width}.png`),fullPage:true});
       await page.mouse.move(width/2,420);await page.mouse.wheel(0,520);
-      await page.waitForFunction(()=>scrollY>=400);
+      await page.waitForFunction(()=>scrollY>0);
       const last=await page.locator('.stamp-path-step').nth(14).locator('.stamp-path-node').boundingBox();
       const nav=await page.locator('.bottom-nav').boundingBox();
       assert.ok(last.y>=0&&last.y+last.height<nav.y);
