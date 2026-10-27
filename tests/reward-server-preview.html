@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'">
+<base href="../"><title>Isolated reward server preview</title>
+<link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="ui-ver2.css"><link rel="stylesheet" href="web-redesign.css"><link rel="stylesheet" href="operations.css"></head>
+<body class="design-ver2 design-web"><div id="app" class="app-shell"></div>
+<script src="festival-operations.js"></script>
+<script>
+for(const key of ['localStorage','sessionStorage']) {const m=new Map();Object.defineProperty(window,key,{value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}});}
+window.FestivalCatalog={CLUB_IDS:{},createClient:()=>({getSnapshot:()=>({status:'ready',rows:[]}),forClub:()=>null,subscribe(){},refresh(){}})};
+const params=new URL(location.href).searchParams,mode=params.get('mode'),count=Number(params.get('count')||3),admin=mode==='admin';
+const event={id:'2a14bac0-f989-4b4e-8233-a881c344358a',name:'테스트 행사',state:'open',version:0};
+const options=[{kind:'photo',title:'포토부스 이용권'},{kind:'food',title:'푸드트럭 교환권'}].map(o=>({...o,available:true,stock:20,version:0,expiresAt:'2099-12-31T06:00:00Z'}));
+const issued=[];let failed=false;
+window.fixtureCalls=[];
+function status(){let firstTarget=3;while(issued.some(v=>v.target===firstTarget)&&issued.some(v=>v.target===firstTarget+3))firstTarget+=6;
+  return {version:mode==='legacy'?1:2,eventId:event.id,ready:true,count,firstTarget,secondTarget:firstTarget+3,issuedCount:issued.length,
+    firstChoice:issued.find(v=>v.target===firstTarget)?.kind||null,secondIssued:issued.some(v=>v.target===firstTarget+3),canChoose:count>=firstTarget,options};}
+function issue(kind,target){const o=options.find(o=>o.kind===kind);if(!issued.some(v=>v.target===target))issued.push({id:String(target),target,kind,title:o.title,state:'available',expiresAt:o.expiresAt});}
+const operations=FestivalOperations.create({storage:sessionStorage,actor:()=> 'fixture-user',rpc:async(name,args)=>{
+  if(name==='festival_reward_read') return mode==='missing'?{error:{code:'PGRST202'}}:{data:status()};
+  if(name==='festival_ops_read') return {data:{ready:true,event,items:[],rules:[],vouchers:issued,reviews:[],visits:[],points:0}};
+  fixtureCalls.push({name,...args});await new Promise(r=>setTimeout(r,180));
+  if(params.has('retry')&&!failed){failed=true;return {error:{message:'simulated timeout'}};}
+  if(args.p_action==='reward_choose') {const first=args.p_payload.kind,target=args.p_payload.firstTarget;issue(first,target);if(count>=target+3)issue(first==='photo'?'food':'photo',target+3);}
+  if(args.p_action==='reward_config') for(const o of options){o.stock=args.p_payload[o.kind+'Stock'];o.version++;o.expiresAt=args.p_payload.expiresAt;}
+  return {data:status()};
+}});
+window.FestivalAccount={normalizeError:()=>({message:'테스트 오류'}),createAccount:()=>({
+  initialize:async()=>({id:1,authUserId:'fixture-user',name:'테스트 학생',email:'fixture@example.invalid',studentNumber:'21001',completedBooths:[],needsProfile:false,isAdmin:admin}),
+  pending:()=>null,myReviews:async()=>({ok:true,boothKeys:[]}),operations
+})};
+</script>
+<script src="assets/vendor/ui-icons.js"></script><script src="assets/vendor/qrcode-1.4.4.js"></script>
+<script src="nfc-manager.js"></script><script src="programs.js"></script><script src="web-experience.js"></script><script src="operations-ui.js"></script><script src="app.js"></script>
+<script>setTimeout(()=>navigateTo(admin?'admin':'vouchers',{replace:true}),50);</script>
+</body></html>

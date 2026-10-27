@@ -2,7 +2,6 @@ const DB_KEY = "pangyo-festival-db-v3";
 const SESSION_KEY = "pangyo-festival-demo-session-v1";
 // Everything a demo visitor earns. Cleared when the app is closed, unlike the booth setup.
 const SESSION_FIELDS = ["users", "stamps", "idempotencyRecords", "reviews"];
-const GOAL_COUNT = 5;
 const MAP_ZOOM_MIN = 0.9;
 const MAP_ZOOM_MAX = 1.6;
 const MAP_ZOOM_STEP = 0.2;
@@ -1570,7 +1569,7 @@ function profileView() {
   const stampCount = repo.stampsForUser(state.user.id).length;
   return `
     <main class="screen p0-page profile-screen">
-      ${festivalWeb.header("내 정보", isServerMode() ? "내 축제 기록" : "체험 중인 축제 기록")}
+      ${festivalWeb.header("내 정보", isServerMode() ? "내 축제 기록" : "체험 중인 축제 기록", true)}
       <section class="profile-card">
         <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
@@ -2071,48 +2070,7 @@ function reviewView(review) {
 }
 
 function stampView() {
-  const stamps = [...repo.stampsForUser(state.user.id)].sort((a, b) => isServerMode()
-    ? serverCompletedBooths.indexOf(window.FestivalCatalog.CLUB_IDS[state.db.booths.find(booth => booth.id === a.boothId)?.officialClubId]) - serverCompletedBooths.indexOf(window.FestivalCatalog.CLUB_IDS[state.db.booths.find(booth => booth.id === b.boothId)?.officialClubId])
-    : new Date(a.createdAt) - new Date(b.createdAt));
-  const count = stamps.length;
-  const total = isServerMode() ? Object.keys(window.FestivalCatalog.CLUB_IDS).length : state.db.booths.length;
-  const remaining = Math.max(GOAL_COUNT - count, 0);
-  const percent = Math.min((count / GOAL_COUNT) * 100, 100);
-  const rewardState = isServerMode() ? "locked" : state.user.exchangedAt ? "redeemed" : count >= GOAL_COUNT ? "available" : "locked";
-  const rewardTitle = isServerMode() ? "보상 교환 준비 중" : rewardState === "redeemed" ? "교환 완료" : rewardState === "available" ? "간식 교환권 사용 가능" : "간식 교환권 준비 중";
-  const rewardBody = isServerMode() ? "현재는 방문 기록만 저장됩니다. 교환권은 발급되지 않습니다." : rewardState === "redeemed"
-    ? `${formatReviewDate(state.user.exchangedAt)}에 교환 처리되었습니다.`
-    : rewardState === "available"
-      ? "축제 운영본부에서 이 화면을 보여주세요."
-      : `목표까지 스탬프 ${remaining}개 남았습니다.`;
-  return `
-    <main class="screen p0-page stamp-screen">
-      <header class="p0-header compact">
-        <div><span class="eyebrow">MY FESTIVAL</span><h1>차곡차곡, 나의 축제</h1></div>
-      </header>
-      <section class="pass-summary">
-        <div class="pass-count"><strong>${count}<small> / ${total}</small></strong><span>개의 스탬프를 모았어요</span></div>
-        <div class="progress-wrap" role="progressbar" aria-label="전체 스탬프 수집률" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${count}"><div class="progress" style="width:${Math.min(100, count / total * 100)}%"></div></div>
-        <p class="pass-note">${isServerMode() ? "인증된 방문 기록만 표시해요." : "데모 기록 · 앱을 닫으면 사라짐 · 실제 교환 불가"}</p>
-      </section>
-      ${stampTrailView(stamps, total)}
-      <section class="reward-status ${rewardState}" aria-live="polite">
-        <span class="reward-mark">${icon("ticket")}</span>
-        <div><small>${isServerMode() ? "교환권" : `스탬프 ${GOAL_COUNT}개`}</small><h2>${rewardTitle}</h2><p>${rewardBody}</p>${!isServerMode() ? `<small>실제 상품으로 교환할 수 없는 시연용입니다.</small>` : ""}</div>
-        <strong>${rewardState === "redeemed" ? "사용됨" : rewardState === "available" ? "교환 가능" : `${percent.toFixed(0)}%`}</strong>
-      </section>
-      <section class="p0-section">
-        <div class="section-heading"><div><span>방문 목록</span><h2>${count ? `기록된 부스 ${count}개` : "아직 방문 기록이 없어요"}</h2></div><small>전체 ${total}개</small></div>
-        <div class="pass-list">
-          ${stamps.length ? stamps.map(stamp => {
-            const booth = state.db.booths.find(item => item.id === stamp.boothId);
-            return `<button type="button" class="pass-row earned" data-list-select="${booth.id}"><span class="stamp on">${icon("check")}</span><span><strong>${catalogName(booth)}</strong><small>${escapeHtml(booth.location)}${stamp.createdAt ? ` · ${formatTime(stamp.createdAt)}` : ""}</small></span>${icon("arrow")}</button>`;
-          }).join("") : `<div class="empty-state">${icon("stamp")}<h3>첫 스탬프를 기다리고 있어요</h3><button type="button" class="ghost-btn" data-route="map">부스 둘러보기 ${icon("arrow")}</button></div>`}
-        </div>
-      </section>
-      ${bottomNav("stamps")}
-    </main>
-  `;
+  return festivalWeb.stamps();
 }
 
 
@@ -2646,7 +2604,6 @@ function bindEvents() {
   document.querySelectorAll("[data-test-nfc]").forEach((button) => button.addEventListener("click", () => testNfcTag(button.dataset.testNfc)));
   document.querySelector("#manualApproveStamp")?.addEventListener("click", () => runActionOnce("admin:manual-approve", manualApproveStamp));
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => deleteReview(button.dataset.deleteReview)));
-  document.querySelectorAll("[data-exchange]").forEach((button) => button.addEventListener("click", () => runActionOnce(`admin:exchange:${button.dataset.exchange}`, () => completeExchange(button.dataset.exchange))));
   nfcManagement.bind();
   festivalWeb.bind();
   festivalOpsUI.bind();
@@ -3488,25 +3445,6 @@ async function copyServerTagUrl() {
 function deleteReview(id) {
   state.db.reviews = state.db.reviews.filter((review) => review.id !== id);
   saveDb();
-  render();
-}
-
-function completeExchange(id) {
-  const user = state.db.users.find((item) => item.id === id);
-  if (!user) return;
-  if (user.exchangedAt) {
-    state.adminMessage = `${user.name} 학생의 교환권은 이미 사용 처리되었습니다.`;
-    render();
-    return;
-  }
-  if (repo.stampsForUser(user.id).length < GOAL_COUNT) {
-    state.adminMessage = `${user.name} 학생은 아직 스탬프 목표를 달성하지 못했습니다.`;
-    render();
-    return;
-  }
-  user.exchangedAt = new Date().toISOString();
-  saveDb();
-  state.adminMessage = `${user.name} 학생의 간식 교환을 완료 처리했습니다.`;
   render();
 }
 

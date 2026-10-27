@@ -1,3 +1,70 @@
+**Scrollable Stamp Board and Recurring Rewards: 2026-10-28**
+
+- Latest user reference: numbered embossed stamp circles on a serpentine path.
+  Replaced the single-column path with three-column alternating rows on a cool gray
+  surface. No chapter names or range headings; the title is simply "스탬프".
+- Fixed-size circles and 154px rows preserve legibility. The page scrolls vertically
+  instead of shrinking the whole board into the viewport. The next stamp remains
+  actionable; every third milestone becomes a voucher link once earned.
+- Latest confirmed reward policy supersedes the two-voucher cap below: repeat every
+  three completed stamps. Choose at 3/9/15/etc.; the opposite benefit at 6/12/18/etc.
+  Selection and issuance are immutable per milestone, including used/void/expired
+  records. Explicit firstTarget keeps retries tied to their original reward cycle.
+- Prepared v2 of the UNAPPLIED SQL draft. Replaces one-voucher-per-rule uniqueness
+  with per-stage uniqueness for typed rewards; retains the original uniqueness for
+  historical untyped vouchers. No new table and no changes to QR redemption.
+- Tests: 110 Node cases, 18 synthetic DB cases, 36 browser scenarios at 320/390/430/1024px.
+  Includes 9/12/15/18 rewards, skipped-stage rejection, first-choice immutability,
+  repeated requests, stock shortage/retry, scroll access, and old/missing RPC denial.
+- Browser network blocked. Screenshots under `artifacts/reward-choice/`, including
+  `stamps-{count}-{width}.png` and `board-scroll-{count}-{width}.png`.
+- No shared Supabase access/apply, Git commit/push, or deployment. Actual Supabase
+  sessions, concurrent connections, real inventory and production data unverified.
+
+**Stamp Navigation Refinement (Superseded Layout): 2026-10-28**
+
+- Stamp entry no longer renders benefit descriptions or the reward choice form.
+  The compact ticket-icon voucher button opens the existing voucher screen, where
+  the 3/6-stamp selection, issuance status and QR cards remain available.
+- Removed the artificial 1-3/4-6 chapters and large milestone actions. A single
+  continuous ordered path retains completed visits and the next action, with small
+  noninteractive ticket markers at positions 3 and 6 only.
+- Voucher button: stable 44px minimum height, restrained border/background, one
+  icon and one label. Keyboard focus, navigation and history-back are preserved.
+- Verification: 109/109 Node tests and 18/18 isolated browser scenarios across
+  320/390/430px. Tested absent benefits on stamp entry and return, single path,
+  voucher choice, timeout retries, and retained one-of-each reward rules.
+- Screenshots: `artifacts/reward-choice/stamps-{count}-{width}.png` and existing
+  choice/issued/server captures. Narrow full-page path inspected visually.
+- No server SQL changes, shared DB access, commit, push, or deployment in this step.
+
+**Choice Voucher Audit (Superseded Two-Voucher Policy): 2026-10-28**
+
+- Three completed stamps unlock an explicit choice of photo booth or food truck.
+  Six unlock the opposite benefit. Maximum two distinct program vouchers per event.
+  A completed stamp still means a verified visit with a submitted star rating.
+- Used, expired, and voided first vouchers retain the selection. A first selection
+  made at six stamps grants both, subject to stock. Shortages preserve the pending
+  entitlement; retry grants only the missing type, never a replacement choice.
+- Updated home milestones, stamp path, voucher selection, and operator stock setup.
+  Missing/malformed server support does not fabricate eligibility or issue locally.
+- Local SQL draft only: `operations-server/reward-choice.draft.sql`. Adds two columns
+  and uniqueness constraints to existing private tables, guarded RPCs, and a revised
+  award helper. No new table. No shared DB query/apply, commit, push, or deployment.
+- Explicit operator configuration disables previous automatic rules. Existing
+  untyped issued vouchers block activation until separately approved migration;
+  existing voucher records and QR redemption are preserved.
+- Validation: 108/108 Node regression tests; 16/16 synthetic PostgreSQL cases;
+  18/18 mobile scenarios at 320/390/430px. Browser tests include both choice orders,
+  late selection, repeated navigation, absent server support, same-key timeout
+  retry, and operator stock configuration. All external browser traffic blocked.
+- Evidence: `artifacts/reward-choice/isolated.json`, `browser.json`, and screenshot
+  PNGs. Narrow choice, issued-voucher and admin screens inspected without clipping.
+- Limits: PGlite auth/Vault shims and mocked RPCs are not real Supabase deployment,
+  real concurrent-session tests, or proof of existing production data compatibility.
+- Local preview: `http://127.0.0.1:5194/tests/stamp-ui-preview.html?demo=1&completed=3`.
+  Fixture data is synthetic and in memory; it is excluded from the public build.
+
 **Named Review / Club Membership Audit: 2026-10-28**
 
 - Local implementation only; no shared DB access, commit, push, or deployment.

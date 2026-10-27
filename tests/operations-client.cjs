@@ -31,3 +31,20 @@ test('invalid inputs do not make requests; installed errors are not network erro
   assert.equal((await api.write('points_adjust',[])).code,'INVALID_INPUT');assert.equal(calls,0);
   assert.equal((await api.read('me')).code,'OPS_NOT_READY');
 });
+
+test('reward status and choice use guarded reward RPCs, not the generic claim endpoint',async()=>{
+  const calls=[],s=storage();
+  const api=create({actor:()=> 'a',storage:s,rpc:async(name,args)=>{calls.push({name,args});return {data:{version:2,ready:true}};}});
+  await api.read('reward_status');await api.write('reward_choose',{eventId:'fixture',kind:'photo',firstTarget:9});
+  assert.equal(calls[0].name,'festival_reward_read');assert.equal(calls[1].name,'festival_reward_write');
+  assert.equal(calls[1].args.p_payload.kind,'photo');assert.equal(calls[1].args.p_action,'reward_choose');
+  assert.equal(calls[1].args.p_payload.firstTarget,9);
+});
+test('reward choice timeout retries retain their request ID',async()=>{
+  const s=storage(),ids=[];
+  const first=create({actor:()=> 'a',storage:s,rpc:async(_n,p)=>{ids.push(p.p_request_id);throw Error('timeout');}});
+  assert.equal((await first.write('reward_choose',{eventId:'event',kind:'food',firstTarget:3})).retryable,true);
+  const second=create({actor:()=> 'a',storage:s,rpc:async(_n,p)=>{ids.push(p.p_request_id);return{data:{ready:true}};}});
+  await second.write('reward_choose',{kind:'food',eventId:'event',firstTarget:3});assert.equal(ids[0],ids[1]);
+  await second.write('reward_choose',{kind:'food',eventId:'event',firstTarget:9});assert.notEqual(ids[0],ids[2]);
+});

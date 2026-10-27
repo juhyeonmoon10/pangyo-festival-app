@@ -5,8 +5,10 @@ const root = path.resolve(__dirname, '..');
 const entrypoints = new Set(['index.html', 'app.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'web-experience.js', 'programs.js', 'supabase-catalog.js', 'festival-account.js', 'nfc-manager.js']);
 ['festival-operations.js','operations-ui.js','operations.css'].forEach(file => entrypoints.add(file));
 entrypoints.add('tests/login-ui-preview.html');
+entrypoints.add('tests/stamp-ui-preview.html');
 entrypoints.add('tests/map-ui-preview.html');
 entrypoints.add('tests/review-ui-preview.html');
+entrypoints.add('tests/reward-server-preview.html');
 const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml'};
 const port = Number(process.argv[2] || 5183);
 http.createServer((req,res) => {

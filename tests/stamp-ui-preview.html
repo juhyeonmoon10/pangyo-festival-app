@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'">
+  <base href="../">
+  <title>Stamp UI isolated preview</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ui-ver2.css">
+  <link rel="stylesheet" href="web-redesign.css">
+</head>
+<body class="design-ver2 design-web">
+  <div id="app" class="app-shell"></div>
+  <script>
+    // Local visual fixtures only. No account SDK or shared network access.
+    for (const key of ['localStorage', 'sessionStorage']) {
+      const values = new Map();
+      Object.defineProperty(window, key, { value: {
+        getItem: name => values.get(name) ?? null,
+        setItem: (name, value) => values.set(name, String(value)),
+        removeItem: name => values.delete(name),
+      } });
+    }
+    window.FestivalCatalog = { CLUB_IDS: {}, createClient: () => ({
+      getSnapshot: () => ({ status: 'ready', rows: [] }),
+      forClub: () => null, subscribe() {}, refresh() {},
+    }) };
+  </script>
+  <script src="assets/vendor/ui-icons.js"></script>
+  <script src="assets/vendor/qrcode-1.4.4.js"></script>
+  <script src="nfc-manager.js"></script>
+  <script src="programs.js"></script>
+  <script src="web-experience.js"></script>
+  <script src="operations-ui.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if (!isServerMode()) {
+      const params = new URL(location.href).searchParams;
+      const count = Math.min(20, Math.max(0, Number(params.get('completed') || 0) || 0));
+      const pending = Math.min(3, Math.max(0, Number(params.get('pending') || 0) || 0));
+      state.user = { ...state.db.users[0], id: 'stamp-ui-fixture', name: '테스트 학생', role: 'user' };
+      state.db.users = [state.user];
+      state.db.reviewIdentities = [{userId:state.user.id,verified:true,realName:'테스트 학생',boothIds:[]}];
+      const booths = state.db.booths.slice(0, count + pending);
+      if (params.has('long') && booths[0]) booths[0].name = '아주 긴 이름의 동아리와 함께하는 축제 프로그램';
+      state.db.stamps = booths.map((b, i) => ({ id: `fixture-${i}`, userId: state.user.id, boothId: b.id,
+        status: 'active', method: 'nfc', createdAt: new Date(1797555600000 + i * 600000).toISOString() }));
+      state.db.reviews = booths.slice(0, count).map((b, i) => ({ id: `review-${i}`, userId: state.user.id,
+        boothId: b.id, rating: 5, content: '', createdAt: new Date(1797555600000 + i * 600000).toISOString() }));
+      navigateTo('stamps', { replace: true });
+    }
+  </script>
+</body>
+</html>

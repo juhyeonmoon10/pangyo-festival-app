@@ -45,9 +45,21 @@ const festivalOpsUI = (() => {
     try {
       const a=await api().read('catalog');
       const b=await api().read('me');
+      const rewards=await api().read('reward_status');
       if(state.user?.id!==actor) return;
       if(!a.ok || !b.ok) { failure=(a.ok?b:a).message; loaded=true; return; }
       catalog=a.data.items || []; mine=b.data; event=a.data.event || null; failure=''; loaded=true;
+      const program=rewards.data, kinds=['photo','food'];
+      const validProgram=rewards.ok && program?.version===2 && program.eventId===event?.id
+        && Number.isInteger(program.firstTarget) && program.firstTarget>=3 && program.firstTarget%6===3
+        && program.secondTarget===program.firstTarget+3 && Number.isInteger(program.issuedCount) && program.issuedCount>=0
+        && typeof program.ready==='boolean' && Number.isInteger(program.count) && program.count>=0
+        && (program.firstChoice===null || kinds.includes(program.firstChoice))
+        && typeof program.secondIssued==='boolean' && typeof program.canChoose==='boolean'
+        && Array.isArray(program.options) && program.options.every(o=>o && kinds.includes(o.kind) && typeof o.title==='string' && typeof o.available==='boolean')
+        && new Set(program.options.map(o=>o.kind)).size===program.options.length
+        && (!program.ready || program.options.length===2);
+      mine.rewardProgram=validProgram ? program : {ready:false};
       mergeCatalog();
       serverMyReviews=new Set((mine.reviews || []).map(x=>x.booth_key));
       for(const r of mine.reviews || []) {
@@ -109,6 +121,23 @@ const festivalOpsUI = (() => {
       field('expiresAt','사용 마감 (한국 시간)',r?.expires_at ? new Date(new Date(r.expires_at).getTime()+9*3600000).toISOString().slice(0,16) : '', 'required','datetime-local')+
       `<label class="ops-checkbox"><input name="enabled" type="checkbox" ${r?.enabled?'checked':''}>자동 발급 활성화</label><input type="hidden" name="id" value="${h(r?.id)}"><input type="hidden" name="version" value="${r?.version || 0}">`)}</section>`;
   }
+  function rewardConfigForm() {
+    const reward=snapshot()?.rewardProgram;
+    const photo=reward?.options?.find(o=>o.kind==='photo'), food=reward?.options?.find(o=>o.kind==='food');
+    return `<section class="ops-section"><h2>스탬프 3개마다 바우처</h2>${form('reward_config',
+      field('photoStock','포토부스 이용권 총 수량',photo?.stock ?? 0,'required min="0" max="100000" step="1"','number')+
+      field('foodStock','푸드트럭 교환권 총 수량',food?.stock ?? 0,'required min="0" max="100000" step="1"','number')+
+      field('expiresAt','이용권 사용 마감 (한국 시간)',photo?.expiresAt ? new Date(new Date(photo.expiresAt).getTime()+9*3600000).toISOString().slice(0,16) : '', 'required','datetime-local')+
+      `<input type="hidden" name="eventId" value="${h(event?.id)}"><input type="hidden" name="photoVersion" value="${photo?.version || 0}"><input type="hidden" name="foodVersion" value="${food?.version || 0}">`,'지급 기준 저장')}</section>`;
+  }
+  async function chooseReward(kind,firstTarget) {
+    const actor=state.user?.id, reward=snapshot()?.rewardProgram;
+    if(!reward?.ready || !event) return {ok:false,message:'바우처 발급 준비 중이에요.'};
+    const response=await api().write('reward_choose',{kind,firstTarget,eventId:event.id});
+    if(state.user?.id!==actor) return {ok:false,message:'다시 로그인해 주세요.'};
+    await refresh(false);
+    return response;
+  }
   function content() {
     if(!event) return eventForm();
     if(tab==='dashboard') return `<dl class="ops-stats">${[['방문 참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['발급',data?.issued],['사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${eventForm()}`;
@@ -116,7 +145,7 @@ const festivalOpsUI = (() => {
     if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><form id="reviewRosterLookup" class="ops-form">${select('userId','참여자',(data?.items || []).map(p=>[p.id,`${p.name} (#${p.id})`]),null)}<p role="status"></p><button class="primary-btn" type="submit">명단 확인</button></form></section>`;
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',participant()+select('booth','방문 부스',options(),null)+reason(),'방문 승인')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['부스','booth_key'],['방식','method'],['사유','reason']])+paging();
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['변경','delta'],['사유','reason']])+paging();
-    if(tab==='rules') return ruleForm()+table(data?.items,[['이름','title'],['목표','target'],['발급','issued'],['한도','stock'],['활성',r=>r.enabled?'예':'아니오']]);
+    if(tab==='rules') return rewardConfigForm()+table(data?.items,[['이름','title'],['기준',r=>r.reward_kind?'3개마다 반복 지급':r.target],['발급','issued'],['한도','stock'],['활성',r=>r.enabled?'예':'아니오']]);
     if(tab==='vouchers') return `<section class="ops-section"><h2>바우처 사용</h2><form id="opsRedeem" class="ops-form"><label>QR 인증 코드<input class="input" name="token" autocomplete="off" spellcheck="false" required pattern="fv1\\.[0-9a-f]{64}"></label><p class="ops-form-status" role="status"></p><div class="ops-actions"><button class="icon-btn" type="button" data-ops-camera title="QR 스캔" aria-label="QR 스캔">${icon('scan')}</button><button class="primary-btn" type="submit">바우처 확인</button></div></form></section><section class="ops-section"><h2>수동 발급</h2>${form('voucher_issue',participant()+select('ruleId','바우처', (mine?.rules || []).map(r=>[r.id,r.title]),null)+reason(),'발급 확정')}</section><section class="ops-section"><h2>발급 취소</h2>${form('voucher_void',select('id','취소할 바우처',(data?.items || []).filter(v=>v.state==='available').map(v=>[v.id,`${v.name} · ${v.title}`]),null)+reason(),'취소 확정')}</section>`+searchForm()+table(data?.items,[['참여자','user_id'],['이름','name'],['바우처','title'],['상태',r=>statusName(r.state)],['마감',r=>time(r.expires_at)]])+paging();
     return table(data?.items,[['시각',r=>time(r.created_at)],['처리자','actor_id'],['작업','action'],['대상','target'],['사유','reason']])+paging();
   }
@@ -127,10 +156,11 @@ const festivalOpsUI = (() => {
   async function save(e) {
     e.preventDefault(); if(busy) return;
     const form=e.currentTarget, action=form.dataset.opsForm, body=Object.fromEntries(new FormData(form)), note=form.querySelector('.ops-form-status');
-    for(const key of ['version','floor','reviewPoints','delta','userId','stock','target']) if(key in body) body[key]=Number(body[key]);
+    for(const key of ['version','floor','reviewPoints','delta','userId','stock','target','photoStock','foodStock','photoVersion','foodVersion']) if(key in body) body[key]=Number(body[key]);
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
     if(action==='rule_save') { body.enabled=form.elements.enabled.checked; body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); }
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void'].includes(action) && !confirm('입력한 내용으로 처리할까요?')) return;
+    if(action==='reward_config') body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString();
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='reward_config'?'3개마다 바우처를 반복 지급할까요? 3·9·15개에서 선택하고, 6·12·18개에서 나머지를 지급합니다. 기존 자동 지급 기준은 중지됩니다.':'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; note.textContent='처리 중...';
     try {
       const response=await api().write(action,body);
@@ -225,7 +255,10 @@ const festivalOpsUI = (() => {
   }
   function vouchers() {
     const me=snapshot();
-    return `<main class="screen web-page">${festivalWeb.header('나의 바우처','축제에서 모은 혜택')}<div class="ops-vouchers">${failure?`<p role="alert">${h(failure)}</p>`:''}${(me?.vouchers || []).map(c=>{const valid=c.state==='available'&&new Date(c.expiresAt)>new Date();return `<article class="ops-voucher"><div>${icon('ticket')}<h2>${h(c.title)}</h2></div><p>${h(time(c.expiresAt))}까지</p>${valid?`<button class="primary-btn" data-ops-qr="${h(c.id)}">QR 보기</button>`:`<strong>${h(c.state==='available'?'만료':statusName(c.state))}</strong>`}</article>`;}).join('') || `<p class="ops-empty">${loaded?'아직 발급된 바우처가 없어요.':'불러오는 중...'}</p>`}${(me?.rules || []).map(r=>`<div class="ops-rule"><span>${h(r.title)} · 스탬프 ${r.target}개</span><button class="ghost-btn" data-ops-claim="${h(r.id)}" ${(me.reviews || []).length<r.target?'disabled':''}>받기</button></div>`).join('')}<p id="opsVoucherStatus" role="status"></p></div>${bottomNav('vouchers')}</main>`;
+    return `<main class="screen web-page">${festivalWeb.header('나의 바우처','축제에서 모은 혜택')}${festivalWeb.rewardPanel()}
+      <div class="ops-vouchers">${failure?`<p role="alert">${h(failure)}</p>`:''}
+      ${(me?.vouchers || []).map(c=>{const valid=c.state==='available'&&new Date(c.expiresAt)>new Date();return `<article class="ops-voucher"><div>${icon('ticket')}<h2>${h(c.title)}</h2></div><p>${h(time(c.expiresAt))}까지</p>${valid?`<button class="primary-btn" data-ops-qr="${h(c.id)}">QR 보기</button>`:`<strong>${h(c.state==='available'?'만료':statusName(c.state))}</strong>`}</article>`;}).join('') || `<p class="ops-empty">${loaded?'아직 발급된 바우처가 없어요.':'불러오는 중...'}</p>`}
+      <p id="opsVoucherStatus" role="status"></p></div>${bottomNav('vouchers')}</main>`;
   }
   function bind() {
     if(!active()) { if(owner) reset(); return; }
@@ -245,5 +278,5 @@ const festivalOpsUI = (() => {
     document.querySelectorAll('[data-ops-claim]').forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await api().write('voucher_claim',{ruleId:b.dataset.opsClaim});if(r.ok)await refresh();else{document.querySelector('#opsVoucherStatus').textContent=r.message;b.disabled=false;}});
     if(!['admin','vouchers'].includes(state.route)) closeDialog();
   }
-  return {admin,navigation,refresh,bind,snapshot,vouchers,reset};
+  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward};
 })();

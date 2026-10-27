@@ -1,6 +1,9 @@
 /* Mobile-web experience. Shared DB contracts are never changed by this module. */
 const festivalWeb = (() => {
   const REVIEW_POINTS = 10; // Preview policy only; not a production reward amount.
+  const REWARD_TITLES = { photo: "포토부스 이용권", food: "푸드트럭 교환권" };
+  const REWARD_POLICY = "choice-3-6";
+  let rewardBusy = false;
   const progressKey = () => `festival-web-demo:${state.user?.id || "guest"}`;
   const draftKey = id => `festival-review-draft:${isServerMode() ? "server" : "demo"}:${state.user?.id}:${id}`;
   let voucherFilter = "available";
@@ -65,14 +68,72 @@ const festivalWeb = (() => {
     for (const review of state.db.reviews.filter(r => r.userId === state.user.id && r.content?.trim())) {
       value.points[review.boothId] ??= REVIEW_POINTS;
     }
-    const count = completed().length;
-    for (const target of [5, 10]) {
-      if (count >= target && !value.coupons.some(c => c.target === target)) {
-        value.coupons.push({ id: makeId(), target, title: target === 5 ? "축제 간식 교환권" : "축제 음료 교환권",
-          createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), redeemedAt: null });
+    completeSecondReward(value);
+    saveProgress(value);
+  }
+
+  function appendReward(value, kind, target) {
+    value.coupons.push({ id: makeId(), policy: REWARD_POLICY, kind, target, title: REWARD_TITLES[kind],
+      createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), redeemedAt: null });
+  }
+  function completeSecondReward(value) {
+    for (const first of value.coupons.filter(c => c.policy === REWARD_POLICY && c.target % 6 === 3 && REWARD_TITLES[c.kind])) {
+      if (completed().length >= first.target + 3 && !value.coupons.some(c => c.policy === REWARD_POLICY && c.target === first.target + 3)) {
+        appendReward(value, first.kind === "photo" ? "food" : "photo", first.target + 3);
       }
     }
-    saveProgress(value);
+  }
+  function rewardState() {
+    if (isServerMode()) return festivalOpsUI.snapshot()?.rewardProgram || { ready: false };
+    const issued = progress().coupons.filter(c => c.policy === REWARD_POLICY);
+    let firstTarget=3;
+    while(issued.some(c=>c.target===firstTarget) && issued.some(c=>c.target===firstTarget+3)) firstTarget+=6;
+    return { ready: true, count: completed().length, firstTarget, secondTarget:firstTarget+3, issuedCount:issued.length,
+      firstChoice: issued.find(c => c.target === firstTarget)?.kind || null,
+      secondIssued: issued.some(c => c.target === firstTarget+3), canChoose: completed().length >= firstTarget,
+      options: Object.entries(REWARD_TITLES).map(([kind,title]) => ({ kind,title,available:true })) };
+  }
+  async function chooseReward(kind, firstTarget=rewardState().firstTarget) {
+    if (!REWARD_TITLES[kind] || !state.user) return { ok:false, message:"받을 바우처를 선택해 주세요." };
+    if (!Number.isInteger(firstTarget) || firstTarget<3 || firstTarget%6!==3) return {ok:false,message:"바우처 지급 지점을 확인해 주세요."};
+    if (isServerMode()) return festivalOpsUI.chooseReward(kind,firstTarget);
+    if (completed().length < firstTarget) return { ok:false, message:`완성 스탬프 ${firstTarget}개가 필요해요.` };
+    const value = progress();
+    const first = value.coupons.find(c => c.policy === REWARD_POLICY && c.target === firstTarget);
+    if (!first && firstTarget!==rewardState().firstTarget) return {ok:false,message:"앞선 바우처부터 선택해 주세요."};
+    if (first && first.kind !== kind) return { ok:false, message:"이미 선택한 바우처는 바꿀 수 없어요." };
+    if (!first) appendReward(value, kind, firstTarget);
+    completeSecondReward(value);
+    return saveProgress(value) ? { ok:true } : { ok:false, message:"저장하지 못했어요. 다시 시도해 주세요." };
+  }
+  function rewardPanel() {
+    const reward = rewardState();
+    if (!reward.ready) return "";
+    const first = reward.firstChoice, other = first === "photo" ? "food" : "photo", a=reward.firstTarget, b=reward.secondTarget;
+    return `<section class="reward-choice-section" aria-labelledby="rewardChoiceTitle"><div class="section-heading"><h2 id="rewardChoiceTitle">스탬프 혜택</h2><span>3개마다 1장</span></div>
+      ${!first ? `<p>${a}개에서 하나 선택, ${b}개에서 나머지 하나</p><form id="rewardChoiceForm"><input type="hidden" name="firstTarget" value="${a}"><fieldset ${rewardBusy || !reward.canChoose ? "disabled" : ""}><legend class="sr-only">받을 바우처 선택</legend><div class="reward-choice-options">${reward.options.map(o => `<label class="reward-option"><input type="radio" name="kind" value="${escapeHtml(o.kind)}" required ${!o.available ? "disabled" : ""}><span>${icon("ticket")}<strong>${escapeHtml(o.title)}</strong>${!o.available ? '<small>발급 대기</small>' : ''}</span></label>`).join("")}</div><button class="primary-btn full-action" type="submit">${reward.count < a ? `스탬프 ${a-reward.count}개 더 필요해요` : rewardBusy ? "발급 중..." : "선택한 바우처 받기"}</button></fieldset><p class="reward-choice-note">선택 후에는 변경할 수 없어요.</p><p class="reward-choice-status" role="status"></p></form>`
+      : `<ol class="reward-earned-steps"><li><b>${a}개</b><span>${REWARD_TITLES[first]}</span><strong>지급 완료</strong></li><li><b>${b}개</b><span>${REWARD_TITLES[other]}</span><strong>${reward.secondIssued ? "지급 완료" : reward.count < b ? `${b-reward.count}개 남음` : "발급 대기"}</strong></li></ol>${reward.count >= b && !reward.secondIssued ? `<button class="primary-btn full-action" data-reward-retry="${first}" data-reward-target="${a}" ${rewardBusy || !reward.options.find(o=>o.kind===other)?.available ? 'disabled' : ''}>나머지 바우처 받기</button><p class="reward-choice-status" role="status"></p>` : ''}`}
+    </section>`;
+  }
+  async function redeemRewardChoice(kind, form, firstTarget) {
+    if (rewardBusy) return;
+    const actor = state.user?.id;
+    rewardBusy = true;
+    document.querySelectorAll('#rewardChoiceForm fieldset,[data-reward-retry]').forEach(n=>{n.disabled=true;});
+    try {
+      const result = await chooseReward(kind,firstTarget);
+      if (state.user?.id !== actor) return;
+      rewardBusy = false;
+      if (result.ok) render();
+      else { const note = form?.querySelector('[role=status]') || document.querySelector('.reward-choice-status'); if(note) note.textContent=result.message; }
+    } finally {
+      rewardBusy=false;
+      if (state.user?.id === actor) {
+        const reward=rewardState(), other=reward.firstChoice==='photo'?'food':'photo';
+        document.querySelectorAll('#rewardChoiceForm fieldset').forEach(n=>{n.disabled=!reward.canChoose;});
+        document.querySelectorAll('[data-reward-retry]').forEach(n=>{n.disabled=!reward.options?.find(o=>o.kind===other)?.available;});
+      }
+    }
   }
 
   function points() { return isServerMode() ? festivalOpsUI.snapshot()?.points ?? null : Object.values(progress().points).reduce((a, b) => a + Number(b), 0); }
@@ -80,8 +141,33 @@ const festivalWeb = (() => {
   function couponState(c) { return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : new Date(c.expiresAt) <= new Date() ? "expired" : "available"; }
   function boothName(booth) { return escapeHtml(catalogBooth(booth)?.name || booth.name); }
 
-  function header(title, subtitle = "") {
-    return `<header class="web-header"><button type="button" class="icon-btn" data-history-back="home" aria-label="뒤로 가기">${icon("back")}</button><div><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ""}</div><button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button></header>`;
+  // Tab roots (stamps, MY) are reached from the bottom nav, so they skip back/home buttons.
+  function header(title, subtitle = "", root = false) {
+    const copy = `<div><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ""}</div>`;
+    if (root) return `<header class="web-header root">${copy}</header>`;
+    return `<header class="web-header"><button type="button" class="icon-btn" data-history-back="home" aria-label="뒤로 가기">${icon("back")}</button>${copy}<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button></header>`;
+  }
+
+  function rewardSlot(index) { return rewardState().ready && (index+1)%3===0; }
+
+  // Every six stamps repeat the choice/opposite pair, with a reward every three.
+  function stampCard(count) {
+    const goal = (Math.floor(count/3)+1)*3;
+    const start=Math.floor(count/6)*6;
+    const slots = Array.from({ length: 6 }, (_, i) => {
+      const n = start + i + 1;
+      const state = count >= n ? "on" : n === count + 1 ? "next" : "";
+      return `<span class="punch ${state}">${count >= n ? icon("stamp") : n}${rewardSlot(n - 1) && count < n ? `<i>${icon("ticket")}</i>` : ""}</span>`;
+    }).join("");
+    const rewards = rewardState();
+    const text = !rewards.ready ? "부스 방문 후 별점까지 남기면 스탬프가 찍혀요."
+      : !rewards.firstChoice && rewards.canChoose ? "받을 바우처를 선택할 수 있어요."
+      : rewards.firstChoice && count>=rewards.secondTarget ? "남은 바우처를 확인해 주세요." : `${goal-count}개 더 모으면 바우처를 받아요.`;
+    return `<section class="home-stamp-card" aria-labelledby="homeStampTitle">
+      <div class="section-heading"><h2 id="homeStampTitle">내 스탬프 <b data-complete-count>${count}</b>개</h2><button type="button" class="text-link" data-route="stamps">스탬프 판 ${icon("arrow")}</button></div>
+      <p>${text}</p>
+      <div class="punch-row" aria-hidden="true">${slots}</div>
+    </section>`;
   }
 
   function home() {
@@ -91,35 +177,30 @@ const festivalWeb = (() => {
     const pending = waiting().length;
     const notice = isServerMode() ? null : state.db.announcements[0];
     const reviewCount = state.db.booths.filter(b => repo.hasReview(state.user.id, b.id)).length;
+    const toWrite = state.db.booths.filter(reviewPending).length;
+    const voucherCount = coupons().filter(c => couponState(c) === "available").length;
     return `<main class="web-home">
       <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-home-notices aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
       <section class="web-welcome">
-        <div class="welcome-copy"><h1>${escapeHtml(state.user.name)}님,<br><em>오늘 어디부터</em> 가볼까요?</h1><p>즐기고, 모으고, 기록하는<br>우리의 축제.</p></div>
+        <div class="welcome-copy"><h1>${escapeHtml(state.user.name)}님,<br>오늘 어디부터 가볼까요?</h1><p>즐기고, 모으고, 기록하는<br>우리의 축제.</p></div>
         <img class="welcome-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />
       </section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       <button type="button" class="web-map-action" data-route="map">
-        <span class="map-action-copy"><small>지금 가장 먼저!</small><strong>부스 찾아보기 ${icon("arrow")}</strong><span>어떤 즐거움이 기다릴까요?</span></span>
+        <span class="map-action-copy"><strong>부스 찾아보기 ${icon("arrow")}</strong><span>층별 지도에서 부스 위치와 운영 상태를 확인해요.</span></span>
         <img class="map-action-art" src="./assets/festival-map-1.4.webp" width="1536" height="1024" alt="" />
       </button>
-      <section class="web-section home-quick-section">
-        <div class="section-heading"><h2>빠른 실행</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 보기 ${icon("arrow")}</button></div>
-        <nav class="web-shortcuts" aria-label="축제 바로가기">
-          ${[["stamps", "stamp", "내 스탬프", "차곡차곡 모은 방문 기록"], ["vouchers", "ticket", "바우처 보기", "내가 받은 쿠폰 확인"], ["reviews", "message", "방문한 부스 리뷰 쓰기", "좋았던 순간을 남겨보세요."]].map(([route, symbol, title, text]) => `<button type="button" class="shortcut-${route}" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><span class="shortcut-copy"><strong>${title}</strong><small>${text}</small></span>${icon("arrow")}</button>`).join("")}
-      </nav>
-      </section>
+      ${stampCard(count)}
       ${pending ? `<button class="web-pending" data-route="stamps">${icon("star")}<span><strong>별점을 기다리는 방문 ${pending}개</strong><small>별점을 남기면 스탬프가 완성돼요.</small></span>${icon("arrow")}</button>` : ""}
-      <section class="web-section home-stats-section">
-        <div class="section-heading"><h2>나의 축제 현황</h2><button type="button" class="text-link" data-route="profile">MY 페이지 ${icon("arrow")}</button></div>
-        <div class="web-my-stats">
-          <button type="button" data-route="stamps"><span class="stat-symbol stamps">${icon("stamp")}</span><span class="stat-copy"><span>스탬프</span><strong><b data-complete-count>${count}</b><small>개</small></strong></span></button>
-          <button type="button" data-route="vouchers"><span class="stat-symbol vouchers">${icon("ticket")}</span><span class="stat-copy"><span>바우처</span><strong>${coupons().filter(c => couponState(c) === "available").length}<small>장</small></strong></span></button>
-          <button type="button" data-route="reviews"><span class="stat-symbol reviews">${icon("message")}</span><span class="stat-copy"><span>리뷰</span><strong>${reviewCount}<small>개</small></strong></span></button>
-        </div>
+      <section class="web-section home-quick-section">
+        <div class="section-heading"><h2>바로가기</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 ${icon("arrow")}</button></div>
+        <nav class="web-shortcuts" aria-label="축제 바로가기">
+          ${[["vouchers", "ticket", "바우처", `사용 가능 ${voucherCount}장`], ["reviews", "message", "리뷰", toWrite ? `작성할 후기 ${toWrite}개` : `남긴 리뷰 ${reviewCount}개`]].map(([route, symbol, title, text]) => `<button type="button" class="shortcut-${route}" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><span class="shortcut-copy"><strong>${title}</strong><small>${text}</small></span>${icon("arrow")}</button>`).join("")}
+        </nav>
       </section>
-      <section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
-        ${visits.length ? `<div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>` : `<div class="web-empty-inline home-empty"><span class="empty-symbol">${icon("stamp")}</span><p>아직 방문한 부스가 없어요.<br><span>첫 번째 축제 기록을 남겨보세요.</span></p><button type="button" class="text-link" data-route="map">부스 찾아보기 ${icon("arrow")}</button></div>`}
-      </section>
+      ${visits.length ? `<section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
+        <div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>
+      </section>` : ""}
       <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><h2>축제 소식</h2><strong>${notice ? escapeHtml(notice.title) : "등록된 공지가 없어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
       ${bottomNav("home")}
@@ -159,22 +240,43 @@ const festivalWeb = (() => {
     const earned = completed();
     const pending = waiting();
     const restricted = repo.stampsForUser(state.user.id).filter(s => !repo.hasReview(state.user.id, s.boothId) && !reviewEligibility(s.boothId).allowed);
-    const goal = earned.length >= 5 ? 10 : 5;
+    const goal = (Math.floor(earned.length/3)+1)*3;
+    const rewards=rewardState(), claimable=rewards.ready && rewards.count>= (rewards.firstChoice?rewards.secondTarget:rewards.firstTarget);
     const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
-    return `<main class="screen web-page web-stamps">${header("나의 스탬프", "방문하고, 평가하고, 차곡차곡")}
-      <section class="web-stamp-summary"><span class="web-kicker">PANGYO STAMP</span><h2>오늘 모은 스탬프 <b>${earned.length}</b></h2><p>${isServerMode() ? "별점까지 등록한 방문 기록이에요." : goal > earned.length ? `다음 체험 바우처까지 ${goal - earned.length}개 남았어요.` : "모든 체험 바우처를 받았어요."}</p>
-        <div class="web-stamp-grid">${Array.from({length: Math.max(10, earned.length)}, (_, i) => {
-          const visit = earned[i];
-          const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
-          return booth ? `<button class="web-stamp-cell earned" data-list-select="${booth.id}" aria-label="${boothName(booth)} 날인 완료"><span>${icon("stamp")}</span><small>${boothName(booth)}</small></button>` : `<div class="web-stamp-cell ${i === earned.length ? "next" : ""}"><span>${i === 4 || i === 9 ? icon("ticket") : i + 1}</span><small>${i === 4 || i === 9 ? "바우처" : i === earned.length ? "다음 스탬프" : ""}</small></div>`;
-        }).join("")}</div>
+    return `<main class="screen web-page web-stamps stamp-path-page"><header class="stamp-board-header"><h1>스탬프</h1><button type="button" class="stamp-voucher-shortcut" data-route="vouchers">${icon("ticket")}<span>바우처</span>${claimable?'<i aria-label="받을 바우처 있음"></i>':''}</button></header>
+      <section class="stamp-path-summary" aria-label="스탬프 진행 상황">
+        <div class="stamp-progress-copy"><span>모은 스탬프 <strong>${earned.length}<small>개</small></strong></span><b>${!rewards.ready?'':claimable?'바우처 받기 가능':`다음 바우처까지 ${goal-earned.length}개`}</b></div>
+        <progress class="stamp-path-progress" max="${goal}" value="${earned.length}" aria-label="스탬프 ${goal}개 목표 진행">${earned.length} / ${goal}</progress>
       </section>
-      ${pending.length ? `<section class="web-section"><div class="section-heading"><h2>날인 대기 <span>${pending.length}</span></h2></div><p class="web-muted">방문 인증은 보관됐어요. 별점을 남기면 날인이 완료돼요.</p>${pending.map(visitRow).join("")}</section>` : ""}
-      <button type="button" class="web-pending voucher-link" data-route="vouchers">${icon("ticket")}<span><strong>내 바우처 확인</strong><small>쿠폰마다 별도의 QR로 확인</small></span>${icon("arrow")}</button>
-      <section class="web-section"><div class="section-heading"><h2>완료한 방문</h2><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button></div>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</section>
+      ${pending.length ? `<section class="stamp-rating-pending"><div class="section-heading"><h2>${icon("star")} 완성까지 별점 하나 <span>${pending.length}</span></h2></div>${pending.map(visitRow).join("")}</section>` : ""}
       ${restricted.length ? `<section class="web-section"><h2>방문 기록</h2>${restricted.map(s => { const b = state.db.booths.find(x => x.id === s.boothId); return b ? `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(s.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>` : ""; }).join("")}</section>` : ""}
+      ${stampPath(earned, pending)}
+      <section class="web-section"><div class="section-heading"><h2>완료한 방문</h2><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button></div>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</section>
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
+  }
+
+  function stampPath(earned, pending) {
+    const nodeCount = Math.max(15,Math.ceil((earned.length+1)/3)*3);
+    return `<section class="stamp-path-track" aria-label="누적 스탬프"><ol class="stamp-path-list">${Array.from({length:nodeCount}, (_, index) => {
+      const row=Math.floor(index/3),position=index%3,reverse=row%2===1,column=reverse?3-position:position+1;
+      const visit = earned[index];
+      const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
+      const current = index === earned.length;
+      const tone = visit ? "is-earned" : current ? "is-current" : "is-upcoming";
+      const label = booth ? boothName(booth) : visit ? "방문 완료" : current ? (pending.length ? "별점 남기기" : "부스 찾기") : `${index + 1}번째 스탬프`;
+      const reward=rewardSlot(index),rewardReady=reward && !!visit;
+      const face = `<span class="stamp-path-face">${reward?icon("ticket"):`<b>${index+1}</b>`}${visit?`<i>${icon('check')}</i>`:''}</span>`;
+      const action = rewardReady ? 'data-route="vouchers"' : booth ? `data-list-select="${escapeHtml(booth.id)}"` : current ? (pending.length ? `data-review-booth="${escapeHtml(pending[0].boothId)}"` : 'data-route="map"') : "";
+      const accessible=reward?`${index+1}번째 스탬프, ${visit?'바우처 확인':'바우처 지급 지점'}`:`${index+1}번째 스탬프, ${label}${visit?', 날인 완료':''}`;
+      return `<li class="stamp-path-step ${tone}${reverse?' is-reverse':''}${reward?' is-reward':''}" style="grid-row:${row+1};grid-column:${column}">
+        ${index < nodeCount - 1 ? `<span class="stamp-path-link${position===2?' is-turn':''}" aria-hidden="true"></span>` : ""}
+        <div class="stamp-path-stop">
+          ${action ? `<button type="button" class="stamp-path-node" ${action} ${current ? 'aria-current="step"' : ""} aria-label="${accessible}">${face}</button>` : `<span class="stamp-path-node" aria-label="${accessible}">${face}</span>`}
+          ${reward?`<span class="stamp-reward-marker">${visit?'바우처 확인':`${index+1}개 달성`}</span>`:current?`<span class="stamp-current-label">${pending.length?'별점 남기기':'다음 스탬프'}</span>`:''}
+        </div>
+      </li>`;
+    }).join("")}</ol></section>`;
   }
 
   function reviews() {
@@ -192,8 +294,9 @@ const festivalWeb = (() => {
     const all = coupons();
     const list = all.filter(c => voucherFilter === "available" ? couponState(c) === "available" : couponState(c) !== "available");
     return `<main class="screen web-page">${header("나의 바우처", "축제에서 모은 작은 혜택")}
+      ${rewardPanel()}
       <div class="web-segments" role="group" aria-label="바우처 상태"><button data-voucher-filter="available" aria-pressed="${voucherFilter === "available"}">사용 가능 ${all.filter(c => couponState(c) === "available").length}</button><button data-voucher-filter="history" aria-pressed="${voucherFilter === "history"}">사용 완료 · 만료</button></div>
-      ${isServerMode() ? `<div class="web-empty"><span>${icon("ticket")}</span><h2>바우처를 준비하고 있어요</h2><p>쿠폰 발급과 교환은 아직 이용할 수 없어요.<br>방문 기록은 그대로 유지돼요.</p></div>` : `<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>${list.length ? `<div class="web-coupons">${list.map(c => `<article class="web-coupon"><span class="coupon-symbol">${icon("ticket")}</span><div><small>DEMO · 스탬프 ${c.target}개 달성</small><h2>${c.title}</h2><p>${new Date(c.expiresAt).toLocaleDateString("ko-KR")}까지</p></div><button class="${couponState(c) === "available" ? "primary-btn" : "ghost-btn"}" data-voucher="${c.id}" ${couponState(c) === "available" ? "" : "disabled"}>${couponState(c) === "available" ? "QR 보기" : couponState(c) === "used" ? "사용 완료" : "만료"}</button></article>`).join("")}</div>` : `<div class="web-empty"><span>${icon("ticket")}</span><h2>${voucherFilter === "available" ? "사용 가능한 바우처가 없어요" : "아직 사용 내역이 없어요"}</h2><p>별점까지 등록한 스탬프 5개, 10개를 모으면<br>체험용 바우처가 한 장씩 발급돼요.</p><button class="ghost-btn" data-route="stamps">스탬프 보기</button></div>`}`}
+      ${isServerMode() ? `<p class="web-muted">바우처 발급은 아직 이용할 수 없어요.</p>` : `<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>${list.length ? `<div class="web-coupons">${list.map(c => `<article class="web-coupon"><span class="coupon-symbol">${icon("ticket")}</span><div><small>DEMO · 스탬프 ${c.target}개 달성</small><h2>${escapeHtml(c.title)}</h2><p>${new Date(c.expiresAt).toLocaleDateString("ko-KR")}까지</p></div><button class="${couponState(c) === "available" ? "primary-btn" : "ghost-btn"}" data-voucher="${c.id}" ${couponState(c) === "available" ? "" : "disabled"}>${couponState(c) === "available" ? "QR 보기" : couponState(c) === "used" ? "사용 완료" : "만료"}</button></article>`).join("")}</div>` : `<div class="web-empty"><span>${icon("ticket")}</span><h2>${voucherFilter === "available" ? "사용 가능한 바우처가 없어요" : "아직 사용 내역이 없어요"}</h2><button class="ghost-btn" data-route="stamps">스탬프 보기</button></div>`}`}
       ${bottomNav("vouchers")}</main>`;
   }
 
@@ -353,6 +456,12 @@ const festivalWeb = (() => {
   }
 
   function bind() {
+    document.querySelector('#rewardChoiceForm')?.addEventListener('submit',event=>{
+      event.preventDefault(); const form=event.currentTarget;
+      const values=new FormData(form);
+      redeemRewardChoice(values.get('kind'),form,Number(values.get('firstTarget')));
+    });
+    document.querySelector('[data-reward-retry]')?.addEventListener('click',event=>redeemRewardChoice(event.currentTarget.dataset.rewardRetry,null,Number(event.currentTarget.dataset.rewardTarget)));
     document.querySelector("[data-home-menu]")?.addEventListener("click", event => showMenu(event.currentTarget));
     document.querySelector("[data-home-notices]")?.addEventListener("click", () => {
       const section = document.querySelector("#homeNews");
@@ -371,6 +480,6 @@ const festivalWeb = (() => {
   }
 
   return { home, stamps, reviews, vouchers, program, ownReview, completed, waiting, reviewPending,
-    draft, saveDraft, clearDraft, syncRewards, points, coupons, header, afterRender, refreshIndicators,
+    draft, saveDraft, clearDraft, syncRewards, rewardState, rewardPanel, chooseReward, points, coupons, header, afterRender, refreshIndicators,
     loadReviewContents, scanControls, webTagUrl, bind, REVIEW_POINTS };
 })();
