@@ -1725,10 +1725,10 @@ function mapPlanMarkup(plan, booths) {
       const visited = repo.hasStamp(state.user.id, booth.id);
       const selected = state.selectedBoothId === booth.id;
       return `
-        <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${booth.name}, ${statusInfo(booth.status).label}" title="${booth.name}">
+        <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}, ${statusInfo(booth.status).label}" title="${escapeHtml(booth.name)}">
           <span>${item.label}</span>
           <small>${booth.category === "class" ? "부스" : "안내"}</small>
-          <i class="room-state" aria-hidden="true"></i>
+          <i class="room-state" aria-hidden="true">${icon("check")}</i>
         </button>
       `;
     }).join("")}
@@ -1753,6 +1753,7 @@ function mapCanvasView(booths, plan) {
     <div class="map-zoom-controls" role="group" aria-label="지도 확대 및 축소">
       <button type="button" class="map-zoom-btn" id="mapZoomIn" aria-label="지도 확대" title="지도 확대" ${state.mapZoom >= MAP_ZOOM_MAX ? "disabled" : ""}>${icon("plus")}</button>
       <button type="button" class="map-zoom-btn" id="mapZoomOut" aria-label="지도 축소" title="지도 축소" ${state.mapZoom <= MAP_ZOOM_MIN ? "disabled" : ""}>${icon("minus")}</button>
+      <button type="button" class="map-zoom-btn" id="resetMapView" aria-label="지도 처음 보기" title="지도 처음 보기">${icon("refresh")}</button>
     </div>
     ${booths.length ? "" : mapEmptyCard()}${selected ? mapPreviewCard(selected) : ""}
   </div>`;
@@ -1764,44 +1765,41 @@ function mapView() {
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const plan = mapPlanForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
-  const sheetHint = state.sheetLevel === "full" ? "탭해서 지도 보기" : "탭해서 전체 목록 보기";
-  const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : "부스 목록 펼치기";
+  const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : state.sheetLevel === "mid" ? "부스 목록 더 펼치기" : "부스 목록 펼치기";
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
       <header class="top-bar">
         <button class="icon-btn" data-route="home" aria-label="홈으로">${icon("back")}</button>
-        <div class="top-title"><strong>판교고 실내지도</strong><span>${isServerMode() ? "위치 임시 배치" : "축제 부스"}</span></div>
-        <button class="icon-btn map-search-action ${state.search ? "has-query" : ""}" id="mapSearchBtn" type="button" aria-label="부스 검색">
-          <span>${icon("search")}</span>
-          ${state.search ? `<b>${globalSearchResults.length}</b>` : ""}
-        </button>
+        <h1>부스 지도</h1>
+        <span class="map-location-note">${isServerMode() ? "위치 임시 배치" : "판교고"}</span>
       </header>
+      <button class="map-search-bar" id="mapSearchBtn" type="button" aria-label="부스 검색" aria-haspopup="dialog">
+        ${icon("search")}<span>${state.search ? escapeHtml(state.search) : "부스 이름, 동아리, 교실 검색"}</span>
+        ${state.search ? `<b>${globalSearchResults.length}</b>` : ""}
+      </button>
       <section class="map-stage">
         ${floorTabsView()}
         <div class="map-context-bar">
-          <span><strong>${floorInfo.label}</strong>${plan.subtitle}</span>
-          <button type="button" id="resetMapView" aria-label="지도 처음 보기" title="지도 처음 보기">${icon("refresh")}</button>
+          <strong class="map-floor-number">${state.floor}F</strong>
+          <div><strong>${floorInfo.caption === "시설" ? "학교 시설" : `${floorInfo.caption} 부스`}</strong><span>${plan.subtitle}</span></div>
         </div>
         <div class="map-legend" aria-label="지도 범례">
           <span><i class="classroom"></i>학급</span>
           <span><i class="facility"></i>시설</span>
-          <span><i class="visited"></i>방문 완료</span>
+          <span><i class="visited">${icon("check")}</i>방문 완료</span>
         </div>
         ${mapCanvasView(booths, plan)}
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
-        <button class="sheet-handle" id="sheetToggle" aria-label="${sheetHandleLabel}">
-          <span class="sheet-grip"></span>
-          <span class="sheet-peek-label">${icon("list")} ${floorInfo.label} 부스 ${booths.length}개</span>
-        </button>
-        <div class="sheet-head">
-          <span>
-            <strong>${floorInfo.label} 부스</strong>
-            <small>${booths.length}개 · <span data-floor-stamp-count>${stampedCount}</span>개 방문</small>
+        <button type="button" class="sheet-handle" id="sheetToggle" aria-label="${sheetHandleLabel}" aria-expanded="${state.sheetLevel !== "peek"}" aria-controls="floorBoothList">
+          <span class="sheet-grip" aria-hidden="true"></span>
+          <span class="map-sheet-summary">
+            <span class="map-sheet-icon" aria-hidden="true">${icon("list")}</span>
+            <span class="map-sheet-title"><strong>${floorInfo.label} 부스 <b>${booths.length}</b></strong><small>방문 <span data-floor-stamp-count>${stampedCount}</span> / ${booths.length}</small></span>
+            <span class="map-sheet-chevron" aria-hidden="true">${icon("back")}</span>
           </span>
-          <small class="sheet-hint">${sheetHint}</small>
-        </div>
-        <div class="booth-list">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
+        </button>
+        <div class="booth-list" id="floorBoothList">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
       </section>
       ${state.searchOpen ? searchOverlay(globalSearchResults) : ""}
       ${bottomNav("map")}
@@ -1816,20 +1814,10 @@ function searchOverlay(booths) {
         <button class="icon-btn" id="closeSearchScreen" type="button" aria-label="검색 닫기">${icon("back")}</button>
         <div class="search-screen-input ${state.search ? "has-clear" : ""}">
           <span aria-hidden="true">${icon("search")}</span>
-          <input id="searchScreenInput" class="input" placeholder="부스 이름이나 위치 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" />
+          <input id="searchScreenInput" class="input" aria-label="부스 이름이나 위치 검색" placeholder="부스 이름이나 위치 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" />
           <button id="clearSearchScreen" type="button" class="clear-search-btn" aria-label="검색어 지우기" ${state.search ? "" : "hidden"}>${icon("close")}</button>
         </div>
       </header>
-      <div class="search-screen-controls">
-        ${choiceSelect({
-          id: "search-sort",
-          label: "이름순",
-          caption: "정렬",
-          options: [
-            { label: "이름순", active: state.sort === "name", attr: `data-sort-option="name"` },
-          ],
-        })}
-      </div>
       <div class="search-result-meta" aria-live="polite">
         <strong id="searchResultCount">${booths.length}개 결과</strong>
         <span id="searchResultQuery">${state.search ? `"${escapeHtml(state.search)}"` : "전체 부스"}</span>
@@ -2670,7 +2658,7 @@ function bindSheetDrag() {
     peekHeight = Number.parseFloat(getComputedStyle(sheet).getPropertyValue("--sheet-peek-height")) || 44;
     midHeight = Math.min(320, Math.max(220, window.innerHeight * 0.38));
     const navTop = document.querySelector(".bottom-nav")?.getBoundingClientRect().top || window.innerHeight - 72;
-    fullHeight = Math.max(midHeight, navTop - 122);
+    fullHeight = Math.max(midHeight, navTop - (document.querySelector(".map-stage")?.getBoundingClientRect().top || 122));
   };
   const heightForLevel = (level) => {
     if (level === "full") return fullHeight;
@@ -2709,7 +2697,8 @@ function bindSheetDrag() {
     sheet.classList.toggle("open", level !== "peek");
     sheet.classList.toggle("full", level === "full");
     document.querySelector(".map-screen")?.classList.toggle("sheet-full", level === "full");
-    handle.setAttribute("aria-label", level === "full" ? "부스 목록 접기" : "부스 목록 펼치기");
+    handle.setAttribute("aria-label", level === "full" ? "부스 목록 접기" : level === "mid" ? "부스 목록 더 펼치기" : "부스 목록 펼치기");
+    handle.setAttribute("aria-expanded", String(level !== "peek"));
   };
 
   handle.addEventListener("pointerdown", (event) => {
