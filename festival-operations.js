@@ -19,7 +19,7 @@
     REWARD_ORDER_REQUIRED: '앞선 바우처부터 선택해 주세요.',
     REWARD_MIGRATION_REQUIRED: '기존 발급 바우처의 이관 확인이 필요해요.',
     REQUEST_CONFLICT: '이전 요청과 내용이 달라요. 화면을 새로고침해 주세요.',
-    POINTS_INSUFFICIENT: '포인트 잔액이 부족해요.', SELF_ADJUSTMENT: '본인 포인트는 직접 조정할 수 없어요.',
+    POINTS_INSUFFICIENT: '포인트 잔액이 부족해요.', SELF_ADJUSTMENT: '본인 계정에는 직접 지급하거나 조정할 수 없어요.',
     VOUCHER_USED: '이미 사용한 바우처예요.', VOUCHER_EXPIRED: '만료된 바우처예요.', VOUCHER_VOID: '취소된 바우처예요.',
     VOUCHER_INVALID: '유효한 바우처 QR이 아니에요.', SELF_REDEMPTION: '본인 바우처는 다른 운영자에게 확인받아 주세요.',
     OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
@@ -31,7 +31,8 @@
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
   function error(value) {
-    const found = Object.keys(messages).find(key => String(value?.message || '').includes(key));
+    const codes = String(value?.message || '').match(/[A-Z][A-Z0-9_]+/g) || [];
+    const found = Object.keys(messages).find(key => codes.includes(key));
     const code = found || (value?.code === 'PGRST202' ? 'OPS_NOT_READY' : ['23514','23502','22P02','22007'].includes(value?.code) ? 'INVALID_INPUT' : 'NETWORK_ERROR');
     return { ok: false, code, message: messages[code] || '응답을 확인하지 못했어요. 같은 내용으로 다시 시도해 주세요.', retryable: code === 'NETWORK_ERROR' };
   }
