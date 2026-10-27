@@ -36,11 +36,11 @@ const festivalWeb = (() => {
   }
 
   function waiting() {
-    return state.user ? repo.stampsForUser(state.user.id).filter(s => !repo.hasReview(state.user.id, s.boothId)) : [];
+    return state.user ? repo.stampsForUser(state.user.id).filter(s => !repo.hasReview(state.user.id, s.boothId) && reviewEligibility(s.boothId).allowed) : [];
   }
 
   function reviewPending(booth) {
-    if (!repo.hasStamp(state.user.id, booth.id)) return false;
+    if (!state.user || !repo.hasStamp(state.user.id, booth.id) || !reviewEligibility(booth.id).allowed) return false;
     const own = ownReview(booth.id);
     return !own || own.unknownContent || !own.content?.trim();
   }
@@ -51,7 +51,7 @@ const festivalWeb = (() => {
   }
 
   function saveDraft() {
-    if (!state.user || !state.selectedBoothId) return false;
+    if (!state.user || !state.selectedBoothId || !reviewEligibility(state.selectedBoothId).allowed) return false;
     return writeSessionStorage(draftKey(state.selectedBoothId), JSON.stringify({ rating: state.reviewRating, content: state.reviewDraft }));
   }
 
@@ -158,6 +158,7 @@ const festivalWeb = (() => {
     syncRewards();
     const earned = completed();
     const pending = waiting();
+    const restricted = repo.stampsForUser(state.user.id).filter(s => !repo.hasReview(state.user.id, s.boothId) && !reviewEligibility(s.boothId).allowed);
     const goal = earned.length >= 5 ? 10 : 5;
     const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
     return `<main class="screen web-page web-stamps">${header("나의 스탬프", "방문하고, 평가하고, 차곡차곡")}
@@ -171,6 +172,7 @@ const festivalWeb = (() => {
       ${pending.length ? `<section class="web-section"><div class="section-heading"><h2>날인 대기 <span>${pending.length}</span></h2></div><p class="web-muted">방문 인증은 보관됐어요. 별점을 남기면 날인이 완료돼요.</p>${pending.map(visitRow).join("")}</section>` : ""}
       <button type="button" class="web-pending voucher-link" data-route="vouchers">${icon("ticket")}<span><strong>내 바우처 확인</strong><small>쿠폰마다 별도의 QR로 확인</small></span>${icon("arrow")}</button>
       <section class="web-section"><div class="section-heading"><h2>완료한 방문</h2><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button></div>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</section>
+      ${restricted.length ? `<section class="web-section"><h2>방문 기록</h2>${restricted.map(s => { const b = state.db.booths.find(x => x.id === s.boothId); return b ? `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(s.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>` : ""; }).join("")}</section>` : ""}
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
   }
@@ -181,7 +183,7 @@ const festivalWeb = (() => {
     return `<main class="screen web-page">${header("나의 리뷰", "별점은 필수, 글 후기는 선택")}
       <section class="web-review-benefit">${icon("message")}<div><h2>못 남긴 이야기, 이어서</h2><p>${isServerMode() ? `글 후기를 처음 등록하면 ${festivalOpsUI.snapshot()?.event?.review_points || 0}P를 받아요. 부스당 한 번만 지급돼요.` : `글 후기를 처음 등록하면 체험 포인트 ${REVIEW_POINTS}P를 받아요. 부스당 한 번만 지급돼요.`}</p></div></section>
       <section class="web-section"><div class="section-heading"><h2>작성할 후기 <span>${pending.length}</span></h2></div>${pending.length ? pending.map(b => visitRow({boothId: b.id})).join("") : `<div class="web-empty-inline">${icon("check")}<p>${booths.length ? "모든 후기를 남겼어요." : "부스 방문 후 후기를 남길 수 있어요."}</p></div>`}</section>
-      <section class="web-section"><div class="section-heading"><h2>남긴 후기</h2></div>${booths.filter(b => !reviewPending(b)).map(b => `<article class="web-written"><header><strong>${boothName(b)}</strong><span>${icon("star")} ${ownReview(b.id).rating}</span></header><p>${escapeHtml(ownReview(b.id).content)}</p></article>`).join("") || `<p class="web-muted">아직 글 후기가 없어요.</p>`}</section>
+      <section class="web-section"><div class="section-heading"><h2>남긴 후기</h2></div>${booths.filter(b => ownReview(b.id)?.content?.trim()).map(b => `<article class="web-written"><header><strong>${boothName(b)}</strong><span>${icon("star")} ${ownReview(b.id).rating}</span></header><p>${escapeHtml(ownReview(b.id).content)}</p></article>`).join("") || `<p class="web-muted">아직 글 후기가 없어요.</p>`}</section>
       ${bottomNav("reviews")}</main>`;
   }
 

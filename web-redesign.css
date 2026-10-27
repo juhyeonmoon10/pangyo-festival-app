@@ -422,3 +422,11 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+
+.review-identity { color: #236152; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.review-roster-clubs { border: 1px solid #d9e3df; padding: 12px; min-width: 0; max-height: 240px; overflow-y: auto; }
+.review-roster-clubs label { display: flex; align-items: flex-start; gap: 8px; overflow-wrap: anywhere; }
+.review-roster-clubs input { flex: 0 0 auto; }
+.review-compose [hidden] { display: none !important; }
+.review-guidance, .review-identity, .review-roster-clubs legend { word-break: keep-all; overflow-wrap: anywhere; }
+.ops-form-status[data-tone="success"] { color: #087e5a; }

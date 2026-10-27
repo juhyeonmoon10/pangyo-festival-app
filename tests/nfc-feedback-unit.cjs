@@ -6,7 +6,7 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8');
 const feedback = source.slice(source.indexOf('function dismissNfcFeedback()'), source.indexOf('function refreshVisitIndicators()'));
-function setup({ reviewed = false, type = 'success' } = {}) {
+function setup({ reviewed = false, type = 'success', allowed = true } = {}) {
   const nodes = [], calls = [];
   const state = { user: { id: 'student' }, db: { booths: [{ id: 'booth', name: '<부스>' }] },
     scanResult: { type, boothId: 'booth', title: reviewed ? '스탬프가 완성됐어요' : '방문 인증 완료', body: '기존 방문 기록을 그대로 유지했어요.' } };
@@ -26,6 +26,7 @@ function setup({ reviewed = false, type = 'success' } = {}) {
     },
   };
   const ctx = vm.createContext({ state, document, repo: { hasReview: () => reviewed },
+    reviewEligibility: () => ({ allowed }),
     icon: () => '<svg></svg>', escapeHtml: value => String(value).replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
     openBoothReview: id => calls.push(['review', id]),
     runActionOnce: (key, fn) => { calls.push(key); fn(); }, nfcAdapter: { scan: claim => calls.push(claim) },
@@ -34,6 +35,12 @@ function setup({ reviewed = false, type = 'success' } = {}) {
   vm.runInContext(feedback, ctx);
   return { state, document, nodes, calls, show: () => vm.runInContext('showNfcFeedback()', ctx), dismiss: () => vm.runInContext('dismissNfcFeedback()', ctx) };
 }
+
+test('own-club visit confirms normally without asking for a forbidden rating', () => {
+  const app = setup({ allowed: false }); app.show();
+  assert.doesNotMatch(app.nodes[0].innerHTML, /별점 남기기|별점을 남기면/);
+  assert.match(app.nodes[0].innerHTML, /방문 인증 완료/);
+});
 
 test('visit completion is an accessible modal with rating CTA and escaped booth name', () => {
   const api = setup(); api.show(); const node = api.nodes[0];

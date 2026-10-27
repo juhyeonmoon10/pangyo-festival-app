@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'">
+<base href="../"><title>Isolated review preview</title>
+<link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="ui-ver2.css"><link rel="stylesheet" href="web-redesign.css"><link rel="stylesheet" href="operations.css"></head>
+<body class="design-ver2 design-web"><div id="app" class="app-shell"></div>
+<script>
+for(const key of ['localStorage','sessionStorage']) {const m=new Map();Object.defineProperty(window,key,{value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}});}
+window.FestivalCatalog={CLUB_IDS:{},createClient:()=>({getSnapshot:()=>({status:'ready',rows:[]}),forClub:()=>null,subscribe(){},refresh(){}})};
+if(new URL(location.href).searchParams.get('mode')==='admin') {
+  const event={id:'synthetic-event',name:'테스트 행사',state:'open'},items=[{key:'club-a',name:'테스트 동아리',status:'open',floor:1}];
+  let version=0;
+  window.FestivalAccount={normalizeError:()=>({message:'테스트 오류'}),createAccount:()=>({
+    initialize:async()=>({id:1,authUserId:'fixture-admin',name:'운영자',email:'fixture@example.invalid',studentNumber:'21001',completedBooths:[],needsProfile:false,isAdmin:true}),
+    pending:()=>null,myReviews:async()=>({ok:true,boothKeys:[]}),
+    operations:{read:async kind=>({ok:true,data:{ready:true,event,items:kind==='catalog'?items:kind==='participants'?[{id:2,name:'학생',visits:1,points:0}]:[],reviews:[],visits:[]}})},
+    reviewIdentity:async(action,payload)=>{
+      if(action==='save') {window.fixtureLastSave=payload;version++;}
+      return {ok:true,data:{eventId:event.id,userId:2,accountName:'학생',realName:'',boothKeys:[],verified:false,version}};
+    }
+  })};
+}
+</script>
+<script src="assets/vendor/ui-icons.js"></script><script src="assets/vendor/qrcode-1.4.4.js"></script>
+<script src="nfc-manager.js"></script><script src="programs.js"></script><script src="web-experience.js"></script><script src="operations-ui.js"></script><script src="app.js"></script>
+<script>
+if(!isServerMode()) {
+  const mode=new URL(location.href).searchParams.get('mode'),b=state.db.booths[0];
+  state.user={...state.db.users[0],id:'review-fixture',name:'표시용 별명',role:'user'};state.db.users=[state.user];
+  state.db.stamps=[{id:'visit',userId:state.user.id,boothId:b.id,status:'active',createdAt:'2026-10-28T01:00:00Z'}];
+  state.db.reviews=[];state.db.reviewIdentities=mode==='unknown'?[]:[{userId:state.user.id,verified:true,realName:'김하늘',boothIds:mode==='own'?[b.id]:[]}];
+  state.selectedBoothId=b.id;navigateTo('detail',{replace:true});
+} else if(new URL(location.href).searchParams.get('mode')==='admin') {
+  setTimeout(()=>navigateTo('admin',{replace:true}),50);
+}
+</script></body></html>

@@ -284,6 +284,27 @@ function boothForKey(key) {
   return key ? state.db.booths.find(booth => boothKeyFor(booth) === key) || null : null;
 }
 
+function reviewEligibility(boothId) {
+  const denied = reason => ({ allowed: false, reason, authorName: null });
+  if (!state.user) return denied("AUTH_REQUIRED");
+  if (isServerMode()) {
+    const response = serverReviewState(boothId);
+    return response?.status === "ready" && window.FestivalAccount
+      ? window.FestivalAccount.validateReviewPolicy(response.reviewPolicy) : denied("REVIEW_POLICY_REQUIRED");
+  }
+  // Synthetic preview roster only. Production always uses the server's decision.
+  const identity = state.db.reviewIdentities?.find(row => row.userId === state.user.id && row.verified === true);
+  if (!identity || !identity.realName?.trim() || !Array.isArray(identity.boothIds)) return denied("REVIEW_IDENTITY_REQUIRED");
+  if (identity.boothIds.includes(boothId)) return denied("OWN_CLUB_REVIEW");
+  return { allowed: true, reason: null, authorName: identity.realName };
+}
+
+function reviewEligibilityMessage(policy) {
+  return ({ OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
+    REVIEW_IDENTITY_REQUIRED: "운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.",
+    AUTH_REQUIRED: "로그인 후 작성할 수 있어요." })[policy.reason] || "리뷰 작성 가능 여부를 확인 중이에요.";
+}
+
 function serverReviewState(boothId) {
   const key = boothKeyFor(state.db.booths.find(booth => booth.id === boothId));
   return key ? serverReviews.get(key) || null : null;
@@ -1049,7 +1070,7 @@ function showNfcFeedback() {
   const result = state.scanResult;
   if (!result || !state.user) return;
   const booth = state.db.booths.find(item => item.id === result.boothId);
-  const canReview = booth && ["success", "duplicate"].includes(result.type) && !repo.hasReview(state.user.id, booth.id);
+  const canReview = booth && ["success", "duplicate"].includes(result.type) && !repo.hasReview(state.user.id, booth.id) && reviewEligibility(booth.id).allowed;
   const completed = ["success", "duplicate"].includes(result.type);
   const node = document.createElement(completed ? "dialog" : "aside");
   node.id = "nfcFeedback";
@@ -1203,6 +1224,21 @@ function updateReviewSection(boothId) {
   const count = document.querySelector("[data-review-count]");
   if (count) count.textContent = reviewCountText(info);
   const own = festivalWeb.ownReview(boothId);
+  const policy = reviewEligibility(boothId);
+  const enabled = policy.allowed && repo.hasStamp(state.user.id, boothId) && !own?.content?.trim();
+  const compose = document.querySelector("#boothReviewSection .review-compose");
+  if (compose) {
+    compose.classList.toggle("locked", !enabled);
+    compose.querySelectorAll("[data-rating]").forEach(star => { star.disabled = !enabled || Boolean(own); });
+    compose.querySelector("textarea").disabled = !enabled;
+    compose.querySelector("#submitReview").disabled = !enabled || state.reviewBusy;
+    compose.querySelector("#submitReview").textContent = !policy.allowed ? "리뷰 작성 제한" : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료";
+    compose.querySelector(".review-guidance").textContent = !policy.allowed ? reviewEligibilityMessage(policy) : enabled ? "별점은 필수, 글 후기는 선택이에요." : "방문 인증 후 작성할 수 있어요.";
+    const identity = compose.querySelector(".review-identity");
+    identity.textContent = policy.allowed ? `${policy.authorName} 이름으로 공개돼요.` : "";
+    identity.hidden = !policy.allowed;
+    compose.querySelector("#saveReviewDraft").hidden = !enabled;
+  }
   if (own) {
     state.reviewRating = own.rating;
     document.querySelectorAll("[data-rating]").forEach(star => {
@@ -1212,8 +1248,8 @@ function updateReviewSection(boothId) {
     });
     const submit = document.querySelector("#submitReview");
     if (submit) {
-      submit.disabled = state.reviewBusy || Boolean(own.content?.trim());
-      submit.textContent = own.content?.trim() ? "이미 등록한 후기예요" : "글 후기 임시저장";
+      submit.disabled = !enabled || state.reviewBusy;
+      submit.textContent = !policy.allowed ? "리뷰 작성 제한" : own.content?.trim() ? "이미 등록한 후기예요" : "글 후기 등록";
     }
   }
 }
@@ -2007,10 +2043,14 @@ function detailView() {
 
 function reviewForm({ enabled, message }) {
   const own = festivalWeb.ownReview(state.selectedBoothId);
+  const policy = reviewEligibility(state.selectedBoothId);
+  enabled = enabled && policy.allowed;
+  if (!policy.allowed) message = reviewEligibilityMessage(policy);
   const value = own?.rating || state.reviewRating;
   return `
     <div class="review-compose ${enabled ? "" : "locked"}">
       <p class="review-guidance">${message}</p>
+      <p class="review-identity" ${policy.allowed ? "" : "hidden"}>${policy.allowed ? `${escapeHtml(policy.authorName)} 이름으로 공개돼요.` : ""}</p>
       <div class="star-picker" aria-label="별점 선택">
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star ${value >= n ? "on" : ""}" data-rating="${n}" aria-label="${n}점" aria-pressed="${value === n}" ${enabled && !own ? "" : "disabled"}>${icon("star")}</button>`).join("")}
       </div>
@@ -2018,15 +2058,15 @@ function reviewForm({ enabled, message }) {
       <textarea id="reviewContent" class="textarea" maxlength="500" placeholder="좋았던 경험을 나눠주세요." ${enabled ? "" : "disabled"}>${escapeHtml(state.reviewDraft)}</textarea>
       ${isServerMode() ? `<p class="web-review-hint">글 후기 최초 등록 시 ${festivalOpsUI.snapshot()?.event?.review_points || 0}P · 부스당 한 번</p>` : `<p class="web-review-hint">글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번</p>`}
       <p class="review-feedback" id="reviewFeedback" role="status" aria-live="polite"></p>
-      <button id="submitReview" type="button" class="primary-btn full-action" ${enabled && !state.reviewBusy ? "" : "disabled"}>${state.reviewBusy ? "등록 중..." : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료"}</button>
-      ${enabled ? `<button id="saveReviewDraft" class="ghost-btn full-action" type="button">임시저장하고 나중에 쓰기</button>` : ""}
+      <button id="submitReview" type="button" class="primary-btn full-action" ${enabled && !state.reviewBusy ? "" : "disabled"}>${state.reviewBusy ? "등록 중..." : !policy.allowed ? "리뷰 작성 제한" : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료"}</button>
+      <button id="saveReviewDraft" class="ghost-btn full-action" type="button" ${enabled ? "" : "hidden"}>임시저장하고 나중에 쓰기</button>
     </div>
   `;
 }
 
 function reviewView(review) {
-  // Server reviews carry a masked author name; demo reviews look the writer up locally.
-  const author = review.author || state.db.users.find((item) => item.id === review.userId)?.name || "학생";
+  // New reviews carry a verified-name snapshot. Old anonymous reviews stay anonymous.
+  const author = review.author || review.authorName || "참여자";
   return `<article class="review${review.mine ? " mine" : ""}"><div class="review-meta"><strong>${icon("star")} ${Number(review.rating).toFixed(1)}</strong><span>방문 인증 · ${escapeHtml(author)}${review.mine ? " (나)" : ""} · ${formatReviewDate(review.createdAt)}</span></div>${review.content ? `<p>${escapeHtml(review.content)}</p>` : ""}</article>`;
 }
 
@@ -3209,6 +3249,8 @@ async function submitReview() {
     feedback.dataset.tone = tone;
   };
   if (state.reviewBusy) return;
+  const policy = reviewEligibility(boothId);
+  if (!policy.allowed) { setFeedback(reviewEligibilityMessage(policy)); return; }
   if (!Number.isInteger(state.reviewRating) || state.reviewRating < 1 || state.reviewRating > 5) {
     setFeedback("별점을 선택해 주세요. 글 후기는 쓰지 않아도 괜찮아요.");
     document.querySelector("[data-rating]")?.focus();
@@ -3242,7 +3284,10 @@ async function submitReview() {
     if (state.user?.id !== actingUser) return;
     if (!response.ok) {
       if (response.code === "ALREADY_REVIEWED") serverMyReviews?.add(key);
-      document.querySelector("#submitReview")?.removeAttribute("disabled");
+      if (["OWN_CLUB_REVIEW", "REVIEW_IDENTITY_REQUIRED", "REVIEW_POLICY_REQUIRED"].includes(response.code)) {
+        serverReviews.set(key, { ...serverReviews.get(key), status: "ready", reviewPolicy: { version: 1, allowed: false, reason: response.code, authorName: null } });
+        updateReviewSection(boothId);
+      } else document.querySelector("#submitReview")?.removeAttribute("disabled");
       setFeedback(response.message);
       if (["AUTH_REQUIRED", "GOOGLE_AUTH_REQUIRED", "PROFILE_REQUIRED"].includes(response.code)) render();
       return;
@@ -3258,8 +3303,8 @@ async function submitReview() {
   }
   const next = cloneData(state.db);
   const current = next.reviews.find(r => r.userId === state.user.id && r.boothId === boothId);
-  if (current) { current.content = content; current.updatedAt = new Date().toISOString(); }
-  else next.reviews.push({ id: makeId(), userId: state.user.id, boothId, rating: state.reviewRating, content, createdAt: new Date().toISOString() });
+  if (current) { current.content = content; current.authorName ||= policy.authorName; current.updatedAt = new Date().toISOString(); }
+  else next.reviews.push({ id: makeId(), userId: state.user.id, boothId, rating: state.reviewRating, content, authorName: policy.authorName, createdAt: new Date().toISOString() });
   if (!writeSessionStorage(SESSION_KEY, JSON.stringify(Object.fromEntries(SESSION_FIELDS.map(field => [field, next[field] || []]))))) {
     setFeedback("저장 공간을 사용할 수 없어요. 글을 유지했으니 다시 시도해 주세요."); return;
   }

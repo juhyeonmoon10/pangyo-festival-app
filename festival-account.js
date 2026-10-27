@@ -19,6 +19,12 @@
     ALREADY_REVIEWED: "이 부스에는 이미 별점을 남겼어요.",
     RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",
     REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
+    OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
+    REVIEW_IDENTITY_REQUIRED: "운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.",
+    REVIEW_POLICY_REQUIRED: "리뷰 작성 가능 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    INVALID_INPUT: "입력한 내용을 확인해 주세요.",
+    VERSION_CONFLICT: "명단이 변경됐어요. 창을 닫고 다시 조회해 주세요.",
+    SELF_ADJUSTMENT: "본인의 확인 명단은 다른 운영자에게 요청해 주세요.",
     BOOTH_NOT_FOUND: "부스 정보를 확인할 수 없어요. 운영자에게 문의해 주세요.",
     ADMIN_REQUIRED: "운영자 계정만 사용할 수 있는 기능입니다.",
     INVALID_TAG_ISSUE_REQUEST: "발급할 부스 정보를 확인해 주세요.",
@@ -47,6 +53,16 @@
     return { ...value, isAdmin: value.isAdmin === true };
   }
 
+  function validateReviewPolicy(value) {
+    const denied = { version: 1, allowed: false, reason: "REVIEW_POLICY_REQUIRED", authorName: null };
+    if (!value || value.version !== 1 || typeof value.allowed !== "boolean") return denied;
+    const name = value.authorName;
+    if (value.allowed) {
+      if (value.reason !== null || typeof name !== "string" || !name.trim() || name.length > 60) return denied;
+    } else if (!["OWN_CLUB_REVIEW", "REVIEW_IDENTITY_REQUIRED"].includes(value.reason)) return denied;
+    return { version: 1, allowed: value.allowed, reason: value.reason, authorName: value.allowed ? name : null };
+  }
+
   function validateReviews(value) {
     const rating = item => Number.isInteger(item) && item >= 1 && item <= 5;
     if (!value || typeof value.boothKey !== "string" || !Number.isInteger(value.count)
@@ -64,6 +80,7 @@
       boothKey: value.boothKey, count: value.count,
       average: value.average === null ? null : Number(value.average),
       myRating: value.myRating ?? null,
+      reviewPolicy: validateReviewPolicy(value.reviewPolicy),
       reviews: value.reviews.map(review => ({
         rating: review.rating, content: review.content ?? null,
         author: review.author, mine: review.mine, createdAt: review.createdAt,
@@ -256,10 +273,14 @@
       const text = String(content ?? "").trim();
       if (text.length > 500) return { ok: false, ...normalizeError({ message: "REVIEW_TOO_LONG" }) };
       try {
-        const op = operations && await operations.write('review_save', { booth: key, rating, content: text });
+        // Never downgrade a named, membership-checked review to the old write endpoint.
+        const current = await reviews(key);
+        if (!current.ok) return current;
+        if (!current.reviewPolicy.allowed) return { ok: false, ...normalizeError({ message: current.reviewPolicy.reason }) };
+        if (!operations) return { ok: false, ...normalizeError({ message: "REVIEW_POLICY_REQUIRED" }) };
+        const op = await operations.write('review_save', { booth: key, rating, content: text });
         if (op && !op.ok) return op;
-        const { data, error } = op || await client.rpc("festival_review_submit",
-          { p_booth: key, p_rating: rating, p_content: text || null });
+        const { data, error } = op;
         if (error) return { ok: false, ...normalizeError(error) };
         if (data?.result !== "SAVED") throw new Error("INVALID_REVIEW_RESPONSE");
         return { ok: true, ...validateReviews(data) };
@@ -305,7 +326,21 @@
 
     return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
       reviews, myReviews, submitReview, issueTag, operations,
+      reviewIdentity: async (action, payload) => {
+        try {
+          const { data, error } = await client.rpc('festival_review_identity_admin', { p_action: action, p_payload: payload });
+          if (error) throw error;
+          if (!data || data.eventId !== payload.eventId || data.userId !== payload.userId
+            || !Number.isInteger(data.version) || data.version < 0 || typeof data.verified !== 'boolean'
+            || typeof data.accountName !== 'string' || !Array.isArray(data.boothKeys)
+            || data.boothKeys.some(key => typeof key !== 'string')
+            || (data.realName !== null && (typeof data.realName !== 'string' || data.realName.length > 60))) {
+            throw new Error('REVIEW_POLICY_REQUIRED');
+          }
+          return { ok: true, data };
+        } catch (error) { return { ok: false, ...normalizeError(error) }; }
+      },
       signOut: () => client.auth.signOut({ scope: "local" }), normalizeError };
   }
-  return { createAccount, normalizeError, validateProfile, validateReviews, validateIssuedTag, TOKEN_PATTERN };
+  return { createAccount, normalizeError, validateProfile, validateReviews, validateReviewPolicy, validateIssuedTag, TOKEN_PATTERN };
 });
