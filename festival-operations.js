@@ -7,9 +7,9 @@
   const messages = {
     AUTH_REQUIRED: '다시 로그인해 주세요.', GOOGLE_AUTH_REQUIRED: 'Google 계정으로 다시 로그인해 주세요.',
     ADMIN_REQUIRED: '운영자만 사용할 수 있어요.', PROFILE_REQUIRED: '학번 등록을 완료해 주세요.',
-    OPS_NOT_READY: '운영 기능 설치와 행사 설정이 필요해요.', EVENT_CLOSED: '행사가 종료되었거나 운영을 준비 중이에요.',
+    OPS_NOT_READY: '축제 운영 정보를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.', EVENT_CLOSED: '축제가 운영 중이 아니어서 방문 인증이 중지돼 있어요.',
     INVALID_INPUT: '입력한 내용을 확인해 주세요.', NOT_FOUND: '대상을 찾을 수 없어요.',
-    BOOTH_CLOSED: '현재 방문을 승인할 수 없는 부스예요.', VISIT_REQUIRED: '방문 인증 후 평가할 수 있어요.',
+    BOOTH_CLOSED: '부스가 일시 중지되었거나 마감돼 방문을 인증할 수 없어요. 부스 운영자에게 확인해 주세요.', VISIT_REQUIRED: '방문 인증 후 평가할 수 있어요.',
     ALREADY_REVIEWED: '이미 등록한 별점은 변경할 수 없어요.',
     OWN_CLUB_REVIEW: '본인 동아리에는 별점과 후기를 남길 수 없어요.',
     REVIEW_IDENTITY_REQUIRED: '운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.',

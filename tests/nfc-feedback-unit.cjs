@@ -83,6 +83,12 @@ test('signed-out users do not see stale completion feedback', () => {
   const api = setup(); api.show(); api.state.user = null; api.show();
   assert.equal(api.nodes.filter(n => !n.removed).length, 0);
 });
+test('a known booth never replaces the explanation for a blocked visit', () => {
+  const api=setup({type:'blocked'}); api.state.scanResult.body='부스가 일시 중지돼 있어요.'; api.show();
+  assert.match(api.nodes[0].innerHTML,/&lt;부스&gt;/);
+  assert.match(api.nodes[0].innerHTML,/부스가 일시 중지돼 있어요/);
+  assert.doesNotMatch(api.nodes[0].innerHTML,/다시 시도/);
+});
 test('closing restores the same input and its original selection without scrolling', () => {
   const api = setup(); const restored = [];
   api.document.activeElement = { isConnected: true, selectionStart: 2, selectionEnd: 4, selectionDirection: 'forward',

@@ -1,7 +1,7 @@
 /* Real operations UI. All authorization and rewards remain in guarded server RPCs. */
 const festivalOpsUI = (() => {
   let owner=null, mine=null, catalog=[], event=null, busy=false, loading=false, loaded=false, failure='';
-  let tab='dashboard', data=null, offset=0, search='', selectedBooth='', selectedRule='';
+  let tab='dashboard', data=null, offset=0, search='', selectedBooth=null, selectedRule='';
   let stream=null, cameraTimer=null, qrTimer=null;
   let lastRoute=null;
   let refreshQueued=false, queuedRepaint=false, notice='';
@@ -18,9 +18,10 @@ const festivalOpsUI = (() => {
   const reason=()=>field('reason','처리 사유','','required minlength="3" maxlength="300"');
   const participant=()=>field('userId','참여자 번호','','required min="1" step="1"','number');
   const options=()=>catalog.map(b=>[b.key,b.name]);
+  const currentEventReady=()=>Boolean(event?.id && Number.isInteger(event.version) && event.version>0);
 
   function reset() {
-    owner=state.user?.id || null; mine=null; catalog=[]; event=null; data=null; loaded=false; failure=''; notice=''; tab='dashboard';
+    owner=state.user?.id || null; mine=null; catalog=[]; event=null; data=null; loaded=false; failure=''; notice=''; tab='dashboard'; selectedBooth=null; selectedRule='';
     closeDialog();
   }
   const viewKey=()=>JSON.stringify([state.user?.id,state.route,tab,offset,search]);
@@ -105,11 +106,20 @@ const festivalOpsUI = (() => {
     return `<nav class="ops-nav" aria-label="운영 메뉴"><select id="opsTab" class="select" aria-label="운영 메뉴">${Object.entries(labels).map(([id,label])=>`<option value="${id}" ${tab===id?'selected':''}>${label}</option>`).join('')}</select><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>`;
   }
   function eventForm() {
-    return `<section class="ops-section"><h2>행사 설정</h2>${form('event_save',
-      field('name','행사 이름',event?.name || '', 'required maxlength="100"')+
-      select('state','운영 상태',Object.entries({preparing:'준비 중',open:'운영 중',paused:'일시 중지',closed:'종료'}),event?.state || 'preparing')+
-      field('reviewPoints','글 후기 최초 등록 포인트',event?.review_points || 0,'required min="0" max="1000" step="1"','number')+
-      `<input type="hidden" name="version" value="${event?.version || 0}">`)}</section>`;
+    if(!currentEventReady()) return '';
+    return `<section class="ops-section"><h2>축제 운영 설정</h2>${form('event_save',
+      field('name','축제 이름',event.name, 'required maxlength="100"')+
+      select('state','운영 상태',Object.entries({preparing:'준비 중',open:'운영 중',paused:'일시 중지',closed:'종료'}),event.state)+
+      field('reviewPoints','글 후기 최초 등록 포인트',event.review_points ?? 0,'required min="0" max="1000" step="1"','number')+
+      `<input type="hidden" name="version" value="${event.version}">`,'운영 설정 저장')}</section>`;
+  }
+  function unavailableEvent() {
+    return `<section class="ops-section ops-unavailable" role="status"><h2>축제 정보를 확인할 수 없어요</h2><p>운영 정보를 다시 불러와 주세요. 계속 표시되면 담당자에게 확인해 주세요.</p><button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 불러오기</button></section>`;
+  }
+  function boothReadiness() {
+    const counts={open:0,paused:0,closed:0};
+    for(const booth of catalog) if(Object.hasOwn(counts,booth.status)) counts[booth.status]++;
+    return `<section class="ops-section ops-readiness"><h2>부스 운영 상태</h2><dl class="ops-booth-counts">${Object.entries(counts).map(([status,count])=>`<div><dt>${statusName(status)}</dt><dd>${count}<span>개</span></dd></div>`).join('')}</dl>${event.state!=='open'?'<p class="ops-alert">축제가 운영 중이 아니어서 방문 인증이 중지돼 있어요.</p>':counts.open===0?'<p class="ops-alert">운영 중인 부스가 없어 방문 인증이 중지돼 있어요.</p>':''}<button type="button" class="ghost-btn" data-ops-tab="catalog">${icon('map')} 부스 상태 관리</button></section>`;
   }
   function table(rows,cols) {
     if(!rows?.length) return '<p class="ops-empty">기록이 없어요.</p>';
@@ -122,8 +132,8 @@ const festivalOpsUI = (() => {
     return `<div class="ops-paging"><button class="icon-btn" data-ops-page="-50" ${offset?'':'disabled'} aria-label="이전 페이지">${icon('back')}</button><span>${Math.floor(offset/50)+1}페이지</span><button class="icon-btn" data-ops-page="50" ${(data?.items?.length || 0)<50?'disabled':''} aria-label="다음 페이지">${icon('arrow')}</button></div>`;
   }
   function boothForm() {
-    const b=catalog.find(x=>x.key===selectedBooth);
-    return `<section class="ops-section"><h2>${b?'부스 수정':'부스 추가'}</h2><label>편집할 부스<select id="opsBoothSelect" class="select"><option value="">새 부스</option>${options().map(([key,name])=>`<option value="${h(key)}" ${key===selectedBooth?'selected':''}>${h(name)}</option>`).join('')}</select></label>${form('booth_save',
+    const b=selectedBooth===null ? catalog[0] : catalog.find(x=>x.key===selectedBooth);
+    return `<section class="ops-section"><h2>${b?'부스 수정':'부스 추가'}</h2><label>편집할 부스<select id="opsBoothSelect" class="select"><option value="" ${!b?'selected':''}>새 부스</option>${options().map(([key,name])=>`<option value="${h(key)}" ${key===b?.key?'selected':''}>${h(name)}</option>`).join('')}</select></label>${form('booth_save',
       field('name','부스 이름',b?.name,'required maxlength="100"')+field('location','위치',b?.location,'maxlength="200"')+
       select('floor','층',[[1,'1층'],[2,'2층'],[3,'3층'],[4,'4층']],b?.floor || 1)+
       select('status','운영 상태',[['paused','일시 중지'],['open','운영 중'],['closed','마감']],b?.status || 'paused')+
@@ -162,8 +172,8 @@ const festivalOpsUI = (() => {
     return form('voucher_issue',participant()+select('ruleId','바우처',rules.map(r=>[r.id,r.title]),null)+reason(),'발급 확정');
   }
   function content() {
-    if(!event) return tab==='dashboard' ? eventForm() : '<section class="ops-section"><p>현재 운영할 행사가 등록되지 않았어요.</p><button type="button" class="ghost-btn" data-ops-tab="dashboard">행사 설정 열기</button></section>';
-    if(tab==='dashboard') return `<dl class="ops-stats">${[['방문 참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['발급',data?.issued],['사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${eventForm()}`;
+    if(!currentEventReady()) return unavailableEvent();
+    if(tab==='dashboard') return `<dl class="ops-stats">${[['방문 참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['발급',data?.issued],['사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${eventForm()}`;
     if(tab==='catalog') return boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
     if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><form id="reviewRosterLookup" class="ops-form">${select('userId','참여자',(data?.items || []).map(p=>[p.id,`${p.name} (#${p.id})`]),null)}<p role="status"></p><button class="primary-btn" type="submit">명단 확인</button></form></section>`;
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',participant()+select('booth','방문 부스',options(),null)+reason(),'방문 승인')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['부스','booth_key'],['방식','method'],['사유','reason']])+paging();
@@ -185,6 +195,10 @@ const festivalOpsUI = (() => {
     const actor=state.user?.id, requestedView=viewKey();
     const form=e.currentTarget, action=form.dataset.opsForm, body=Object.fromEntries(new FormData(form)), note=form.querySelector('.ops-form-status');
     for(const key of ['version','floor','reviewPoints','delta','userId','stock','target','photoStock','foodStock','photoVersion','foodVersion']) if(key in body) body[key]=Number(body[key]);
+    // A positive server version updates the existing festival and cannot enter the creation path.
+    if(action==='event_save' && (!currentEventReady() || body.version!==event.version)) {
+      note.textContent='축제 정보를 다시 불러온 뒤 저장해 주세요.'; return;
+    }
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
     if(action==='rule_save') { body.enabled=form.elements.enabled.checked; body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); }
     if(action==='reward_config') body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString();

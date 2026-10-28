@@ -21,6 +21,12 @@
 .ops-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 10px; padding:16px 0; }
 .ops-stats dt { font-size:13px; color:#56665f; }
 .ops-stats dd { margin:6px 0 0; font-size:24px; font-weight:700; }
+.ops-booth-counts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 18px; }
+.ops-booth-counts dt { color:#56665f; font-size:13px; }
+.ops-booth-counts dd { margin:6px 0 0; font-size:22px; font-weight:700; }
+.ops-booth-counts dd span { margin-left:4px; font-size:13px; font-weight:400; }
+.ops-readiness .ghost-btn,.ops-unavailable .ghost-btn { display:inline-flex; align-items:center; gap:8px; min-height:44px; }
+.ops-unavailable p { line-height:1.6; }
 .ops-search,.ops-paging,.ops-actions { display:flex; gap:8px; align-items:center; margin-top:16px; }
 .ops-search input { min-width:0; flex:1; }
 .ops-actions .icon-btn { flex:0 0 48px; width:48px; }

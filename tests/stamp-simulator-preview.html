@@ -12,7 +12,7 @@
     const values=new Map(); Object.defineProperty(window,key,{value:{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,String(v)),removeItem:k=>values.delete(k)}});
   }
   window.fixtureCalls=[];
-  const fixtureEvent={id:'fixture-event',name:'운영자 테스트 행사',state:'open',review_points:10};
+  const fixtureEvent={id:'fixture-event',name:'운영자 테스트 행사',state:'open',review_points:10,version:1};
   const fixtureBooths=['글빛누리','매커니즘','인사이트','패러다임','리켐','인벨릭스','모멘트','네온','아트 캔버스','월드 스코프','티치스트','방송부'].map((name,i)=>({key:`test-${i+1}`,name,status:'open',floor:2,location:`2층 테스트 ${i+1}`}));
   const fixtureRole=new URL(location.href).searchParams.get('role')==='user'?'user':'admin';
   window.FestivalCatalog={CLUB_IDS:{},createClient:()=>({getSnapshot:()=>({status:'ready',rows:[]}),forClub:()=>null,subscribe(){},refresh(){}})};

@@ -9,7 +9,7 @@
 for(const key of ['localStorage','sessionStorage']) {const m=new Map();Object.defineProperty(window,key,{value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}});}
 window.FestivalCatalog={CLUB_IDS:{},createClient:()=>({getSnapshot:()=>({status:'ready',rows:[]}),forClub:()=>null,subscribe(){},refresh(){}})};
 const params=new URL(location.href).searchParams,mode=params.get('mode'),count=Number(params.get('count')||3),admin=mode==='admin';
-const event={id:'2a14bac0-f989-4b4e-8233-a881c344358a',name:'테스트 행사',state:'open',version:0};
+const event={id:'2a14bac0-f989-4b4e-8233-a881c344358a',name:'테스트 행사',state:'open',version:1};
 const options=[{kind:'photo',title:'포토부스 이용권'},{kind:'food',title:'푸드트럭 교환권'}].map(o=>({...o,available:true,stock:20,version:0,expiresAt:'2099-12-31T06:00:00Z'}));
 const issued=[];let failed=false;
 window.fixtureCalls=[];
