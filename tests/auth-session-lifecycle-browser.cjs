@@ -11,7 +11,7 @@ const uid = 'a0000000-0000-4000-8000-000000000001';
 const encode = x => Buffer.from(JSON.stringify(x)).toString('base64url');
 const jwt = `${encode({alg:'HS256',typ:'JWT'})}.${encode({sub:uid,exp:4102444800,role:'authenticated'})}.fixture`;
 const session = {access_token:jwt,refresh_token:'fixture',token_type:'bearer',expires_at:4102444800,expires_in:3600,user:{id:uid}};
-const event = {name:'Fixture festival',state:'open',review_points:10,version:1};
+const event = {id:'b0000000-0000-4000-8000-000000000001',name:'Fixture festival',state:'open',review_points:10,version:1};
 const catalog = {event,items:[{key:'글빛누리',name:'글빛누리',status:'open',floor:2,location:'2층 1-1',description:'Fixture',version:1}]};
 const mime = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.json':'application/json'};
 const captureClient = `\n;(() => { const sdk = window.supabase; window.__authEvents = [];

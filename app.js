@@ -944,7 +944,11 @@ const NFC_ERROR_TITLES = {
   NFC_TAG_DISABLED: "사용 중지된 태그예요",
   NFC_TAG_EXPIRED: "사용 기간이 지난 태그예요",
   BOOTH_NOT_OPEN: "지금은 적립할 수 없어요",
+  BOOTH_CLOSED: "부스가 운영 중이 아니에요",
   EVENT_NOT_ACTIVE: "행사가 운영 중이 아니에요",
+  EVENT_CLOSED: "축제가 운영 중이 아니에요",
+  OPS_NOT_READY: "축제 운영 정보를 확인할 수 없어요",
+  NFC_DISABLED: "방문 인증이 잠시 중지됐어요",
   EMERGENCY_MODE: "방문 적립이 잠시 중지됐어요",
   IDEMPOTENCY_KEY_REUSED: "요청을 다시 확인해 주세요",
   NETWORK_ERROR: "네트워크 연결이 불안정해요",
@@ -1031,7 +1035,7 @@ const nfcAdapter = {
       };
     } else {
       state.pendingNfcClaim = result.retryable ? request : null;
-      const blocked = ["BOOTH_NOT_OPEN", "EVENT_NOT_ACTIVE", "EMERGENCY_MODE"].includes(result.code);
+      const blocked = ["BOOTH_NOT_OPEN", "BOOTH_CLOSED", "EVENT_NOT_ACTIVE", "EVENT_CLOSED", "OPS_NOT_READY", "NFC_DISABLED", "EMERGENCY_MODE"].includes(result.code);
       state.scanResult = {
         type: blocked ? "blocked" : "error",
         boothId: result.boothId,
@@ -1082,7 +1086,7 @@ function showNfcFeedback() {
     <div class="nfc-complete-actions">
       ${canReview ? `<button type="button" class="primary-btn feedback-action" autofocus>별점 남기기 ${icon("arrow")}</button>` : ""}
       <button type="button" class="${canReview ? "secondary-btn" : "primary-btn"} feedback-close" ${canReview ? "" : "autofocus"}>${canReview ? "나중에" : "확인"}</button>
-    </div>` : `<div class="nfc-feedback-content" role="status" aria-live="polite"><span class="nfc-feedback-icon">${icon("notice")}</span><div><strong>${escapeHtml(result.title)}</strong><p>${escapeHtml(booth?.name || result.body)}</p></div></div>
+    </div>` : `<div class="nfc-feedback-content" role="status" aria-live="polite"><span class="nfc-feedback-icon">${icon("notice")}</span><div><strong>${escapeHtml(result.title)}</strong><p>${booth ? `${escapeHtml(booth.name)} · ` : ""}${escapeHtml(result.body)}</p></div></div>
     <button type="button" class="icon-btn feedback-close" aria-label="인증 알림 닫기">${icon("close")}</button>
     ${result.retryable ? `<button type="button" class="feedback-action">다시 시도 ${icon("refresh")}</button>` : ""}`;
   node.querySelector(".feedback-close").onclick = dismissNfcFeedback;

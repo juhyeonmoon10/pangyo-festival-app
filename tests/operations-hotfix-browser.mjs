@@ -93,6 +93,20 @@ try {
   for(const width of [320,390,430]) {
     const student=await account(),a=await pageFor(admin,width),s=await pageFor(student,width);
     await routeTo(a.page,'admin'); await a.page.locator('[data-ops-form=event_save]').waitFor();
+    assert.equal(await a.page.getByRole('heading',{name:'축제 운영 설정',exact:true}).count(),1);
+    await a.page.getByText('운영 중인 부스가 없어 방문 인증이 중지돼 있어요.',{exact:true}).waitFor();
+    await screenshot(a.page,width,'single-festival-dashboard');
+    const settings=a.page.locator('[data-ops-form=event_save]');
+    const version=await settings.locator('[name=version]').inputValue();
+    const writesBefore=a.calls.length;
+    await settings.locator('[name=version]').evaluate(input=>input.value='0');
+    await settings.locator('button[type=submit]').click();
+    await a.page.getByText('축제 정보를 다시 불러온 뒤 저장해 주세요.',{exact:true}).waitFor();
+    assert.equal(a.calls.length,writesBefore,'Version zero must never reach the server creation path');
+    await settings.locator('[name=version]').evaluate((input,value)=>input.value=value,version);
+    await a.page.locator('[data-ops-tab=catalog]').click();
+    await a.page.getByRole('heading',{name:'부스 수정',exact:true}).waitFor();
+    assert.notEqual(await a.page.locator('#opsBoothSelect').inputValue(),'');
     const menus={dashboard:'[data-ops-form=event_save]',catalog:'[data-ops-form=booth_save]',participants:'#reviewRosterLookup',visits:'[data-ops-form=visit_approve]',ledger:'[data-ops-form=points_adjust]',rules:'[data-ops-form=rule_save]',vouchers:'#opsRedeem',audit:'.ops-paging',nfc:'.nfc-manager-heading'};
     for(const [name,selector] of Object.entries(menus)) await tab(a.page,name,selector);
 
@@ -146,12 +160,18 @@ try {
     await tab(a.page,'participants','.ops-alert'); assert.equal(await a.page.locator('#reviewRosterLookup').count(),0);
     a.control.failKind=null; await a.page.locator('[data-ops-refresh]').click();
     await a.page.locator('#reviewRosterLookup').waitFor();
-    a.control.noEvent=true; await tab(a.page,'vouchers','[data-ops-tab=dashboard]');
+    a.control.noEvent=true; await tab(a.page,'vouchers','.ops-unavailable');
     assert.equal(await a.page.locator('[data-ops-form=event_save]').count(),0);
-    await a.page.locator('[data-ops-tab=dashboard]').click(); await a.page.locator('[data-ops-form=event_save]').waitFor();
+    await tab(a.page,'dashboard','.ops-unavailable');
+    assert.equal(await a.page.locator('[data-ops-form]').count(),0,'Missing event offers no creation or write form');
+    await screenshot(a.page,width,'single-festival-unavailable');
+    const writesWhileMissing=a.calls.length;
+    a.control.noEvent=false; await a.page.locator('.ops-unavailable [data-ops-refresh]').click();
+    await a.page.locator('[data-ops-form=event_save]').waitFor();
+    assert.equal(a.calls.length,writesWhileMissing,'Reload must be read-only');
     await routeTo(s.page,'admin'); assert.equal(await s.page.locator('#opsTab').count(),0);
     assert.deepEqual(a.errors,[]); assert.deepEqual(s.errors,[]);
-    reports.push({width,passed:true,menus:9,flows:['immediate tab changes','delayed response race','legacy rule save','manual issue','double-submit guard','student QR','redemption','missing/unknown API distinction','permission failure retry','empty event','student denied']});
+    reports.push({width,passed:true,menus:9,flows:['single festival settings','no creation on missing event','version-zero write rejected','paused booth readiness','immediate tab changes','delayed response race','legacy rule save','manual issue','double-submit guard','student QR','redemption','missing/unknown API distinction','permission failure retry','empty event','student denied']});
     await a.context.close(); await s.context.close();
   }
 } catch(e) { reports.push({passed:false,error:e.stack}); console.error(e); process.exitCode=1; }
