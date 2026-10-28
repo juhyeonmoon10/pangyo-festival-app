@@ -108,7 +108,7 @@ const festivalWeb = (() => {
   }
   function rewardPanel() {
     const reward = rewardState();
-    if (!reward.ready) return "";
+    if (!reward.ready) return `<section class="reward-choice-section" aria-labelledby="rewardChoiceTitle"><div class="section-heading"><h2 id="rewardChoiceTitle">스탬프 혜택</h2><span>3개마다 1장</span></div><p role="status">바우처 발급 상태를 확인하지 못했어요.</p><button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 확인</button></section>`;
     const first = reward.firstChoice, other = first === "photo" ? "food" : "photo", a=reward.firstTarget, b=reward.secondTarget;
     return `<section class="reward-choice-section" aria-labelledby="rewardChoiceTitle"><div class="section-heading"><h2 id="rewardChoiceTitle">스탬프 혜택</h2><span>3개마다 1장</span></div>
       ${!first ? `<p>${a}개에서 하나 선택, ${b}개에서 나머지 하나</p><form id="rewardChoiceForm"><input type="hidden" name="firstTarget" value="${a}"><fieldset ${rewardBusy || !reward.canChoose ? "disabled" : ""}><legend class="sr-only">받을 바우처 선택</legend><div class="reward-choice-options">${reward.options.map(o => `<label class="reward-option"><input type="radio" name="kind" value="${escapeHtml(o.kind)}" required ${!o.available ? "disabled" : ""}><span>${icon("ticket")}<strong>${escapeHtml(o.title)}</strong>${!o.available ? '<small>발급 대기</small>' : ''}</span></label>`).join("")}</div><button class="primary-btn full-action" type="submit">${reward.count < a ? `스탬프 ${a-reward.count}개 더 필요해요` : rewardBusy ? "발급 중..." : "선택한 바우처 받기"}</button></fieldset><p class="reward-choice-note">선택 후에는 변경할 수 없어요.</p><p class="reward-choice-status" role="status"></p></form>`
@@ -148,7 +148,7 @@ const festivalWeb = (() => {
     return `<header class="web-header"><button type="button" class="icon-btn" data-history-back="home" aria-label="뒤로 가기">${icon("back")}</button>${copy}<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button></header>`;
   }
 
-  function rewardSlot(index) { return rewardState().ready && (index+1)%3===0; }
+  function rewardSlot(index) { return (index+1)%3===0; }
 
   // Every six stamps repeat the choice/opposite pair, with a reward every three.
   function stampCard(count) {
@@ -160,7 +160,7 @@ const festivalWeb = (() => {
       return `<span class="punch ${state}">${count >= n ? icon("stamp") : n}${rewardSlot(n - 1) && count < n ? `<i>${icon("ticket")}</i>` : ""}</span>`;
     }).join("");
     const rewards = rewardState();
-    const text = !rewards.ready ? "부스 방문 후 별점까지 남기면 스탬프가 찍혀요."
+    const text = !rewards.ready ? "스탬프 3개마다 바우처 1장"
       : !rewards.firstChoice && rewards.canChoose ? "받을 바우처를 선택할 수 있어요."
       : rewards.firstChoice && count>=rewards.secondTarget ? "남은 바우처를 확인해 주세요." : `${goal-count}개 더 모으면 바우처를 받아요.`;
     return `<section class="home-stamp-card" aria-labelledby="homeStampTitle">
@@ -242,13 +242,13 @@ const festivalWeb = (() => {
     const restricted = repo.stampsForUser(state.user.id).filter(s => !repo.hasReview(state.user.id, s.boothId) && !reviewEligibility(s.boothId).allowed);
     const goal = (Math.floor(earned.length/3)+1)*3;
     const rewards=rewardState(), claimable=rewards.ready && rewards.count>= (rewards.firstChoice?rewards.secondTarget:rewards.firstTarget);
-    const cycleProgress = earned.length % 3 || (earned.length > 0 && claimable ? 3 : 0);
+    const cycleProgress = earned.length % 3 || (earned.length > 0 && (claimable || !rewards.ready) ? 3 : 0);
     const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
     return `<main class="screen web-page web-stamps stamp-path-page"><header class="stamp-board-header"><h1>스탬프</h1><button type="button" class="stamp-voucher-shortcut" data-route="vouchers">${icon("ticket")}<span>바우처</span>${claimable?'<i aria-label="받을 바우처 있음"></i>':''}</button></header>
       <section class="stamp-path-summary" aria-label="스탬프 진행 상황">
         <div class="stamp-count-line"><span>모은 스탬프</span><strong>${earned.length}<small>개</small></strong></div>
-        ${rewards.ready ? `<div class="stamp-progress-copy"><b>${claimable?'바우처 받기 가능':`다음 바우처까지 ${goal-earned.length}개`}</b><span>${cycleProgress===3?`${earned.length}개 달성`:`다음 ${goal}개`}</span></div>
-        <progress class="stamp-path-progress" max="3" value="${cycleProgress}" aria-label="3개마다 바우처 진행">${cycleProgress} / 3</progress>` : ''}
+        <div class="stamp-progress-copy"><b>${claimable?'바우처 받기 가능':!rewards.ready && earned.length>=3?'바우처 발급 상태 확인 대기':`다음 바우처까지 ${goal-earned.length}개`}</b><span>3개마다 1장</span></div>
+        <progress class="stamp-path-progress" max="3" value="${cycleProgress}" aria-label="3개마다 바우처 진행">${cycleProgress} / 3</progress>
       </section>
       ${pending.length ? `<section class="stamp-rating-pending"><div class="section-heading"><h2>${icon("star")} 완성까지 별점 하나 <span>${pending.length}</span></h2></div>${pending.map(visitRow).join("")}</section>` : ""}
       ${restricted.length ? `<section class="web-section"><h2>방문 기록</h2>${restricted.map(s => { const b = state.db.booths.find(x => x.id === s.boothId); return b ? `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(s.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>` : ""; }).join("")}</section>` : ""}
@@ -267,11 +267,11 @@ const festivalWeb = (() => {
       const current = index === earned.length;
       const tone = visit ? "is-earned" : current ? "is-current" : "is-upcoming";
       const label = booth ? boothName(booth) : visit ? "방문 완료" : current ? (pending.length ? "별점 남기기" : "부스 찾기") : `${index + 1}번째 스탬프`;
-      const target=index+1, reward=rewards.ready && target%3===0;
-      // The reward snapshot includes prior stages even after redemption or expiry.
-      const issued=reward && (target<rewards.firstTarget || (target===rewards.firstTarget && !!rewards.firstChoice) || (target===rewards.secondTarget && rewards.secondIssued));
-      const claimable=reward && !!visit && !issued && target===(rewards.firstChoice?rewards.secondTarget:rewards.firstTarget);
-      const rewardLabel=issued?'받음':claimable?'받기 가능':visit?'바우처 확인':'바우처';
+      const target=index+1, reward=target%3===0;
+      // Milestones are always visible; only a confirmed snapshot proves issuance or eligibility.
+      const issued=reward && rewards.ready && (target<rewards.firstTarget || (target===rewards.firstTarget && !!rewards.firstChoice) || (target===rewards.secondTarget && rewards.secondIssued));
+      const claimable=reward && rewards.ready && !!visit && !issued && target===(rewards.firstChoice?rewards.secondTarget:rewards.firstTarget);
+      const rewardLabel=issued?'받음':claimable?'받기 가능':visit?(rewards.ready?'바우처 확인':'확인 대기'):'바우처';
       const face = `<span class="stamp-path-face"><b>${target}</b>${reward?icon("ticket"):''}</span>`;
       const action = !interactive ? "" : reward && visit ? 'data-route="vouchers"' : booth ? `data-list-select="${escapeHtml(booth.id)}"` : current ? (pending.length ? `data-review-booth="${escapeHtml(pending[0].boothId)}"` : 'data-route="map"') : "";
       const accessible=reward?`${target}번째 스탬프, ${current&&pending.length?'별점 남기기, ':''}${visit?rewardLabel:'바우처 지급 지점'}`:`${target}번째 스탬프, ${label}${visit?', 날인 완료':''}`;

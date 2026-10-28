@@ -8,7 +8,7 @@
 for(const key of ['localStorage','sessionStorage']) {const m=new Map();Object.defineProperty(window,key,{value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}});}
 window.FestivalCatalog={CLUB_IDS:{},createClient:()=>({getSnapshot:()=>({status:'ready',rows:[]}),forClub:()=>null,subscribe(){},refresh(){}})};
 if(new URL(location.href).searchParams.get('mode')==='admin') {
-  const event={id:'synthetic-event',name:'테스트 행사',state:'open'},items=[{key:'club-a',name:'테스트 동아리',status:'open',floor:1}];
+  const event={id:'synthetic-event',name:'테스트 행사',state:'open',version:1},items=[{key:'club-a',name:'테스트 동아리',status:'open',floor:1}];
   let version=0;
   window.FestivalAccount={normalizeError:()=>({message:'테스트 오류'}),createAccount:()=>({
     initialize:async()=>({id:1,authUserId:'fixture-admin',name:'운영자',email:'fixture@example.invalid',studentNumber:'21001',completedBooths:[],needsProfile:false,isAdmin:true}),
@@ -16,7 +16,8 @@ if(new URL(location.href).searchParams.get('mode')==='admin') {
     operations:{read:async kind=>({ok:true,data:{ready:true,event,items:kind==='catalog'?items:kind==='participants'?[{id:2,name:'학생',visits:1,points:0}]:[],reviews:[],visits:[]}})},
     reviewIdentity:async(action,payload)=>{
       if(action==='save') {window.fixtureLastSave=payload;version++;}
-      return {ok:true,data:{eventId:event.id,userId:2,accountName:'학생',realName:'',boothKeys:[],verified:false,version}};
+      const roster=action==='get'?null:{studentNumber:'11001',realName:'가상학생',clubs:['테스트 동아리'],boothKeys:['club-a'],ready:true,linkedElsewhere:false,version:1};
+      return {ok:true,data:{eventId:event.id,userId:2,accountName:'학생',realName:roster?.realName || null,boothKeys:roster?.boothKeys || [],verified:action==='save',version,roster}};
     }
   })};
 }

@@ -65,9 +65,39 @@
 - Local preview: `http://127.0.0.1:5194/tests/stamp-ui-preview.html?demo=1&completed=3`.
   Fixture data is synthetic and in memory; it is excluded from the public build.
 
-**Named Review / Club Membership Audit: 2026-10-28**
+**Named Review / Official Club Roster Audit: 2026-10-29**
 
-- Local implementation only; no shared DB access, commit, push, or deployment.
+- APPROVED DB ROLLOUT UPDATE (2026-10-29, Asia/Seoul): shared project
+  `vvvkzvxahviwbuyfbwir` now has migration `20261028160416`
+  (`official_review_roster_identity_guards`). This supersedes the pre-approval
+  local-only and pending-approval status recorded below, not its design constraints.
+- Imported 421 official roster entries privately: 304 ready for independent operator
+  verification, 117 pending. Actual account links: 0. No student was auto-enrolled.
+  The workbook SHA-256 was rechecked against the original before import.
+- Revalidated 25 isolated SQL tests, 8 importer tests, 14 client/build tests and
+  13 live PostgreSQL synthetic checks. The live transaction ended with ROLLBACK;
+  synthetic account rows are absent. No real account was impersonated during tests.
+- Existing counts unchanged: 2 legacy ratings, 0 operations reviews, 0 visits,
+  0 ledger entries and 0 vouchers. Operations read/write and current-profile function
+  definition hashes match their pre-rollout versions. Existing anonymous ratings
+  were not assigned real names. No production UI deployment, commit or push occurred.
+- Recovery evidence: `operations-server/review-summary-before-roster-20261029.sql`;
+  synthetic live checks: `operations-server/review-identity-live-check.sql`;
+  aggregate-only rollout result: `artifacts/review-identity/rollout-20261029.json`.
+  Never restore the old summary by itself or remove guards to reopen legacy writes.
+- Advisor review: the two private RLS/no-policy notices are intentional deny-all
+  ([reference](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)).
+  The authenticated admin RPC is intentionally SECURITY DEFINER and checks live
+  session, DB admin flag, event, target, versions, consent and audit at every call
+  ([reference](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)).
+  Pre-existing legacy public-function and leaked-password-protection notices remain
+  outside this approved change. Do not describe this rollout as a full security audit.
+- Remaining activation steps: release the compatible operator/client screens,
+  resolve pending club/source mismatches privately, and independently link accounts.
+  Until linked, review writes are intentionally denied, while visits remain intact.
+
+- Local implementation only. Shared DB metadata/catalog were read, but no shared
+  schema/data/auth changes, commit, push, or deployment were performed for this work.
 - An operator-confirmed roster determines review names and excluded club booths.
   Missing/unverified membership denies writes. Profile aliases are not trusted.
 - Own-club stars and later text additions are blocked. NFC visits remain visible;
@@ -75,19 +105,46 @@
 - New reviews snapshot the verified name; existing anonymous reviews stay anonymous
   unless their author explicitly submits a new text addition under the named policy.
   Public reviews contain neither student numbers nor email addresses.
-- Operator flow: Participants > Review identity > select participant > confirmed
-  name and ALL booths for ALL memberships > verification checkbox > reason > save.
-  An empty selection means confirmed no club. New club booths require roster review.
-- Pending approval: `operations-server/review-identity.draft.sql` adds one private
-  roster table, one nullable author column, an admin RPC, and write guards. It blocks
+- Operator flow: Participants > Review identity > select participant > exact student
+  number lookup > inspect official name/clubs > independent account identity check >
+  reason > link. Names and memberships are read-only; profile metadata is never proof.
+  One roster entry cannot be shared by two accounts, including revoked links.
+- Pending approval: `operations-server/review-identity.draft.sql` adds two private
+  roster/link tables, one nullable author column, an admin RPC, and write guards. It blocks
   legacy `booth_ratings` writes, so team dependency checks are required before rollout.
   The new client intentionally cannot submit reviews to the old server contract.
-- Synthetic PostgreSQL checks: 18/18, including old-RPC bypass, duplicate requests,
+- Synthetic PostgreSQL checks: 25/25, including old-RPC bypass, duplicate requests,
   membership revocation, cross-event/stale roster edits, and anonymous-history privacy.
   This is PGlite with auth/Vault shims, not live Supabase or concurrent-session proof.
 - Mobile browser checks: 12/12 at 320/390/430px, covering own-club, allowed, unverified,
   and admin roster states. External traffic blocked; all fixture saves are in memory.
 - Evidence: `artifacts/review-identity/isolated.json`, `browser.json`, and screenshot PNGs.
+- Workbook importer: `tools/import-review-roster.py`; 8 synthetic parser checks pass.
+  The supplied workbook yields 421 distinct student-number entries: 304 ready for
+  operator account verification, 117 pending. This is NOT 304 verified accounts.
+  Pending reasons overlap: 107 unmapped club names, 16 cross-sheet conflicts,
+  13 single-source entries, 1 name conflict. 51 exact repeated leader/member entries
+  were collapsed. Grade 3 has only 9 entries; full third-grade coverage is not established.
+- Whitespace is normalized; aliases are not guessed. In particular, 메커니즘 versus
+  매커니즘 and 창업특허동아리 versus 창업특허연구소 need a reviewed mapping. Clubs without
+  a catalog booth stay pending unless an operator explicitly confirms nonparticipation.
+- Only student number, name, club, source coordinates and source hash are extracted.
+  Teacher/contact/activity fields are ignored. The original workbook is untouched.
+  Generated `roster.json` and `report.json` stay under ignored `nfc-server/private-output/`;
+  neither this directory, the workbook, tools nor SQL are in the public build allowlist.
+- The real workbook payload passed a local in-memory PGlite import/count check; no
+  student records are included in test output, fixtures, screenshots or tracked files.
+- Deployment gate: obtain shared DB/schema + school-approved publication/retention
+  approval; reconcile pending source cells privately; review aliases and all booth
+  mappings; snapshot existing review function definitions; apply the SQL transaction
+  and owner-only `festival_ops.import_review_roster(event_id, document, approving_admin_id)`;
+  independently link accounts. No automatic matching by a claimed student number/name.
+  Catalog changes or a changed roster version invalidate previous review eligibility.
+- Recovery: roll back the installation transaction on any failed precheck. After
+  installation, revoke an incorrect link using the guarded `revoke` action; do not
+  restore unguarded review writes or delete visits/points/vouchers. A new import marks
+  removed records inactive and preserves published author snapshots. Do not commit
+  exports/backups containing student data. No retention deadline is invented here.
 
 **Login UI Audit: 2026-10-21**
 

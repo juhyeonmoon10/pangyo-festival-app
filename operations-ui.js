@@ -220,29 +220,62 @@ const festivalOpsUI = (() => {
 
   async function reviewRoster(e) {
     e.preventDefault();
-    const lookup=e.currentTarget, actor=state.user?.id, userId=Number(lookup.elements.userId.value);
+    const lookup=e.currentTarget, actor=state.user?.id, userId=Number(lookup.elements.userId.value), requestedView=viewKey();
     if(!Number.isInteger(userId) || !event || !isAdminUser()) return;
+    const launch=lookup.querySelector('button[type=submit]');
+    if(launch.disabled) return;
+    launch.disabled=true;
     const response=await festivalAccount.reviewIdentity('get',{eventId:event.id,userId});
-    if(state.user?.id!==actor) return;
+    if(launch.isConnected) launch.disabled=false;
+    if(state.user?.id!==actor || !lookup.isConnected || requestedView!==viewKey()) return;
     if(!response.ok) { lookup.querySelector('[role=status]').textContent=response.message; return; }
     const row=response.data, d=dialog('리뷰 실명·소속 확인'), body=d.querySelector('.ops-dialog-content');
-    body.innerHTML=`<form class="ops-form" id="reviewRosterForm"><p>${h(row.accountName)} (#${userId})</p>${field('realName','확인한 실명',row.realName || '', 'required maxlength="60"')}<fieldset class="review-roster-clubs"><legend>소속 동아리 부스 (모두 선택)</legend>${options().map(([key,name])=>`<label class="ops-checkbox"><input type="checkbox" name="boothKeys" value="${h(key)}" ${row.boothKeys?.includes(key)?'checked':''}>${h(name)}</label>`).join('')}</fieldset><label class="ops-checkbox"><input name="verified" type="checkbox" ${row.verified?'checked':''}>학교 명단으로 이름과 모든 소속을 확인했음 (무소속 포함)</label>${reason()}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit">확인 명단 저장</button></form>`;
-    body.querySelector('form').onsubmit=async ev=>{
-      ev.preventDefault(); const f=ev.currentTarget, button=f.querySelector('button[type=submit]'), note=f.querySelector('[role=status]');
-      if(button.disabled) return;
-      button.disabled=true;
-      note.dataset.tone=''; note.textContent='저장 중...';
-      try {
-        const values=new FormData(f);
-        const result=await festivalAccount.reviewIdentity('save',{eventId:row.eventId,userId,version:row.version,
-          realName:String(values.get('realName')).trim(),boothKeys:values.getAll('boothKeys'),verified:f.elements.verified.checked,reason:String(values.get('reason')).trim()});
-        if(state.user?.id!==actor || !d.isConnected) return;
-        if(!result.ok) { note.textContent=result.message; return; }
-        row.version=result.data.version; serverReviews.clear();
-        note.dataset.tone='success';
-        note.textContent='명단을 저장했어요.';
-      } finally { if(f.isConnected) button.disabled=false; }
+    body.innerHTML=`<form class="ops-form" id="reviewRosterForm"><p>${h(row.accountName)} (#${userId})</p>${field('studentNumber','명단 학번',row.roster?.studentNumber || '', 'required inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" autocomplete="off"')}<button class="ghost-btn" type="button" data-roster-find>명단 조회</button><div data-roster-result></div><label class="ops-checkbox"><input name="confirmed" type="checkbox" required>로그인한 학생 본인과 명단이 일치함을 확인했음</label>${reason()}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit" disabled>계정에 연결</button>${row.verified?'<button class="ghost-btn" type="button" data-roster-revoke>연결 확인 취소</button>':''}</form>`;
+    const f=body.querySelector('form'), button=f.querySelector('button[type=submit]'), note=f.querySelector('[role=status]');
+    const find=f.querySelector('[data-roster-find]'), result=f.querySelector('[data-roster-result]');
+    let candidate=null, sequence=0, saving=false;
+    const valid=()=>state.user?.id===actor && requestedView===viewKey() && d.isConnected && isAdminUser();
+    const show=value=>{
+      candidate=value; f.elements.confirmed.checked=false;
+      button.disabled=!value?.ready || value.linkedElsewhere || userId===Number(actor);
+      result.innerHTML=value?`<dl class="ops-roster-summary"><dt>명단 이름</dt><dd>${h(value.realName || '확인 필요')}</dd><dt>동아리</dt><dd>${value.clubs.map(h).join(', ')}</dd><dt>리뷰 제외 부스</dt><dd>${value.boothKeys.length?value.boothKeys.map(h).join(', '):'해당 없음'}</dd></dl><p>${value.linkedElsewhere?'다른 계정에 연결된 명단이에요.':!value.ready?'명단 불일치 또는 부스 연결 확인이 필요해요.':'명단 대조 완료'}</p>`:'';
     };
+    show(row.roster);
+    f.elements.studentNumber.oninput=()=>{sequence++;show(null);note.textContent='';};
+    find.onclick=async()=>{
+      if(saving || !f.elements.studentNumber.reportValidity()) return;
+      const seq=++sequence, studentNumber=f.elements.studentNumber.value;
+      find.disabled=true; show(null); note.textContent='조회 중...';
+      try {
+        const response=await festivalAccount.reviewIdentity('lookup',{eventId:row.eventId,userId,studentNumber});
+        if(!valid() || seq!==sequence) return;
+        if(!response.ok) { note.textContent=response.message; return; }
+        row.version=response.data.version; show(response.data.roster);
+        note.textContent=candidate?'':'명단에 없는 학번이에요.';
+      } finally { if(find.isConnected) find.disabled=false; }
+    };
+    const save=async action=>{
+      if(saving || !valid() || (action==='save' && (button.disabled || !f.reportValidity()))) return;
+      const why=f.elements.reason.value.trim();
+      if(why.length<3) { note.textContent='처리 사유를 3자 이상 입력해 주세요.'; return; }
+      saving=true; sequence++; button.disabled=true; find.disabled=true;
+      f.elements.studentNumber.disabled=true; note.dataset.tone=''; note.textContent='저장 중...';
+      try {
+        const response=await festivalAccount.reviewIdentity(action,{eventId:row.eventId,userId,version:row.version,
+          studentNumber:candidate?.studentNumber,rosterVersion:candidate?.version,confirmed:f.elements.confirmed.checked,reason:why});
+        if(!valid()) return;
+        if(!response.ok) { note.textContent=response.message; return; }
+        row.version=response.data.version; serverReviews.clear();
+        note.dataset.tone='success'; note.textContent=action==='save'?'명단과 계정을 연결했어요.':'확인을 취소했어요.';
+        show(action==='save'?response.data.roster:null);
+        if(action==='revoke') f.querySelector('[data-roster-revoke]')?.remove();
+      } finally {
+        saving=false;
+        if(f.isConnected) {find.disabled=false;f.elements.studentNumber.disabled=false;button.disabled=!candidate?.ready || candidate.linkedElsewhere || userId===Number(actor);}
+      }
+    };
+    f.onsubmit=ev=>{ev.preventDefault();save('save');};
+    f.querySelector('[data-roster-revoke]')?.addEventListener('click',()=>save('revoke'));
   }
   async function redeem(e) {
     e.preventDefault(); if(busy) return;

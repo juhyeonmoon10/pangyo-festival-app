@@ -9,7 +9,7 @@ assert.equal(fs.existsSync(path.join(output, 'functions')), false);
 fs.writeFileSync(path.join(output, 'static/stale-secret.txt'), 'synthetic stale file');
 build();
 assert.equal(fs.existsSync(path.join(output, 'static/stale-secret.txt')), false);
-for (const forbidden of ['.env', 'api', 'nfc-server', 'supabase', 'tests', 'artifacts', 'README.md', '.git']) {
+for (const forbidden of ['.env', 'api', 'nfc-server', 'operations-server', 'tools', 'supabase', 'tests', 'artifacts', 'README.md', '.git']) {
   assert.equal(fs.existsSync(path.join(output, 'static', forbidden)), false, forbidden);
 }
 const html = fs.readFileSync(path.join(output, 'static/index.html'), 'utf8');

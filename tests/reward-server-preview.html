@@ -12,6 +12,9 @@ const params=new URL(location.href).searchParams,mode=params.get('mode'),count=N
 const event={id:'2a14bac0-f989-4b4e-8233-a881c344358a',name:'테스트 행사',state:'open',version:1};
 const options=[{kind:'photo',title:'포토부스 이용권'},{kind:'food',title:'푸드트럭 교환권'}].map(o=>({...o,available:true,stock:20,version:0,expiresAt:'2099-12-31T06:00:00Z'}));
 const issued=[];let failed=false;
+const sampleBooths=params.has('stamps')?Array.from({length:count},(_,i)=>({key:`synthetic-${i}`,name:`합성 부스 ${i+1}`,floor:2,status:'open',location:'테스트 교실'})):[];
+const sampleVisits=sampleBooths.map(b=>({booth_key:b.key,created_at:'2026-10-29T00:00:00Z',method:'nfc'}));
+const sampleReviews=sampleBooths.map(b=>({booth_key:b.key,rating:5,content:''}));
 window.fixtureCalls=[];
 function status(){let firstTarget=3;while(issued.some(v=>v.target===firstTarget)&&issued.some(v=>v.target===firstTarget+3))firstTarget+=6;
   return {version:mode==='legacy'?1:2,eventId:event.id,ready:true,count,firstTarget,secondTarget:firstTarget+3,issuedCount:issued.length,
@@ -19,7 +22,7 @@ function status(){let firstTarget=3;while(issued.some(v=>v.target===firstTarget)
 function issue(kind,target){const o=options.find(o=>o.kind===kind);if(!issued.some(v=>v.target===target))issued.push({id:String(target),target,kind,title:o.title,state:'available',expiresAt:o.expiresAt});}
 const operations=FestivalOperations.create({storage:sessionStorage,actor:()=> 'fixture-user',rpc:async(name,args)=>{
   if(name==='festival_reward_read') return mode==='missing'?{error:{code:'PGRST202'}}:{data:status()};
-  if(name==='festival_ops_read') return {data:{ready:true,event,items:[],rules:[],vouchers:issued,reviews:[],visits:[],points:0}};
+  if(name==='festival_ops_read') return {data:{ready:true,event,items:sampleBooths,rules:[],vouchers:issued,reviews:sampleReviews,visits:sampleVisits,points:0}};
   fixtureCalls.push({name,...args});await new Promise(r=>setTimeout(r,180));
   if(params.has('retry')&&!failed){failed=true;return {error:{message:'simulated timeout'}};}
   if(args.p_action==='reward_choose') {const first=args.p_payload.kind,target=args.p_payload.firstTarget;issue(first,target);if(count>=target+3)issue(first==='photo'?'food':'photo',target+3);}
@@ -33,5 +36,5 @@ window.FestivalAccount={normalizeError:()=>({message:'테스트 오류'}),create
 </script>
 <script src="assets/vendor/ui-icons.js"></script><script src="assets/vendor/qrcode-1.4.4.js"></script>
 <script src="nfc-manager.js"></script><script src="programs.js"></script><script src="web-experience.js"></script><script src="operations-ui.js"></script><script src="app.js"></script>
-<script>setTimeout(()=>navigateTo(admin?'admin':'vouchers',{replace:true}),50);</script>
+<script>setTimeout(()=>navigateTo(admin?'admin':params.has('stamps')?'stamps':'vouchers',{replace:true}),50);</script>
 </body></html>

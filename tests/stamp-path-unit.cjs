@@ -123,12 +123,31 @@ test('legacy demo coupons are preserved, never counted as the new selection',asy
   assert.ok(api.coupons().some(c=>c.id==='old'));
 });
 
-test('server path shows records without fabricating reward milestones or writes', () => {
+test('server path keeps every third milestone visible without fabricating issuance or writes', () => {
   const { api, records } = setup({ count: 5, server: true });
   const html = api.stamps();
-  assert.doesNotMatch(html, /stamp-reward-marker|체험 바우처|작은 선물/);
+  assert.equal((html.match(/class="stamp-reward-marker"/g)||[]).length,5);
+  assert.match(html,/3개마다 1장/);
+  assert.match(html,/3번째 스탬프, 확인 대기/);
+  assert.doesNotMatch(html, /is-issued|is-claimable|받기 가능|지급 완료|체험 바우처|작은 선물/);
   assert.match(html, /data-route="vouchers"/);
   assert.equal(records.size, 0);
+});
+
+test('missing, failed and unconfigured reward snapshots never erase milestone markers',()=>{
+  for(const rewardProgram of [null,{ready:false},{ready:false,supported:false},{ready:false,firstTarget:9,firstChoice:'photo',secondIssued:true}]) {
+    for(const count of [0,3,6,9,12]) {
+      const {api,records}=setup({count,server:true,rewardProgram});
+      const html=api.stamps();
+      assert.equal((html.match(/class="stamp-reward-marker"/g)||[]).length,5);
+      assert.match(html,/max="3" value="[0-3]"/);
+      assert.doesNotMatch(html,/is-issued|is-claimable|받기 가능|지급 완료/);
+      assert.match(api.rewardPanel(),/3개마다 1장/);
+      assert.match(api.rewardPanel(),/data-ops-refresh/);
+      assert.doesNotMatch(api.rewardPanel(),/rewardChoiceForm|data-reward-retry/);
+      assert.equal(records.size,0);
+    }
+  }
 });
 
 test('stamp board has a serpentine grid and benefits stay inside vouchers', () => {
