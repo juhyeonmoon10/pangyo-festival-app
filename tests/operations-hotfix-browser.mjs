@@ -38,6 +38,9 @@ async function account(admin=false) {
 const admin=await account(true);
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'운영자 복구 격리 검증',state:'open',reviewPoints:10,version:0});
+await db.exec(fs.readFileSync(path.join(root,'operations-server/review-identity.draft.sql'),'utf8'));
+const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
+const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
 const output=path.join(root,'artifacts/operations-hotfix'); fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
 const reports=[];
@@ -69,6 +72,9 @@ async function pageFor(a,width) {
         calls.push(p); value=await rpc(a,'select public.festival_ops_write($1,$2,$3) value',[p.p_action,p.p_payload,p.p_request_id]);
         if(p.p_action==='voucher_qr') control.qrToken=value.token;
       }
+      else if(url.pathname==='/rest/v1/rpc/festival_review_identity_admin') {
+        calls.push(p); value=await rpc(a,'select public.festival_review_identity_admin($1,$2) value',[p.p_action,p.p_payload]);
+      }
       else if(url.pathname==='/auth/v1/logout') return route.fulfill({status:204});
       else return route.fulfill({status:404,json:{code:'PGRST202',message:'Missing optional function'}});
       return route.fulfill({json:value});
@@ -92,6 +98,9 @@ async function screenshot(page,width,name) {
 try {
   for(const width of [320,390,430]) {
     const student=await account(),a=await pageFor(admin,width),s=await pageFor(student,width);
+    const studentNumber=`11${width}`;
+    await db.query('select festival_ops.import_review_roster($1,$2,$3)',[eventId,{format:1,sourceSha256:'a'.repeat(64),catalogKeys:catalog,
+      records:[{studentNumber,realName:'가상학생',clubs:['인벨릭스'],boothKeys:['인벨릭스'],status:'ready',issues:[],sourceCells:['Synthetic!A1']}]},admin.uid]);
     await routeTo(a.page,'admin'); await a.page.locator('[data-ops-form=event_save]').waitFor();
     assert.equal(await a.page.getByRole('heading',{name:'축제 운영 설정',exact:true}).count(),1);
     await a.page.getByText('운영 중인 부스가 없어 방문 인증이 중지돼 있어요.',{exact:true}).waitFor();
@@ -109,6 +118,42 @@ try {
     assert.notEqual(await a.page.locator('#opsBoothSelect').inputValue(),'');
     const menus={dashboard:'[data-ops-form=event_save]',catalog:'[data-ops-form=booth_save]',participants:'#reviewRosterLookup',visits:'[data-ops-form=visit_approve]',ledger:'[data-ops-form=points_adjust]',rules:'[data-ops-form=rule_save]',vouchers:'#opsRedeem',audit:'.ops-paging',nfc:'.nfc-manager-heading'};
     for(const [name,selector] of Object.entries(menus)) await tab(a.page,name,selector);
+
+    await tab(a.page,'participants','#reviewRosterLookup');
+    const lookup=a.page.locator('#reviewRosterLookup');
+    await lookup.locator('[name=userId]').selectOption(String(student.uid));
+    await lookup.locator('button[type=submit]').click();
+    const roster=a.page.locator('#reviewRosterForm'); await roster.waitFor();
+    assert.equal(await roster.locator('[name=realName],[name=boothKeys]').count(),0);
+    assert.equal(await roster.locator('button[type=submit]').isDisabled(),true);
+    await roster.locator('[name=studentNumber]').fill(studentNumber);
+    await roster.locator('[data-roster-find]').click();
+    await roster.getByText('명단 대조 완료',{exact:true}).waitFor();
+    await screenshot(a.page,width,'official-roster-link');
+    const dimensions=await roster.evaluate(f=>({width:f.clientWidth,scroll:f.scrollWidth}));
+    assert.ok(dimensions.scroll<=dimensions.width+1,'Roster dialog must not overflow');
+    await roster.locator('[name=studentNumber]').fill('19999');
+    assert.equal(await roster.locator('button[type=submit]').isDisabled(),true);
+    await roster.locator('[data-roster-find]').click();
+    await roster.getByText('명단에 없는 학번이에요.',{exact:true}).waitFor();
+    await roster.locator('[name=studentNumber]').fill(studentNumber);
+    await roster.locator('[data-roster-find]').click();
+    await roster.getByText('명단 대조 완료',{exact:true}).waitFor();
+    await roster.locator('[name=confirmed]').check();
+    await roster.locator('[name=reason]').fill('합성 계정 본인 확인');
+    const beforeLink=a.calls.filter(c=>c.p_action==='save').length;
+    await roster.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
+    await roster.getByText('명단과 계정을 연결했어요.',{exact:true}).waitFor();
+    assert.equal(a.calls.filter(c=>c.p_action==='save').length,beforeLink+1);
+    const policy=await rpc(student,'select public.festival_ops_read($1,$2) value',['reviews',{booth:'인벨릭스'}]);
+    assert.equal(policy.reviewPolicy.reason,'OWN_CLUB_REVIEW');
+    await a.page.locator('.ops-dialog [aria-label=닫기]').click();
+    await lookup.locator('button[type=submit]').click();
+    await roster.locator('[data-roster-revoke]').waitFor();
+    await roster.locator('[name=reason]').fill('합성 계정 확인 취소');
+    await roster.locator('[data-roster-revoke]').click();
+    await roster.getByText('확인을 취소했어요.',{exact:true}).waitFor();
+    await a.page.locator('.ops-dialog [aria-label=닫기]').click();
 
     a.control.slowKind='participants';
     const started=new Promise(r=>{a.control.waitStarted=r;});

@@ -107,3 +107,28 @@ test('old anonymous names stay anonymous and new author markup is escaped',()=>{
   assert.match(a.reviewView(r),/참여자/);
   assert.match(a.reviewView({...r,authorName:'<script>x</script>'}),/&lt;script&gt;/);
 });
+
+function rosterClient(data) {
+  return createAccount({sdk:{createClient:()=>({rpc:async()=>({data}),auth:{onAuthStateChange(){}}})},
+    config:{},storage:{getItem(){},setItem(){},removeItem(){}},location:new URL('https://fixture.invalid')});
+}
+const rosterResponse={eventId:'event',userId:2,accountName:'가상계정',realName:null,boothKeys:[],verified:false,version:0,
+  roster:{studentNumber:'11001',realName:'가상학생',clubs:['동아리'],boothKeys:['club'],version:1,ready:true,linkedElsewhere:false}};
+const lookup={eventId:'event',userId:2,studentNumber:'11001'};
+test('official roster response validates exact number, version and readiness types',async()=>{
+  assert.equal((await rosterClient(rosterResponse).reviewIdentity('lookup',lookup)).ok,true);
+  for(const roster of [{...rosterResponse.roster,studentNumber:'11002'},{...rosterResponse.roster,version:0},
+    {...rosterResponse.roster,ready:'true'},{...rosterResponse.roster,realName:null},{...rosterResponse.roster,clubs:[]}]) {
+    assert.equal((await rosterClient({...rosterResponse,roster}).reviewIdentity('lookup',lookup)).ok,false);
+  }
+});
+test('missing old roster contract fails closed; explicit missing student is valid',async()=>{
+  const old={...rosterResponse};delete old.roster;
+  assert.equal((await rosterClient(old).reviewIdentity('get',lookup)).ok,false);
+  assert.equal((await rosterClient({...rosterResponse,roster:null}).reviewIdentity('lookup',lookup)).ok,true);
+});
+test('pending official records remain readable to operators without enabling confirmation',async()=>{
+  const data={...rosterResponse,roster:{...rosterResponse.roster,realName:null,ready:false}};
+  const result=await rosterClient(data).reviewIdentity('lookup',lookup);
+  assert.equal(result.ok,true);assert.equal(result.data.roster.ready,false);
+});

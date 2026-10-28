@@ -4,6 +4,8 @@ artifacts/
 .env.*
 !.env.example
 node_modules/
+__pycache__/
+*.pyc
 tools/**/node_modules/
 nfc-server/private-output/
 .vercel/

@@ -87,6 +87,30 @@ fs.mkdirSync(output, { recursive: true });
     await page.locator('#reviewContent').waitFor();
     results.push({ pendingReview: true, reducedMotion: true, passed: true });
     await context.close();
+    for(const width of [320,390,430,1024]) {
+      const context=await browser.newContext({viewport:{width,height:844}});
+      await context.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+      const page=await context.newPage(),errors=[];
+      page.on('pageerror',error=>errors.push(error.message));
+      await page.goto(`${base}/tests/reward-server-preview.html?mode=missing&count=9&stamps=1`);
+      await page.waitForFunction(()=>state.route==='stamps' && festivalOpsUI.snapshot()?.ready);
+      await page.locator('.stamp-path-list').waitFor();
+      await page.waitForFunction(()=>document.querySelectorAll('.stamp-path-step.is-earned').length===9);
+      assert.equal(await page.locator('.stamp-path-step.is-reward').count(),5);
+      assert.equal(await page.locator('.stamp-path-step.is-issued,.stamp-path-step.is-claimable').count(),0);
+      for(const target of [3,6,9]) assert.equal(await page.locator(`.stamp-path-node[aria-label="${target}번째 스탬프, 확인 대기"]`).count(),1);
+      assert.equal(await page.locator('.stamp-progress-copy').innerText(),'바우처 발급 상태 확인 대기\n3개마다 1장');
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.screenshot({path:path.join(output,`server-milestones-${width}.png`),fullPage:true});
+      await page.locator('.stamp-path-node[aria-label="3번째 스탬프, 확인 대기"]').click();
+      await page.locator('.reward-choice-section [data-ops-refresh]').waitFor();
+      assert.equal(await page.locator('#rewardChoiceForm,[data-reward-retry]').count(),0);
+      await page.locator('.reward-choice-section [data-ops-refresh]').click();
+      assert.equal((await page.evaluate(()=>fixtureCalls)).length,0);
+      assert.deepEqual(errors,[]);
+      results.push({width,missingRewardApi:true,milestones:5,fabricatedClaims:0,passed:true});
+      await context.close();
+    }
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify({ results, externalRequests: 'blocked', serverWrites: 0 }, null, 2));
     console.log(`${results.length} ink stamp layouts/flows passed`);
   } finally { await browser.close(); }

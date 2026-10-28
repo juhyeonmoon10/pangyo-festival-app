@@ -39,10 +39,19 @@ for(const booth of [own,away,second]) await write(admin,'booth_save',{booth,vers
 for(const a of [student,unknown,other]) for(const booth of [own,away,second]) await write(admin,'visit_approve',{userId:a.uid,booth,reason:'Synthetic verified visit'});
 await write(other,'review_save',{booth:away,rating:4,content:''});
 await db.exec(read('operations-server/review-identity.draft.sql'));
-const payload=(a,keys=[own],version=0)=>({eventId:event.id,userId:a.uid,version,realName:'테스트실명',boothKeys:keys,verified:true,reason:'Synthetic roster check'});
+const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
+const studentNumber=a=>String(11000+a.uid);
+const record=(a,keys=[own],status='ready')=>({studentNumber:studentNumber(a),realName:'테스트실명',clubs:['합성동아리'],boothKeys:keys,status,
+  issues:status==='ready'?[]:['SHEET_CONFLICT'],sourceCells:['Synthetic!A1']});
+let records=[record(admin),record(student,[own,second]),record(unknown,[]),record(other,[])];
+const importRoster=()=>one('select festival_ops.import_review_roster($1,$2,$3) value',[event.id,{format:1,sourceSha256:'a'.repeat(64),catalogKeys:catalog,records},admin.uid]);
+await importRoster();
+const payload=(a,keys=[own],version=0)=>({eventId:event.id,userId:a.uid,version,studentNumber:studentNumber(a),rosterVersion:a.rv || 1,confirmed:true,reason:'Synthetic roster check'});
 await test('anonymous and direct roster access denied',async()=>{
   await assert.rejects(rpc(admin,"select public.festival_review_identity_admin('get','{}') value",[],'anon'),/permission denied/);
   await assert.rejects(rpc(admin,'select count(*) value from festival_ops.review_identities'),/permission denied/);
+  await assert.rejects(rpc(admin,'select count(*) value from festival_ops.review_roster'),/permission denied/);
+  await assert.rejects(rpc(admin,'select festival_ops.import_review_roster($1,$2,$3) value',[event.id,{},admin.uid]),/permission denied/);
 });
 await test('student cannot read or edit anyone in roster',async()=>{
   for(const action of ['get','save']) await assert.rejects(roster(student,action,payload(student)),/ADMIN_REQUIRED/);
@@ -61,8 +70,10 @@ await test('stale version and wrong event rejected',async()=>{
   await assert.rejects(roster(admin,'save',payload(student)),/VERSION_CONFLICT/);
   await assert.rejects(roster(admin,'save',{...payload(student),eventId:randomUUID()}),/VERSION_CONFLICT/);
 });
-await test('malformed or unknown membership rejected',async()=>{
-  for(const boothKeys of [['not-a-booth'],[null],null]) await assert.rejects(roster(admin,'save',{...payload(unknown),boothKeys}),/INVALID_INPUT/);
+await test('unknown number and missing independent account confirmation rejected',async()=>{
+  await assert.rejects(roster(admin,'save',{...payload(unknown),studentNumber:'19999'}),/ROSTER_REVIEW_REQUIRED/);
+  await assert.rejects(roster(admin,'save',{...payload(unknown),confirmed:false}),/INVALID_INPUT/);
+  await assert.rejects(roster(admin,'lookup',{...payload(unknown),studentNumber:'%'}),/INVALID_INPUT/);
 });
 await test('own club star-only and text reviews are blocked',async()=>{
   for(const booth of [own,second]) {
@@ -94,13 +105,20 @@ await test('existing anonymous review is not retroactively unmasked',async()=>{
   assert.equal((await get(other,'reviews',{booth:away})).reviews.find(r=>r.mine).author,'참여자');
 });
 await test('changed membership blocks adding text to old own-club review',async()=>{
+  records=records.map(r=>r.studentNumber===studentNumber(other)?record(other,[away]):r);
+  await importRoster(); other.rv=2;
+  assert.equal((await get(other,'reviews',{booth:own})).reviewPolicy.reason,'REVIEW_IDENTITY_REQUIRED');
   await roster(admin,'save',payload(other,[away],1));
   await assert.rejects(write(other,'review_save',{booth:away,rating:4,content:'Later text'}),/OWN_CLUB_REVIEW/);
 });
-await test('unverified roster remains blocked; explicitly confirmed no club is allowed',async()=>{
-  await roster(admin,'save',{...payload(unknown,[]),verified:false});
+await test('conflicting roster blocked; approved nonparticipating club allowed',async()=>{
+  records=records.map(r=>r.studentNumber===studentNumber(unknown)?record(unknown,[],'review_required'):r);
+  await importRoster(); unknown.rv=2;
+  await assert.rejects(roster(admin,'save',payload(unknown)),/ROSTER_REVIEW_REQUIRED/);
   await assert.rejects(write(unknown,'review_save',{booth:own,rating:5}),/REVIEW_IDENTITY_REQUIRED/);
-  await roster(admin,'save',payload(unknown,[],1));
+  records=records.map(r=>r.studentNumber===studentNumber(unknown)?record(unknown,[]):r);
+  await importRoster(); unknown.rv=3;
+  await roster(admin,'save',payload(unknown));
   assert.equal((await write(unknown,'review_save',{booth:own,rating:5})).result,'SAVED');
 });
 await test('old RPC and direct legacy rating insert cannot bypass guard',async()=>{
@@ -109,9 +127,48 @@ await test('old RPC and direct legacy rating insert cannot bypass guard',async()
   await assert.rejects(rpc(student,'insert into public.booth_ratings(user_id,booth_id,rating) values($1,$2,5) returning rating value',[student.uid,own]),/REVIEW_POLICY_REQUIRED|permission denied/);
 });
 await test('review identity revocation takes effect on next request',async()=>{
-  await roster(admin,'save',{...payload(student,[],1),verified:false});
+  await roster(admin,'revoke',payload(student,[],1));
   assert.equal((await get(student,'reviews',{booth:away})).reviewPolicy.allowed,false);
   await assert.rejects(write(student,'review_save',{booth:second,rating:5}),/REVIEW_IDENTITY_REQUIRED/);
+});
+await test('one roster cannot be shared by multiple accounts, even after revocation',async()=>{
+  await assert.rejects(roster(admin,'save',{...payload(unknown,[],1),studentNumber:studentNumber(student),rosterVersion:1}),/ROSTER_ALREADY_LINKED/);
+});
+await test('lookup is exact, audited, and not a student list endpoint',async()=>{
+  const r=await roster(admin,'lookup',{eventId:event.id,userId:student.uid,studentNumber:studentNumber(student)});
+  assert.equal(r.roster.studentNumber,studentNumber(student));assert.equal(r.roster.ready,true);
+  assert.ok((await get(admin,'audit')).items.some(a=>a.action==='review_identity_lookup'));
+  assert.equal((await roster(admin,'lookup',{eventId:event.id,userId:student.uid,studentNumber:'19999'})).roster,null);
+});
+await test('client-supplied name or affiliations cannot change the official identity',async()=>{
+  const r=await roster(admin,'save',{...payload(student,[],2),realName:'Forged name',boothKeys:[],verified:false});
+  assert.equal(r.realName,'테스트실명');assert.equal(r.verified,true);
+  assert.ok(r.boothKeys.includes(own));assert.ok(r.boothKeys.includes(second));
+});
+await test('reimport same document is idempotent and does not invalidate verified links',async()=>{
+  const before=(await one('select version from festival_ops.review_roster where student_number=$1',[studentNumber(student)])).version;
+  await importRoster();
+  assert.equal((await one('select version from festival_ops.review_roster where student_number=$1',[studentNumber(student)])).version,before);
+  assert.equal((await get(student,'reviews',{booth:away})).reviewPolicy.allowed,true);
+});
+await test('catalog drift blocks reviews until mappings are reviewed again',async()=>{
+  await db.query('insert into festival_ops.booths(event_id,key,name,status) values($1,$2,$2,$3)',[event.id,'Synthetic new booth','paused']);
+  assert.equal((await get(student,'reviews',{booth:away})).reviewPolicy.allowed,false);
+  await assert.rejects(importRoster(),/ROSTER_CATALOG_CHANGED/);
+  await db.query('delete from festival_ops.booths where event_id=$1 and key=$2',[event.id,'Synthetic new booth']);
+});
+await test('malformed import fails atomically without exposing student records',async()=>{
+  const before=await one('select count(*)::int n from festival_ops.review_roster');
+  const saved=records;
+  records=[...records,{...records[0],studentNumber:'bad'}];
+  await assert.rejects(importRoster(),/INVALID_ROSTER_IMPORT/);
+  records=saved;assert.deepEqual(await one('select count(*)::int n from festival_ops.review_roster'),before);
+});
+await test('removed roster entry is deactivated, not silently kept authorized',async()=>{
+  records=records.filter(r=>r.studentNumber!==studentNumber(student));
+  await importRoster();
+  assert.equal((await get(student,'reviews',{booth:away})).reviewPolicy.allowed,false);
+  assert.equal((await one('select status from festival_ops.review_roster where student_number=$1',[studentNumber(student)])).status,'inactive');
 });
 await test('expired sessions cannot register roster',async()=>{
   await db.query("update auth.sessions set not_after=now()-interval '1 minute' where id=$1",[admin.session]);
@@ -119,5 +176,12 @@ await test('expired sessions cannot register roster',async()=>{
 });
 fs.mkdirSync(path.join(root,'artifacts/review-identity'),{recursive:true});
 fs.writeFileSync(path.join(root,'artifacts/review-identity/isolated.json'),JSON.stringify({at:new Date().toISOString(),environment:'PGlite synthetic auth; no live Supabase or concurrency proof',results},null,2));
+if(process.env.PRIVATE_ROSTER_INPUT) {
+  const document=JSON.parse(fs.readFileSync(process.env.PRIVATE_ROSTER_INPUT,'utf8'));
+  const result=await one('select festival_ops.import_review_roster($1,$2,$3) value',[event.id,document,admin.uid]);
+  assert.equal(result.value.total-result.value.inactive,document.records.length);
+  assert.equal(result.value.ready,document.records.filter(r=>r.status==='ready').length);
+  console.log('LOCAL WORKBOOK IMPORT: counts verified; no student records printed or persisted by test.');
+}
 await db.close(); process.exitCode=results.some(r=>!r.ok)?1:0;
 console.log(`${results.filter(r=>r.ok).length}/${results.length} passed`);

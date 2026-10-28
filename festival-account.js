@@ -25,6 +25,8 @@
     INVALID_INPUT: "입력한 내용을 확인해 주세요.",
     VERSION_CONFLICT: "명단이 변경됐어요. 창을 닫고 다시 조회해 주세요.",
     SELF_ADJUSTMENT: "본인의 확인 명단은 다른 운영자에게 요청해 주세요.",
+    ROSTER_REVIEW_REQUIRED: "명단 또는 부스 연결을 먼저 확인해야 해요. 이름과 소속을 임의로 등록할 수 없어요.",
+    ROSTER_ALREADY_LINKED: "이 명단은 다른 계정에 연결되어 있어요. 담당 관리자에게 확인해 주세요.",
     BOOTH_NOT_FOUND: "부스 정보를 확인할 수 없어요. 운영자에게 문의해 주세요.",
     ADMIN_REQUIRED: "운영자 계정만 사용할 수 있는 기능입니다.",
     INVALID_TAG_ISSUE_REQUEST: "발급할 부스 정보를 확인해 주세요.",
@@ -353,6 +355,19 @@
             || typeof data.accountName !== 'string' || !Array.isArray(data.boothKeys)
             || data.boothKeys.some(key => typeof key !== 'string')
             || (data.realName !== null && (typeof data.realName !== 'string' || data.realName.length > 60))) {
+            throw new Error('REVIEW_POLICY_REQUIRED');
+          }
+          if (!Object.prototype.hasOwnProperty.call(data, 'roster')) throw new Error('REVIEW_POLICY_REQUIRED');
+          const roster = data.roster;
+          if (roster !== null && (!roster || !/^[1-3][0-9]{4}$/.test(roster.studentNumber)
+            || !Number.isInteger(roster.version) || roster.version < 1
+            || typeof roster.ready !== 'boolean' || typeof roster.linkedElsewhere !== 'boolean'
+            || !Array.isArray(roster.clubs) || !roster.clubs.length || roster.clubs.length > 100
+            || roster.clubs.some(club => typeof club !== 'string' || !club || club.length > 300)
+            || !Array.isArray(roster.boothKeys) || roster.boothKeys.some(key => typeof key !== 'string')
+            || (roster.realName !== null && (typeof roster.realName !== 'string' || !roster.realName || roster.realName.length > 60))
+            || (roster.ready && !roster.realName)
+            || (['lookup', 'save'].includes(action) && roster.studentNumber !== payload.studentNumber))) {
             throw new Error('REVIEW_POLICY_REQUIRED');
           }
           return { ok: true, data };

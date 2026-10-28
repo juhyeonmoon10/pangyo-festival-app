@@ -59,3 +59,6 @@
 .design-web .ops-table-wrap th { color:var(--primary-dark); background:#edf7f1; }
 .design-web .ops-checkbox input { accent-color:var(--primary); }
 @media(min-width:700px) { .ops-form { grid-template-columns:1fr 1fr; } .ops-form>button,.ops-form-status { grid-column:1/-1; } }
+.ops-roster-summary { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; margin: 8px 0; }
+.ops-roster-summary dt { color: #586862; word-break: keep-all; }
+.ops-roster-summary dd { margin: 0; overflow-wrap: anywhere; }
