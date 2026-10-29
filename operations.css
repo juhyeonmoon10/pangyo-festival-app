@@ -62,3 +62,19 @@
 .ops-roster-summary { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; margin: 8px 0; }
 .ops-roster-summary dt { color: #586862; word-break: keep-all; }
 .ops-roster-summary dd { margin: 0; overflow-wrap: anywhere; }
+.ops-recipient { display:grid; gap:8px; min-width:0; }
+.ops-recipient-button { display:flex; align-items:center; gap:12px; min-height:52px; padding:12px; border:1px solid var(--line,#dce3e0); border-radius:8px; background:var(--surface,#fff); color:var(--text,#17251f); text-align:left; }
+.ops-recipient-button span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.ops-recipient-button svg,.ops-participant-row svg { width:22px; height:22px; flex:none; }
+.ops-participant-dialog { max-height:calc(100dvh - 32px); overflow-y:auto; }
+.ops-participant-dialog header .icon-btn { flex:none; }
+.ops-participant-dialog .ops-search { margin-top:8px; }
+.ops-participant-dialog [role=status] { margin:0; font-size:14px; color:var(--muted,#586862); }
+.ops-participant-list { max-height:45dvh; overflow-y:auto; overscroll-behavior:contain; }
+.ops-participant-row { display:flex; width:100%; min-height:64px; align-items:center; gap:12px; padding:12px 4px; border:0; border-bottom:1px solid var(--line,#dce3e0); background:transparent; text-align:left; color:var(--text,#17251f); }
+.ops-participant-row>span { flex:1; min-width:0; display:grid; gap:4px; overflow-wrap:anywhere; }
+.ops-participant-row small { color:var(--muted,#586862); }
+.ops-participant-row:disabled { opacity:.55; }
+.ops-participant-row:not(:disabled):hover,.ops-recipient-button:hover { background:#edf7f1; }
+.ops-participant-confirm { display:grid; gap:12px; padding:12px 0; overflow-wrap:anywhere; }
+.ops-participant-confirm p { margin:0; }

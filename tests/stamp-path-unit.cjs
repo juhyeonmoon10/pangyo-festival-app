@@ -57,14 +57,21 @@ test('unconfirmed server rewards do not invent claimable vouchers', () => {
   assert.match(api.walletSummaryView(), /—/);
 });
 
-test('rated visits alone become completed nodes; the next action opens a pending review', () => {
+test('each visited booth earns a stamp without a review; the next action opens the map', () => {
   const { api, visits, reviews } = setup({ count: 3, pending: 2 });
   const html = api.stamps();
-  assert.equal((html.match(/stamp-path-step is-earned/g) || []).length, 3);
-  assert.match(html, /class="stamp-path-node" data-review-booth="booth-3"/);
-  assert.match(html, /max="3" value="3"/);
+  assert.equal((html.match(/stamp-path-step is-earned/g) || []).length, 5);
+  assert.match(html, /class="stamp-path-node" data-route="map"/);
+  assert.match(html, /max="3" value="2"/);
   assert.equal(visits.length, 5);
   assert.equal(reviews.length, 3);
+});
+
+test('duplicate and revoked visits cannot increase the stamp count', () => {
+  const { api, visits } = setup({ pending: 2 });
+  visits.push({...visits[0]}, {boothId:'booth-4', status:'revoked'});
+  assert.equal(api.completed().length, 2);
+  assert.equal((api.stamps().match(/stamp-path-step is-earned/g) || []).length, 2);
 });
 
 test('completed nodes retain booth navigation and escape long or HTML-like names', () => {

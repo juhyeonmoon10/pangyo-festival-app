@@ -5,6 +5,8 @@ const festivalOpsUI = (() => {
   let stream=null, cameraTimer=null, qrTimer=null;
   let lastRoute=null;
   let refreshQueued=false, queuedRepaint=false, notice='';
+  let refreshWaiters=[];
+  let visitRecipient=null;
   const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
   const localTabs=new Set(['tools','nfc','stamp-simulator','settings']);
   const h=value=>escapeHtml(String(value ?? ''));
@@ -18,18 +20,20 @@ const festivalOpsUI = (() => {
   const form=(action,body,submit='저장')=>`<form class="ops-form" data-ops-form="${action}">${body}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit">${icon('save')} ${submit}</button></form>`;
   const reason=()=>field('reason','처리 사유','','required minlength="3" maxlength="300"');
   const participant=()=>field('userId','참여자 번호','','required min="1" step="1"','number');
+  const visitParticipant=()=>`<div class="ops-recipient"><span id="visitRecipientLabel">스탬프를 받을 참여자</span><input type="hidden" name="userId" value="${h(visitRecipient?.id || '')}"><button type="button" class="ops-recipient-button" data-pick-participant aria-labelledby="visitRecipientLabel visitRecipientName">${icon('user')}<span id="visitRecipientName">${h(visitRecipient?.name || '참여자 선택')}</span>${icon('search')}</button></div>`;
   const options=()=>catalog.map(b=>[b.key,b.name]);
   const currentEventReady=()=>Boolean(event?.id && Number.isInteger(event.version) && event.version>0);
 
   function reset() {
     owner=state.user?.id || null; mine=null; catalog=[]; event=null; data=null; loaded=false; failure=''; notice=''; tab='dashboard'; selectedBooth=null; selectedRule='';
-    closeDialog();
+    visitRecipient=null; closeDialog();
   }
   const viewKey=()=>JSON.stringify([state.user?.id,state.route,tab,offset,search]);
   function selectTab(next) {
     if(!Object.hasOwn(labels,next)) return;
     if(owner!==state.user?.id) reset();
     tab=next; offset=0; search=''; data=null; failure=''; notice=''; loaded=localTabs.has(next);
+    visitRecipient=null;
     closeDialog();
     render();
   }
@@ -50,7 +54,7 @@ const festivalOpsUI = (() => {
   }
   async function refresh(repaint=true) {
     if(!active() || !api()) return;
-    if(loading) { refreshQueued=true; queuedRepaint ||= repaint; return; }
+    if(loading) { refreshQueued=true; queuedRepaint ||= repaint; return new Promise(resolve=>refreshWaiters.push(resolve)); }
     const actor=state.user.id;
     if(owner!==actor) reset();
     const requestedView=viewKey(), requestedTab=tab, query={offset,search};
@@ -61,6 +65,7 @@ const festivalOpsUI = (() => {
       const rewards=await api().read('reward_status');
       if(state.user?.id!==actor || requestedView!==viewKey()) return;
       if(!a.ok || !b.ok) { failure=(a.ok?b:a).message; loaded=true; return; }
+      if(event?.id!==a.data.event?.id) visitRecipient=null;
       catalog=a.data.items || []; mine=b.data; event=a.data.event || null; failure=''; loaded=true;
       const program=rewards.data, kinds=['photo','food'];
       const validProgram=rewards.ok && program?.version===2 && program.eventId===event?.id
@@ -101,6 +106,7 @@ const festivalOpsUI = (() => {
           updateCatalogDom(); festivalWeb.refreshIndicators();
         } else render();
       }
+      const waiters=refreshWaiters; refreshWaiters=[]; waiters.forEach(resolve=>resolve());
     }
   }
   function navigation() {
@@ -132,7 +138,7 @@ const festivalOpsUI = (() => {
     return `<div class="ops-table-wrap" tabindex="0" aria-label="${h(labels[tab])} 목록"><table><thead><tr>${cols.map(([label])=>`<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${cols.map(([,key])=>`<td>${h(typeof key==='function'?key(row):row[key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
   function searchForm() {
-    return `<form id="opsSearch" class="ops-search"><input class="input" name="search" value="${h(search)}" placeholder="이름 또는 참여자 번호" aria-label="검색"><button class="icon-btn" title="검색" aria-label="검색">${icon('search')}</button></form>`;
+    return `<form id="opsSearch" class="ops-search"><input class="input" name="search" value="${h(search)}" placeholder="${tab==='visits'?'참여자 이름 검색':'이름 또는 참여자 번호'}" aria-label="검색"><button class="icon-btn" title="검색" aria-label="검색">${icon('search')}</button></form>`;
   }
   function paging() {
     return `<div class="ops-paging"><button class="icon-btn" data-ops-page="-50" ${offset?'':'disabled'} aria-label="이전 페이지">${icon('back')}</button><span>${Math.floor(offset/50)+1}페이지</span><button class="icon-btn" data-ops-page="50" ${(data?.items?.length || 0)<50?'disabled':''} aria-label="다음 페이지">${icon('arrow')}</button></div>`;
@@ -184,7 +190,7 @@ const festivalOpsUI = (() => {
     if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>${h(event.name)}</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
     if(tab==='catalog') return boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
     if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><form id="reviewRosterLookup" class="ops-form">${select('userId','참여자',(data?.items || []).map(p=>[p.id,`${p.name} (#${p.id})`]),null)}<p role="status"></p><button class="primary-btn" type="submit">명단 확인</button></form></section>`;
-    if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',participant()+select('booth','방문 부스',options(),null)+reason(),'방문 승인')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['부스','booth_key'],['방식','method'],['사유','reason']])+paging();
+    if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',visitParticipant()+select('booth','방문 부스',options().filter(([key])=>catalog.find(b=>b.key===key)?.status==='open'),null)+reason(),'스탬프 1개 승인')}</section>`+table(data?.items,[['시각',r=>time(r.created_at)],['참여자','name'],['부스',r=>catalog.find(b=>b.key===r.booth_key)?.name || r.booth_key],['방식','method'],['사유','reason']])+paging();
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['변경','delta'],['사유','reason']])+paging();
     if(tab==='rules') return (mine?.rewardProgram?.supported ? rewardConfigForm() : mine?.rewardProgram?.legacyRules
       ? '<p class="ops-empty">3개마다 반복 지급은 아직 준비 중이에요. 기존 발급 기준은 관리할 수 있어요.</p>'+ruleForm()
@@ -208,22 +214,89 @@ const festivalOpsUI = (() => {
       note.textContent='축제 정보를 다시 불러온 뒤 저장해 주세요.'; return;
     }
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
+    if(action==='visit_approve') {
+      if(!visitRecipient || body.userId!==visitRecipient.id || !Number.isInteger(body.userId) || body.userId===state.user?.serverUserId) {
+        note.textContent='스탬프를 받을 참여자를 선택해 주세요.'; return;
+      }
+      if(!catalog.some(b=>b.key===body.booth && b.status==='open')) {
+        note.textContent='운영 중인 부스를 선택해 주세요.'; return;
+      }
+    }
     if(action==='rule_save') { body.enabled=form.elements.enabled.checked; body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); }
     if(action==='reward_config') body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString();
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='reward_config'?'3개마다 바우처를 반복 지급할까요? 3·9·15개에서 선택하고, 6·12·18개에서 나머지를 지급합니다. 기존 자동 지급 기준은 중지됩니다.':'입력한 내용으로 처리할까요?')) return;
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='reward_config'?'3개마다 바우처를 반복 지급할까요? 3·9·15개에서 선택하고, 6·12·18개에서 나머지를 지급합니다. 기존 자동 지급 기준은 중지됩니다.':'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; note.textContent='처리 중...';
     try {
       const response=await api().write(action,body);
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!response.ok) {
+        if(action==='visit_approve' && response.code==='NOT_FOUND') {
+          visitRecipient=null; form.elements.userId.value='';
+          form.querySelector('#visitRecipientName').textContent='참여자 다시 선택';
+          note.textContent='선택한 참여자 또는 부스를 찾지 못했어요. 새로고침 후 대상을 다시 선택해 주세요.';
+          return;
+        }
         note.textContent=action==='voucher_issue' && response.code==='INVALID_INPUT'
           ? '참여자 번호와 처리 사유를 확인해 주세요. 본인 계정에는 발급할 수 없어요.' : response.message;
         return;
       }
-      notice=action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
+      notice=action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
       selectedBooth=response.data.booth || selectedBooth; selectedRule=response.data.id && action==='rule_save'?response.data.id:selectedRule;
       await refresh();
     } finally { busy=false; if(form.isConnected) form.querySelector('button[type=submit]').disabled=false; }
+  }
+
+  function pickVisitParticipant() {
+    if(!isAdminUser() || busy || !currentEventReady()) return;
+    const actor=state.user.id, requestedView=viewKey(), eventId=event.id;
+    const target=document.querySelector('[data-ops-form="visit_approve"]');
+    if(!target) return;
+    const d=dialog('스탬프를 받을 참여자'), body=d.querySelector('.ops-dialog-content');
+    d.classList.add('ops-participant-dialog');
+    body.innerHTML=`<form class="ops-search" data-participant-search><input class="input" name="search" maxlength="100" placeholder="이름 검색" aria-label="참여자 이름" autocomplete="off"><button type="submit" class="icon-btn" aria-label="참여자 검색">${icon('search')}</button></form><p role="status" data-participant-status></p><div class="ops-participant-list" data-participant-list></div><div class="ops-paging"><button type="button" class="icon-btn" data-participant-prev aria-label="이전 참여자">${icon('back')}</button><span data-participant-page></span><button type="button" class="icon-btn" data-participant-next aria-label="다음 참여자">${icon('arrow')}</button></div>`;
+    const searchForm=body.querySelector('form'), note=body.querySelector('[role=status]'), list=body.querySelector('[data-participant-list]');
+    const prev=body.querySelector('[data-participant-prev]'), next=body.querySelector('[data-participant-next]');
+    let start=0, query='', sequence=0;
+    const valid=()=>d.isConnected && target.isConnected && state.user?.id===actor && requestedView===viewKey() && event?.id===eventId && isAdminUser();
+    const choose=async person=>{
+      const seq=++sequence;
+      note.textContent='참여자 확인 중...'; list.replaceChildren(); prev.disabled=true; next.disabled=true;
+      let response;
+      try { response=await festivalAccount.reviewIdentity('get',{eventId,userId:person.id}); }
+      catch { response={ok:false}; }
+      if(!valid() || seq!==sequence) return;
+      const identity=response.ok?response.data:null;
+      note.textContent=response.ok?'방문한 학생 본인인지 확인해 주세요.':'참여자 확인에 실패했어요. 다시 찾아 선택해 주세요.';
+      list.innerHTML=`<div class="ops-participant-confirm"><strong>${h(person.name)}</strong>${identity?.verified && identity.roster?`<p>${h(identity.roster.studentNumber)} · ${h(identity.roster.realName)}</p><p>${identity.roster.clubs.map(h).join(', ')}</p>`:response.ok?'<p>연결된 동아리 명단 없음</p>':''}<button class="primary-btn" type="button" data-confirm-participant ${response.ok?'':'disabled'}>이 참여자 선택</button><button class="ghost-btn" type="button" data-return-participants>다시 찾기</button></div>`;
+      list.querySelector('[data-return-participants]').onclick=()=>load();
+      list.querySelector('[data-confirm-participant]').onclick=()=>{
+        if(!valid() || !response.ok) return;
+        visitRecipient={id:person.id,name:person.name};
+        target.elements.userId.value=String(person.id);
+        target.querySelector('#visitRecipientName').textContent=person.name;
+        target.querySelector('.ops-form-status').textContent='';
+        closeDialog(); target.querySelector('[data-pick-participant]').focus();
+      };
+    };
+    const load=async()=>{
+      const seq=++sequence;
+      note.textContent='참여자 불러오는 중...'; list.replaceChildren(); prev.disabled=true; next.disabled=true;
+      body.querySelector('[data-participant-page]').textContent=`${Math.floor(start/50)+1}페이지`;
+      try {
+        const response=await api().read('participants',{search:query,offset:start});
+        if(!valid() || seq!==sequence) return;
+        if(!response.ok) { note.textContent=response.message; list.innerHTML='<button class="ghost-btn" type="button" data-participant-retry>다시 불러오기</button>'; list.querySelector('button').onclick=load; return; }
+        const people=(response.data.items || []).filter(p=>Number.isInteger(p.id) && p.id>0);
+        note.textContent=people.length?'':'검색 결과가 없어요. 이름을 다시 확인해 주세요.';
+        list.innerHTML=people.map(p=>`<button type="button" class="ops-participant-row" data-participant-id="${p.id}" ${p.id===state.user.serverUserId?'disabled':''}>${icon('user')}<span><strong>${h(p.name)}</strong><small>${p.id===state.user.serverUserId?'내 계정 · 승인 불가':`방문 ${Number(p.visits)||0}개`}</small></span>${icon('arrow')}</button>`).join('');
+        list.querySelectorAll('[data-participant-id]').forEach(b=>b.onclick=()=>choose(people.find(p=>p.id===Number(b.dataset.participantId))));
+        prev.disabled=start===0; next.disabled=(response.data.items?.length || 0)<50;
+      } catch { if(valid() && seq===sequence) { note.textContent='참여자를 불러오지 못했어요. 이름 검색을 다시 눌러 주세요.'; } }
+    };
+    searchForm.addEventListener('submit',e=>{e.preventDefault();query=searchForm.elements.search.value.trim();start=0;load();});
+    searchForm.elements.search.addEventListener('keydown',e=>{if(e.key==='Enter' && e.isComposing)e.preventDefault();});
+    prev.onclick=()=>{start=Math.max(0,start-50);load();}; next.onclick=()=>{start+=50;load();};
+    load(); searchForm.elements.search.focus();
   }
 
   async function reviewRoster(e) {
@@ -311,7 +384,8 @@ const festivalOpsUI = (() => {
   }
   function dialog(title) {
     closeDialog(); const d=document.createElement('dialog'); d.className='ops-dialog';
-    d.innerHTML=`<header><h2>${h(title)}</h2><button class="icon-btn" aria-label="닫기">${icon('close')}</button></header><div class="ops-dialog-content"></div>`;
+    d.setAttribute('aria-labelledby','opsDialogTitle');
+    d.innerHTML=`<header><h2 id="opsDialogTitle">${h(title)}</h2><button class="icon-btn" aria-label="닫기">${icon('close')}</button></header><div class="ops-dialog-content"></div>`;
     d.querySelector('button').onclick=closeDialog; d.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
     document.body.append(d); d.showModal(); return d;
   }
@@ -358,6 +432,7 @@ const festivalOpsUI = (() => {
     document.querySelectorAll('[data-ops-tab]').forEach(b=>b.onclick=()=>selectTab(b.dataset.opsTab));
     document.querySelectorAll('[data-ops-refresh]').forEach(b=>b.onclick=()=>refresh());
     document.querySelectorAll('[data-ops-form]').forEach(f=>f.addEventListener('submit',save));
+    document.querySelector('[data-pick-participant]')?.addEventListener('click',pickVisitParticipant);
     document.querySelector('#opsBoothSelect')?.addEventListener('change',e=>{selectedBooth=e.target.value;render();});
     document.querySelector('#opsRuleSelect')?.addEventListener('change',e=>{selectedRule=e.target.value;render();});
     document.querySelector('#opsSearch')?.addEventListener('submit',e=>{e.preventDefault();search=e.target.elements.search.value;offset=0;refresh();});
