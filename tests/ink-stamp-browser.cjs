@@ -36,7 +36,7 @@ fs.mkdirSync(output, { recursive: true });
         return { primaryRgb, inkRgb, stamp: color('.is-earned:not(.is-reward) .stamp-path-node'), claim: fill('.is-claimable .stamp-path-node'), font: getComputedStyle(document.querySelector('.stamp-path-node')).fontFamily };
       });
       assert.equal(palette.stamp, palette.inkRgb);
-      assert.equal(palette.claim, palette.primaryRgb);
+      assert.equal(palette.claim, 'rgb(255, 235, 155)', 'Only claimable rewards use the bright yellow treatment');
       const geometry = await page.locator('.stamp-path-list').evaluate(list => {
         const nodes = [...list.querySelectorAll('.stamp-path-node')].map(el => el.getBoundingClientRect());
         const overlap = nodes.some((a,i) => nodes.slice(i+1).some(b => Math.min(a.right,b.right)>Math.max(a.left,b.left) && Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top)));

@@ -1,0 +1,231 @@
+/* Approved bright festival-pass direction, shared by student and operator screens. */
+body.design-web {
+  --text: #20382e;
+  --muted: #60736b;
+  --primary: #087652;
+  --primary-dark: #087652;
+  --line: #e1ebe5;
+  --surface-2: #f5f8f6;
+  --stamp-fill: #fff;
+  --stamp-edge: #087652;
+  --stamp-idle: #f1f5f3;
+  --stamp-track: #e1ebe5;
+  --reward-fill: #fff9e5;
+  --reward-ink: #80560c;
+  --reward-edge: #d9ba61;
+  --festival-mint: #d9faea;
+  --festival-yellow: #ffeb9b;
+  --festival-blue: #285e92;
+  --festival-sky: #eaf4ff;
+  --festival-red: #b93f3b;
+  background: #edf3f0;
+  font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  scrollbar-color: #a8c1b3 var(--surface-2);
+  caret-color: var(--primary);
+}
+.design-web ::selection { background: #b4f1d4; color: var(--text); }
+.design-web :where(button, input, select, textarea) { font-family: inherit; letter-spacing: 0; }
+.design-web :where(h1, h2, h3, p, strong) { letter-spacing: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.design-web :where(input, textarea)::placeholder { color: var(--muted); opacity: 1; }
+.design-web :where(button, a, input, select, textarea, summary):focus-visible { outline: 3px solid var(--festival-blue); outline-offset: 3px; }
+.design-web :where(.primary-btn, .ghost-btn, .danger-btn) { min-height: 50px; border-radius: 8px; font-size: 15px; font-weight: 650; box-shadow: none; }
+.design-web .primary-btn { background: var(--primary); color: #fff; }
+.design-web .primary-btn:not(:disabled):hover { background: #075e43; }
+.design-web .ghost-btn { background: var(--surface-2); color: var(--text); border-color: var(--line); }
+.design-web .danger-btn { color: var(--festival-red); background: #fff0ed; }
+.design-web :where(.input, .select, .textarea) { min-height: 48px; font-size: 16px; border: 1px solid #bdcec4; border-radius: 8px; background: #fff; color: var(--text); box-shadow: none; }
+.design-web .icon-btn { border-radius: 8px; background: transparent; border-color: transparent; color: var(--text); }
+.design-web button:disabled { cursor: not-allowed; }
+.design-web :where(.web-header, .top-bar) { min-height: 64px; }
+.design-web :where(.web-header h1, .top-title strong, .map-screen .top-bar h1, .stamp-board-header h1) { font-size: 21px; font-weight: 750; line-height: 1.35; }
+.design-web :where(.web-header p, .top-title span) { font-size: 12px; color: var(--muted); }
+.design-web .web-header.root { margin-bottom: 8px; }
+.design-web .bottom-nav { background: #fff; border-top: 1px solid var(--line); box-shadow: none; }
+.design-web .bottom-nav .nav-btn { color: var(--muted); font-size: 12px; }
+.design-web .bottom-nav .nav-btn.active { color: var(--primary); }
+.design-web .bottom-nav .nav-btn.active > span:first-child { background: var(--festival-mint); color: var(--primary); }
+.design-web .brand-symbol { border-radius: 50%; width: 36px; height: 36px; flex-basis: 36px; background: #98eec7; color: #076547; box-shadow: none; font-size: 23px; }
+.design-web .web-brand { min-height: 64px; padding-block: 8px; }
+.design-web .web-brand > strong { font-size: 18px; }
+.design-web .web-brand .web-profile-button { width: 44px; height: 44px; min-width: 44px; background: transparent; }
+.festival-notice-strip { display: flex; align-items: center; gap: 10px; width: calc(100% + 40px); min-height: 48px; margin-inline: -20px; padding: 10px 20px; background: var(--festival-sky); color: var(--festival-blue); text-align: left; font-size: 13px; }
+.festival-notice-strip span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.festival-notice-strip .ui-icon { width: 20px; height: 20px; }
+.design-web .web-welcome { min-height: 0; margin: 0; padding: 26px 0 18px; overflow: visible; }
+.design-web .web-welcome h1 { font-size: 24px; line-height: 1.45; font-weight: 750; }
+.design-web .home-stamp-card { margin: 0; padding: 0 0 24px; border: 0; border-radius: 0; background: #fff; }
+.festival-pass-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.design-web .home-stamp-card h2 { margin: 0; color: var(--muted); font-size: 13px; font-weight: 500; }
+.festival-pass-count { display: block; margin-top: 2px; font-size: 36px; line-height: 1.3; color: var(--primary); font-variant-numeric: tabular-nums; }
+.festival-pass-count small { margin-left: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.festival-wallet-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--primary); background: var(--surface-2); font-size: 13px; font-weight: 650; }
+.festival-wallet-link.is-ready { color: var(--reward-ink); border-color: var(--reward-edge); background: var(--reward-fill); }
+.festival-wallet-link .ui-icon { width: 18px; height: 18px; }
+.festival-pass-progress { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; align-items: center; margin-top: 18px; }
+.design-web .festival-pass-progress .punch-row { margin: 0; gap: 7px; }
+.design-web .festival-pass-progress .punch { position: relative; width: 100%; height: auto; aspect-ratio: 1; max-width: 44px; border: 1px solid var(--line); background: var(--surface-2); font-size: 14px; color: var(--muted); }
+.design-web .festival-pass-progress .punch.on { background: #fff; color: var(--primary-dark); border-color: var(--primary); outline: 1px solid var(--primary); outline-offset: -5px; transform: rotate(-7deg); }
+.design-web .festival-pass-progress .punch.on:nth-child(even) { transform: rotate(6deg); }
+.design-web .festival-pass-progress .punch.next { background: var(--festival-mint); color: var(--primary); border: 1px dashed var(--primary); }
+.design-web .festival-pass-progress .punch i { position: absolute; inset: auto auto -6px calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: var(--reward-ink); }
+.festival-pass-progress .punch i .ui-icon { display: none; }
+.festival-pass-caption { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-top: 16px; font-size: 12px; color: var(--muted); }
+.festival-pass-caption p { margin: 0; }
+.design-web .web-map-action { min-height: 118px; padding: 20px 16px; border: 0; border-radius: 8px; background: var(--festival-mint); }
+.design-web .map-action-copy { gap: 8px; }
+.design-web .map-action-copy > strong { font-size: 21px; }
+.design-web .map-action-copy > span { color: #416d5b; font-size: 13px; max-width: 24ch; }
+.design-web .map-action-art { flex-basis: 88px; width: 88px; height: 80px; }
+.design-web .web-home .web-section { padding-top: 24px; }
+.design-web .web-home .home-quick-section { margin: 24px -20px 0; padding: 22px 20px 0; border-top: 8px solid var(--surface-2); }
+.design-web .section-heading h2 { font-size: 18px; }
+.design-web .text-link { font-size: 13px; }
+.design-web .web-shortcuts { display: block; }
+.design-web .web-shortcuts button { display: grid; grid-template-columns: 40px minmax(0, 1fr) 20px; gap: 12px; width: 100%; min-height: 76px; padding: 14px 0; background: #fff; border-bottom: 1px solid var(--line); border-radius: 0; }
+.design-web .web-shortcuts button > .ui-icon { display: block; width: 18px; height: 18px; }
+.design-web .shortcut-symbol { width: 40px; height: 40px; border-radius: 8px; }
+.design-web .shortcut-symbol.vouchers { background: var(--festival-mint); color: var(--primary); }
+.design-web .shortcut-symbol.reviews { background: var(--festival-sky); color: var(--festival-blue); }
+.design-web .web-shortcuts small, .design-web .web-visit small { font-size: 12px; }
+.design-web .web-visit { gap: 10px; }
+.design-web .web-visit em { font-size: 12px; }
+.design-web .web-pending { color: var(--festival-blue); }
+.design-web .web-pending > .ui-icon:first-child { color: var(--festival-blue); }
+.design-web .web-announcement { color: var(--text); }
+
+/* Geography and drag mechanics stay intact; status and visit markers remain independent. */
+.design-web .map-screen .map-stage { background: #f3f7f4; }
+.design-web .map-screen .plan-boundary { background: #fff; border-radius: 4px; }
+.design-web .map-screen .plan-room { box-shadow: none; border-radius: 4px; }
+.design-web .map-screen .plan-room.classroom { background: #edf7f0; color: #30583f; border-color: #b7d3c2; box-shadow: none; }
+.design-web .map-screen .plan-room.facility, .design-web .map-screen .plan-room.auditorium { background: var(--festival-sky); color: var(--festival-blue); }
+.design-web .map-screen .plan-room.booth-room.visited { border-color: var(--primary); box-shadow: none; }
+.design-web .map-screen .plan-room.booth-room.status-paused { border-style: dashed; background: #fff9e5; color: var(--reward-ink); }
+.design-web .map-screen .plan-room.booth-room.status-closed { background: #eef1ef; color: #617169; }
+.design-web .map-screen .visited .room-state { background: var(--primary); }
+.design-web .map-screen .map-legend .visited { background: var(--primary); }
+.design-web .map-screen .map-legend .classroom { background: #edf7f0; border-color: #b7d3c2; }
+.design-web .map-screen .indoor-floors { box-shadow: none; }
+.design-web .floor-tab.active { background: var(--primary); color: #fff; }
+.design-web .map-screen .map-zoom-controls { box-shadow: none; }
+.design-web .map-screen .sheet { box-shadow: 0 -6px 24px #183e2c12; border-color: var(--line); }
+.design-web .map-screen .map-sheet-icon { background: var(--festival-mint); color: var(--primary); }
+.design-web .map-screen .map-sheet-title strong { font-size: 16px; }
+.design-web .map-screen .sheet .status-badge { font-size: 11px; }
+.design-web .map-screen .map-location-note { font-size: 12px; }
+.design-web .map-screen .search-result-meta { font-size: 13px; }
+.design-web .map-screen .search-result-list .booth-item { min-height: 92px; }
+
+.design-web .stamp-path-summary { padding-top: 12px; padding-bottom: 24px; }
+.design-web .stamp-count-line strong { font-size: 40px; color: var(--primary); }
+.design-web .stamp-path-track { background: #fbfdfb; }
+.design-web .stamp-path-list { padding-top: 30px; padding-bottom: 10px; }
+.design-web .stamp-path-node { background: var(--stamp-idle); border-color: var(--line); box-shadow: none; }
+.design-web .stamp-path-step.is-earned .stamp-path-node { border: 2px solid var(--primary); background: #fff; }
+.design-web .stamp-path-step.is-earned .stamp-path-face { border: 1px solid var(--primary); }
+.design-web .stamp-path-step.is-current .stamp-path-node { border: 1px dashed var(--primary); background: var(--festival-mint); }
+.design-web .stamp-path-step.is-reward:not(.is-earned):not(.is-current) .stamp-path-node { background: var(--stamp-idle); color: var(--muted); border-color: var(--line); }
+.design-web .stamp-path-step.is-reward.is-issued .stamp-path-node { color: var(--primary); background: #fff; }
+.design-web .stamp-path-step.is-reward.is-claimable .stamp-path-node { background: var(--festival-yellow); color: var(--reward-ink); border: 1px solid var(--reward-edge); box-shadow: none; }
+.design-web .stamp-path-step.is-claimable .stamp-path-face { border: 1px solid var(--reward-edge); }
+.design-web .stamp-path-step.is-claimable .stamp-reward-marker { color: var(--reward-ink); }
+.design-web .stamp-path-step.is-issued .stamp-reward-marker { color: var(--primary); }
+.design-web .stamp-rating-pending { color: var(--festival-blue); }
+.design-web .stamp-rating-pending h2 { color: var(--festival-blue); }
+.design-web .stamp-path-progress { height: 6px; }
+.festival-wallet-summary, .festival-profile-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 6px 0 22px; padding: 18px 0; border-block: 1px solid var(--line); }
+.festival-wallet-summary > div, .festival-profile-stats > div { text-align: center; padding-inline: 4px; min-width: 0; }
+.festival-wallet-summary > div + div, .festival-profile-stats > div + div { border-left: 1px solid var(--line); }
+.festival-wallet-summary dt, .festival-profile-stats dt { font-size: 12px; color: var(--muted); }
+.festival-wallet-summary dd, .festival-profile-stats dd { margin: 6px 0 0; font-size: 27px; line-height: 1.25; font-weight: 750; font-variant-numeric: tabular-nums; }
+.festival-wallet-summary small, .festival-profile-stats small { margin-left: 4px; font-size: 12px; font-weight: 500; }
+.festival-wallet-summary > div:first-child dd { color: var(--reward-ink); }
+.festival-wallet-summary > div:nth-child(2) dd { color: var(--primary); }
+.design-web .reward-choice-section { padding-top: 4px; }
+.design-web .reward-choice-section .section-heading { align-items: center; }
+.design-web .reward-choice-section .section-heading > span { font-size: 12px; color: var(--muted); }
+.design-web .reward-option > span { min-height: 120px; background: #fff; padding-top: 30px; }
+.design-web .reward-option input:checked + span { border-color: var(--primary); background: var(--festival-mint); box-shadow: none; }
+.design-web .reward-option svg { color: var(--primary); }
+.design-web .ops-voucher, .design-web .web-coupon { border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: none; }
+.design-web .ops-voucher > div > .ui-icon, .design-web .coupon-symbol { color: var(--primary); }
+.design-web .coupon-symbol { background: var(--festival-mint); }
+.design-web .web-segments { border-radius: 8px; background: var(--surface-2); }
+.design-web .web-segments button { font-size: 13px; min-height: 44px; }
+.design-web .profile-card { padding-bottom: 12px; border-bottom: 0; }
+.design-web .profile-avatar { background: var(--festival-mint); color: var(--primary); border-radius: 8px; }
+.design-web .profile-name-section { padding-block: 0 12px; }
+.design-web .profile-list { margin-block: 0; }
+.design-web .profile-shortcuts { margin-block: 20px; }
+.design-web .profile-list strong { font-size: 13px; }
+.design-web .detail-hero { padding-top: 12px; }
+.design-web .detail-hero .title { font-size: 26px; line-height: 1.4; }
+.design-web .detail-metrics { background: #fff; }
+.design-web .detail-data-note { font-size: 12px; color: var(--muted); }
+.design-web .section h2 { font-size: 19px; }
+.design-web .review-section .star-picker { gap: 6px; max-width: 320px; }
+.design-web .review-section .star { min-width: 44px; width: 52px; height: 52px; color: #67796e; background: #fff; }
+.design-web .review-section .star.on { color: var(--primary); background: var(--festival-mint); }
+.design-web .review-section .star.on .ui-icon { fill: var(--primary); stroke: var(--primary); }
+.design-web .review-section .star .ui-icon { width: 32px; height: 32px; }
+.design-web .review-section .star:not(.on) .ui-icon { fill: none; }
+.design-web .web-review-benefit { background: var(--festival-sky); color: var(--festival-blue); border-radius: 0; padding: 18px; }
+.design-web .web-review-benefit h2 { font-size: 17px; }
+.design-web .review-guidance { font-size: 14px; }
+.design-web .review-identity { color: var(--primary); font-size: 13px; }
+.design-web .web-menu-dialog, .design-web .web-qr-dialog, .design-web .ops-dialog { border-radius: 8px; }
+.design-web .login-brand { font-size: 13px; }
+.design-web .login-intro .title { font-size: 32px; }
+.design-web .login-art { max-height: 270px; object-fit: contain; }
+.design-web .login-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.design-web .login-screen .google-btn { border-color: #bdcec4; box-shadow: none; min-height: 54px; }
+
+/* Operators use the same tokens, with denser tables and explicit work groups. */
+.festival-ops-tabs { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.festival-ops-tabs > div { display: flex; gap: 22px; }
+.festival-ops-tabs [data-ops-tab] { min-height: 52px; padding: 10px 2px; border-bottom: 2px solid transparent; background: #fff; color: var(--muted); font-size: 14px; font-weight: 650; }
+.festival-ops-tabs [aria-current="page"] { border-bottom-color: var(--primary); color: var(--primary); }
+.design-web .ops-nav { padding-block: 14px 0; border-bottom: 0; }
+.design-web .ops-nav .select { background: var(--surface-2); min-height: 44px; font-size: 14px; border-color: var(--line); }
+.design-web .ops-body { padding-block: 22px; }
+.design-web .ops-body h1 { font-size: 20px; margin-bottom: 18px; }
+.design-web .ops-section h2 { font-size: 17px; }
+.design-web .ops-stats { margin: 0 0 20px; padding: 0 0 20px; border-bottom: 1px solid var(--line); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.design-web .ops-stats dd { font-size: 27px; color: var(--primary); font-variant-numeric: tabular-nums; }
+.design-web .ops-stats dt { color: var(--muted); font-size: 12px; }
+.design-web .ops-booth-counts { gap: 8px; }
+.design-web .ops-booth-counts > div { padding: 10px; border-radius: 4px; background: var(--surface-2); }
+.design-web .ops-booth-counts > div:first-child { background: var(--festival-mint); }
+.design-web .ops-booth-counts > div:nth-child(2) { background: var(--reward-fill); }
+.design-web .ops-booth-counts dt { font-size: 12px; }
+.festival-ops-tools { display: grid; }
+.festival-ops-tools button { display: grid; grid-template-columns: 40px minmax(0, 1fr) 20px; align-items: center; gap: 14px; min-height: 76px; padding: 12px 0; background: #fff; border-bottom: 1px solid var(--line); text-align: left; }
+.festival-ops-tools strong { font-size: 15px; }
+.festival-ops-tools button > .ui-icon { width: 18px; color: var(--muted); }
+.festival-tool-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; background: var(--festival-mint); color: var(--primary); }
+.festival-ops-tools button:nth-child(3n+2) .festival-tool-icon { background: var(--festival-sky); color: var(--festival-blue); }
+.festival-ops-tools button:nth-child(3n) .festival-tool-icon { background: var(--surface-2); color: var(--muted); }
+.design-web .ops-table-wrap th { color: var(--text); background: var(--surface-2); }
+.design-web .ops-form label { font-size: 13px; }
+.design-web .ops-form .input, .design-web .ops-form .select { font-size: 16px; }
+.design-web .ops-alert { padding: 12px; background: #fff0ed; color: #a43530; border: 0; border-radius: 4px; font-size: 13px; }
+.design-web .stamp-sim-boundary { border-left: 0; padding: 12px; color: var(--festival-blue); background: var(--festival-sky); }
+@media (max-width: 350px) {
+  .festival-notice-strip { width: calc(100% + 32px); margin-inline: -16px; padding-inline: 16px; }
+  .design-web .web-home .home-quick-section { margin-inline: -16px; padding-inline: 16px; }
+  .festival-pass-heading { gap: 8px; }
+  .festival-wallet-link { gap: 5px; padding-inline: 8px; font-size: 12px; }
+  .festival-pass-progress { gap: 4px; }
+  .design-web .festival-pass-progress .punch-row { gap: 5px; }
+  .design-web .map-action-art { width: 70px; flex-basis: 70px; }
+  .design-web .map-action-copy > strong { font-size: 19px; }
+  .design-web .web-visit { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; }
+  .design-web .web-visit > .ui-icon { display: none; }
+  .design-web .web-visit .club-visual { width: 32px; height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .design-web *, .design-web *::before, .design-web *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
+}
