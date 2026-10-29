@@ -35,7 +35,12 @@ const admin=await account(true),photo=await account(),food=await account(),late=
 const event=(await ops(admin,'event_save',{name:'Synthetic reward test',state:'open',reviewPoints:10,version:0})).event;
 const booths=(await get(admin,'catalog')).items.slice(0,18).map(b=>b.key);
 for(const booth of booths) await ops(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
-for(const a of [photo,food,late,stock,none]) await rpc(admin,'select public.festival_review_identity_admin($1,$2) value',['save',{eventId:event.id,userId:a.uid,version:0,realName:'검증학생',boothKeys:[],verified:true,reason:'Synthetic school roster'}]);
+// Review identity now links accounts only through an imported roster entry matching the booth catalog.
+const catalogKeys=(await db.query('select key from festival_ops.booths where event_id=$1 order by key collate "C"',[event.id])).rows.map(r=>r.key);
+const studentNumber=a=>String(11000+a.uid);
+await db.query('select festival_ops.import_review_roster($1,$2,$3)',[event.id,{format:1,sourceSha256:'a'.repeat(64),catalogKeys,
+  records:[photo,food,late,stock,none].map(a=>({studentNumber:studentNumber(a),realName:'검증학생',clubs:['합성동아리'],boothKeys:[],status:'ready',issues:[],sourceCells:['Synthetic!A1']}))},admin.uid]);
+for(const a of [photo,food,late,stock,none]) await rpc(admin,'select public.festival_review_identity_admin($1,$2) value',['save',{eventId:event.id,userId:a.uid,version:0,studentNumber:studentNumber(a),rosterVersion:1,confirmed:true,reason:'Synthetic school roster'}]);
 async function earn(a,n){for(let i=a.earned;i<n;i++){await ops(admin,'visit_approve',{booth:booths[i],userId:a.uid,reason:'Synthetic visit check'});await ops(a,'review_save',{booth:booths[i],rating:5,content:''});a.earned++;}}
 const choose=(a,kind,id=randomUUID(),firstTarget=3)=>reward(a,'reward_choose',{eventId:event.id,kind,firstTarget},id);
 async function config(photoStock,foodStock){const s=await rewards(admin);return reward(admin,'reward_config',{eventId:event.id,photoStock,foodStock,photoVersion:s.options.find(o=>o.kind==='photo')?.version||0,foodVersion:s.options.find(o=>o.kind==='food')?.version||0,expiresAt:'2099-01-01T00:00:00Z'});}

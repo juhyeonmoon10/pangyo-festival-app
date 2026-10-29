@@ -17,8 +17,8 @@ const url = (file, query = '') => pathToFileURL(path.join(root, file)).href + qu
       await context.route('**/*', route => new URL(route.request().url()).protocol === 'file:' ? route.continue() : route.abort());
       const page = await context.newPage(), errors = [];
       page.on('pageerror', error => errors.push(error.message));
+      // 1.9: no choice yet, so only the 3-stamp milestone is claimable; choosing late issues both 3 and 6.
       await page.goto(url('tests/stamp-ui-preview.html', '?demo=1&completed=9&pending=1'));
-      await page.evaluate(async () => { await festivalWeb.chooseReward('photo', 3); render(); });
       assert.equal(await page.locator('.stamp-path-step.is-claimable').count(), 1);
       async function capture(name) {
         await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
@@ -34,7 +34,7 @@ const url = (file, query = '') => pathToFileURL(path.join(root, file)).href + qu
         await capture(name);
       }
       await page.evaluate(() => navigateTo('home'));
-      assert.match(await page.locator('.festival-wallet-link').innerText(), /받을 바우처 1/);
+      assert.match(await page.locator('.festival-wallet-link').innerText(), /받을 바우처 2/);
       assert.equal(await page.locator('.bottom-nav .nav-btn').count(), 4);
       await page.locator('.web-map-action').click();
       const nav = await page.locator('.bottom-nav').boundingBox();
