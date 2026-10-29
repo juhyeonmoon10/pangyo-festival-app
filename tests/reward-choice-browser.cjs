@@ -35,7 +35,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
       if(count>=3) {
         const kind=count===3?'photo':'food';
         let previous=0;
-        while(previous<Math.floor(count/3)) {
+        while(previous<Math.min(2,Math.floor(count/3))) {
           await page.locator('[data-voucher-filter="claim"]').click();
           const target=Number(await panel.locator('[name=firstTarget]').inputValue());
           await panel.locator(`input[value=${target===3?kind:'photo'}]`).check();
@@ -46,7 +46,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
           });
           previous=await page.locator('.festival-ticket').count();
         }
-        assert.equal(await page.locator('.festival-ticket').count(),Math.floor(count/3));
+        assert.equal(await page.locator('.festival-ticket').count(),Math.min(2,Math.floor(count/3)));
         const titles=await page.locator('.festival-ticket h2').allTextContents();
         assert.ok(titles.includes(kind==='photo'?'포토부스 이용권':'푸드트럭 교환권'));
         if(count>=6) assert.equal(new Set(titles).size,2);
@@ -56,7 +56,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
         assert.equal(await page.locator('.reward-choice-section,#rewardChoiceForm').count(),0);
         await page.locator('.stamp-voucher-shortcut').click();
         await page.locator('[data-voucher-filter="available"]').click();
-        assert.equal(await page.locator('.festival-ticket').count(),Math.floor(count/3));
+        assert.equal(await page.locator('.festival-ticket').count(),Math.min(2,Math.floor(count/3)));
       }
       await page.locator('[data-history-back]').click();
       await page.locator('.stamp-path-track').waitFor();
@@ -82,7 +82,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
         assert.ok(calls.every(c=>c.name==='festival_reward_write'&&c.p_payload.kind==='food'&&!('userId' in c.p_payload)));
         assert.ok(calls.every(c=>c.p_payload.firstTarget===3));
         await page.locator('[data-voucher-filter="claim"]').click();
-        assert.equal(await form.locator('button[type=submit]').isDisabled(),true);
+        assert.equal(await form.count(),0);
       } else if(mode==='missing'||mode==='legacy') {
         await page.locator('[data-voucher-filter="available"]').click();
         await page.getByText('보유한 바우처가 없어요',{exact:true}).waitFor();

@@ -38,9 +38,9 @@ test('server and demo simulations never mutate actual account records or use gat
     const before = JSON.stringify(state);
     for (let i=1;i<=9;i++) assert.equal(api.issue(`b${i}`).ok, true);
     assert.equal(api.choose('photo', 3).ok, true);
-    assert.equal(api.choose('food', 9).ok, true);
+    assert.equal(api.choose('food', 9).ok, false);
     assert.equal(api.snapshot().visits.length, 9);
-    assert.equal(api.snapshot().vouchers.length, 3);
+    assert.equal(api.snapshot().vouchers.length, 2);
     api.reset();
     assert.equal(api.snapshot().visits.length, 0);
     assert.equal(JSON.stringify(state), before);
@@ -56,7 +56,7 @@ test('invalid booths and repeated submissions cannot create extra simulated stam
   assert.equal(api.snapshot().visits.length, 1);
 });
 
-test('three chooses one, six gets the other, nine/twelve repeat without duplicates', () => {
+test('three chooses one, six gets the other, nine/twelve grant nothing more', () => {
   const { api } = setup();
   assert.equal(api.choose('photo', 3).ok, false);
   for(let i=1;i<=3;i++) api.issue(`b${i}`);
@@ -68,10 +68,10 @@ test('three chooses one, six gets the other, nine/twelve repeat without duplicat
   assert.equal(api.snapshot().vouchers.length, 1);
   for(let i=4;i<=12;i++) api.issue(`b${i}`);
   assert.equal(api.snapshot().vouchers.length, 2);
-  assert.equal(api.choose('food', 9).ok, true);
-  assert.equal(api.choose('food', 9).ok, true);
+  assert.equal(api.choose('food', 9).ok, false);
+  assert.equal(api.choose('food', 9).ok, false);
   assert.deepEqual(JSON.parse(JSON.stringify(api.snapshot().vouchers)), [
-    {target:3,kind:'photo'}, {target:6,kind:'food'}, {target:9,kind:'food'}, {target:12,kind:'photo'},
+    {target:3,kind:'photo'}, {target:6,kind:'food'},
   ]);
 });
 

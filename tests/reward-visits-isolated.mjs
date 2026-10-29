@@ -30,7 +30,7 @@ async function account(admin=false){
   if(admin) await db.query('update public.users set admin=true where id=$1',[a.uid]);return a;
 }
 async function test(name,fn){try{await fn();results.push({name,ok:true});console.log('PASS',name);}catch(e){results.push({name,ok:false,error:e.message});console.log('FAIL',name,e.message);}}
-for(const f of ['nfc-server/isolated-test/shim.sql','nfc-server/install.sql','nfc-server/admin-issue.sql','nfc-server/reviews.sql','operations-server/install.sql','operations-server/review-identity.draft.sql','operations-server/reward-visits.sql']) await db.exec(read(f));
+for(const f of ['nfc-server/isolated-test/shim.sql','nfc-server/install.sql','nfc-server/admin-issue.sql','nfc-server/reviews.sql','operations-server/install.sql','operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql']) await db.exec(read(f));
 const admin=await account(true),photo=await account(),food=await account(),late=await account(),stock=await account(),none=await account();
 const event=(await ops(admin,'event_save',{name:'Synthetic reward test',state:'open',reviewPoints:10,version:0})).event;
 const booths=(await get(admin,'catalog')).items.slice(0,18).map(b=>b.key);
@@ -44,6 +44,7 @@ await test('unissued installation rolls back and reinstalls with old issuance di
   legacy=(await ops(admin,'rule_save',{title:'Old five',target:5,stock:20,enabled:true,expiresAt:'2099-01-01T00:00:00Z'})).id;
   await db.exec(read('operations-server/reward-visits-rollback.sql'));
   await db.exec(read('operations-server/reward-visits.sql'));
+  await db.exec(read('operations-server/reward-fixed-milestones.sql'));
   assert.equal((await db.query('select enabled from festival_ops.rules where id=$1',[legacy])).rows[0].enabled,false);
 });
 await test('unconfigured program stays unavailable',async()=>assert.equal((await rewards(photo)).ready,false));
@@ -91,39 +92,45 @@ await test('first voucher remains chosen after use; sixth stamp grants only food
 await test('reverse selection yields food then photo even when first is voided',async()=>{
   await earn(food,3);await choose(food,'food');const v=(await vouchers(food))[0];
   await ops(admin,'voucher_void',{id:v.id,reason:'Synthetic cancellation'});await earn(food,6);
-  assert.equal((await rewards(food)).firstTarget,9);assert.equal((await vouchers(food)).length,2);
+  assert.equal((await rewards(food)).firstTarget,3);assert.equal((await rewards(food)).secondIssued,true);assert.equal((await vouchers(food)).length,2);
   assert.equal((await vouchers(food)).filter(v=>v.title==='포토부스 이용권').length,1);
 });
 await test('late choice at six grants both distinct benefits once',async()=>{
   await earn(late,6);assert.equal((await vouchers(late)).length,0);
   await choose(late,'food');await choose(late,'food');assert.equal((await vouchers(late)).length,2);
 });
-await test('9/12/15/18 repeat with explicit choices and opposite automatic rewards',async()=>{
-  await earn(photo,9);assert.equal((await vouchers(photo)).length,2);
-  await choose(photo,'food',undefined,9);await choose(photo,'food',undefined,9);
-  assert.equal((await vouchers(photo)).length,3);
-  await assert.rejects(choose(photo,'photo',undefined,9),/REWARD_CHOICE_LOCKED/);
-  await earn(photo,12);assert.equal((await vouchers(photo)).length,4);
-  await earn(photo,15);await choose(photo,'photo',undefined,15);assert.equal((await vouchers(photo)).length,5);
-  await earn(photo,18);assert.equal((await vouchers(photo)).length,6);
+await test('9/12/15/18 keep stamps but never unlock additional vouchers',async()=>{
+  for(const n of [9,12,15,18]) {
+    await earn(photo,n);
+    assert.equal((await vouchers(photo)).length,2);
+    await assert.rejects(choose(photo,'food',undefined,n),/INVALID_INPUT/);
+    assert.equal((await rewards(photo)).count,n);
+    assert.equal((await rewards(photo)).canChoose,false);
+  }
   const stages=(await db.query('select reward_stage from festival_ops.vouchers where user_id=$1 order by reward_stage',[photo.uid])).rows.map(r=>r.reward_stage);
-  assert.deepEqual(stages,[3,6,9,12,15,18]);
-  await choose(photo,'photo');assert.equal((await vouchers(photo)).length,6);
+  assert.deepEqual(stages,[3,6]);
+  await choose(photo,'photo');assert.equal((await vouchers(photo)).length,2);
 });
-await test('late visits cannot skip unselected pairs or claim an unearned milestone',async()=>{
+await test('late selection at twelve still grants only the two fixed milestones',async()=>{
   await earn(none,12);
-  await assert.rejects(choose(none,'photo',undefined,9),/REWARD_ORDER_REQUIRED/);
-  await assert.rejects(choose(none,'photo',undefined,15),/VISIT_REQUIRED/);
-  await choose(none,'food');await choose(none,'photo',undefined,9);
-  assert.equal((await vouchers(none)).length,4);
+  await assert.rejects(choose(none,'photo',undefined,9),/INVALID_INPUT/);
+  await assert.rejects(choose(none,'photo',undefined,15),/INVALID_INPUT/);
+  await choose(none,'food');
+  assert.equal((await vouchers(none)).length,2);
   await assert.rejects(choose(none,'food',undefined,0),/INVALID_INPUT/);
   await assert.rejects(choose(none,'food',undefined,6),/INVALID_INPUT/);
 });
 await test('same stage with a different request ID still cannot duplicate',async()=>{
-  await choose(none,'photo',undefined,9);await choose(none,'photo',undefined,9);
-  assert.equal((await vouchers(none)).length,4);
-  const id=randomUUID();await choose(none,'photo',id,9);
-  await assert.rejects(choose(none,'food',id,3),/REQUEST_CONFLICT/);
+  await choose(none,'food');await choose(none,'food');
+  assert.equal((await vouchers(none)).length,2);
+  const id=randomUUID();await choose(none,'food',id,3);
+  await assert.rejects(choose(none,'photo',id,3),/REQUEST_CONFLICT/);
+});
+await test('private helper and database constraint both deny a ninth-stamp grant',async()=>{
+  const row=(await db.query("select festival_ops.award_choice($1,$2,'photo',$2,true,9) value",[event.id,photo.uid])).rows[0];
+  assert.equal(row.value,null);
+  const rule=(await rewards(photo)).options.find(o=>o.kind==='photo').ruleId;
+  await assert.rejects(db.query("insert into festival_ops.vouchers(event_id,user_id,rule_id,title,expires_at,reward_stage) values($1,$2,$3,'Synthetic','2099-01-01',9)",[event.id,photo.uid,rule]),/reward_stages_three_six_only/);
 });
 await test('out-of-stock first choice never records a selection',async()=>{
   await earn(stock,6);const issued=(await db.query("select count(*)::int n from festival_ops.vouchers v join festival_ops.rules r on r.id=v.rule_id where r.reward_kind='photo'")).rows[0].n;
@@ -161,7 +168,7 @@ await test('disable preserves records and rejects all new choices',async()=>{
   const before=(await db.query('select count(*)::int n from festival_ops.vouchers')).rows[0].n;
   await db.exec(read('operations-server/reward-visits-disable.sql'));
   assert.equal((await rewards(photo)).ready,false);
-  await assert.rejects(choose(photo,'food',undefined,21),/REWARD_NOT_READY/);
+  await assert.rejects(choose(photo,'photo'),/REWARD_NOT_READY/);
   assert.equal((await db.query('select count(*)::int n from festival_ops.vouchers')).rows[0].n,before);
 });
 await test('rollback refuses to delete issued recurring vouchers',async()=>{
