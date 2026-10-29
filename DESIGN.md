@@ -34,14 +34,19 @@ typography:
     fontFamily: "Pretendard, Noto Sans KR, -apple-system, BlinkMacSystemFont, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif"
     fontSize: "16px"
     letterSpacing: "0"
+  screen-title:
+    fontSize: "19px"
+    fontWeight: 750
+    lineHeight: 1.35
+    letterSpacing: "0"
 rounded:
   compact: "4px"
   control: "8px"
 spacing:
   tight: "8px"
   related: "12px"
-  compact-edge: "16px"
-  page-edge: "20px"
+  compact-edge: "20px"
+  page-edge: "24px"
   section: "24px"
 components:
   button-primary:
@@ -60,6 +65,43 @@ components:
     typography: "{typography.input}"
     rounded: "{rounded.control}"
     height: "48px"
+  view-tab:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.muted}"
+    height: "52px"
+    padding: "10px 4px"
+  stamp-path-row:
+    height: "138px"
+  stamp-face:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.primary}"
+    size: "76px"
+  stamp-face-compact:
+    size: "70px"
+  map-search:
+    typography: "{typography.input}"
+    height: "48px"
+    padding: "0 12px"
+  map-sheet-peek:
+    height: "182px"
+  map-sheet-peek-short:
+    height: "148px"
+  voucher-ticket:
+    backgroundColor: "{colors.reward-wash}"
+    rounded: "{rounded.control}"
+    padding: "20px"
+  voucher-ticket-photo:
+    backgroundColor: "{colors.information-wash}"
+  voucher-ticket-history:
+    backgroundColor: "{colors.wash}"
+  completion-marker:
+    backgroundColor: "{colors.mint}"
+    textColor: "{colors.primary}"
+  profile-history:
+    padding: "24px"
+  operator-tool-row:
+    height: "76px"
+    padding: "12px 0"
 ---
 
 # Design System: Bright Festival Pass
@@ -79,7 +121,7 @@ A light, Korean-first task interface. Green ink stamps carry the distinctive fes
 
 The frontmatter contains the normative reusable palette, extracted from `festival-bright.css`.
 
-Primary green identifies actions, completed ink stamps, selected ratings, and current navigation. Mint supports these controls without flooding the page. Blue marks information and review continuation. Yellow draws attention to confirmed claimable vouchers; ordinary voucher navigation and issued coupon icons use mint. Amber warning treatments remain separate operational signals, such as a paused booth. Red is reserved for destructive actions and errors.
+Primary green identifies actions, completed ink stamps, selected ratings, and current navigation. Mint supports these controls without flooding the page, including the green completion icon on booth detail. Blue marks information and review continuation. Yellow draws attention to confirmed claimable vouchers; ordinary voucher navigation and issued coupon icons use mint. Issued ticket bodies distinguish food with reward wash, photo with information wash, and used/ended tickets with neutral wash; tint alone never implies claimability. Amber warning treatments remain separate operational signals, such as a paused booth. Red is reserved for destructive actions and errors.
 
 **The Independent State Rule.** A completed visit never hides a paused booth or implies a voucher was issued.
 
@@ -87,16 +129,16 @@ Primary green identifies actions, completed ink stamps, selected ratings, and cu
 
 Use the local Korean-capable stack in the frontmatter; no remote font download is required. Font names earlier in the stack are optional, not bundled assets. All letter spacing is zero.
 
-- Screen titles use the compact heading role. Home greetings are 24px, booth titles 26px, and the login title 32px.
+- Web screen headers use the screen-title role; map and stamp headers retain the heading role. Home greetings are 27px, reducing to 24px at the compact breakpoint; booth titles are 26px and the login title 32px.
 - Body copy is 15px; input text is 16px. Supporting labels are generally 12-13px.
 - Home record counts use 36px, the stamp summary 40px, and compact statistics 27px with tabular numerals.
 - Korean phrases keep words together but can wrap anywhere when necessary. Do not scale type with viewport width.
 
 ## Layout
 
-The existing app stays centered with a maximum width of 480px. Student screens use 20px edges, reducing to 16px on the narrow layout. Four fixed bottom navigation items remain in the existing 72px navigation area plus the safe-area inset. Content has enough bottom padding to scroll past it.
+The existing app stays centered with a maximum width of 480px. Web, profile, detail, and operator screens use page-edge spacing, reducing to compact-edge at widths up to 350px. Some home continuation bands retain their intentional 20px/16px inner inset. Four fixed bottom navigation items remain in the existing 72px navigation area plus the safe-area inset. Content has enough bottom padding to scroll past it.
 
-Use full-width section breaks and unframed lists. The map remains a full-height interactive surface with a draggable sheet attached above navigation. Preserve map geometry and hit testing. Stamps follow a three-column alternating path with 152px rows, so the board scrolls rather than shrinking all stamps into one screen. Stamp faces are 76px, reducing to 68px on narrow phones.
+Use full-width section breaks and unframed lists. The map remains a full-height interactive surface with inline search and a draggable sheet attached above navigation. Its header occupies 174px; default and short-height sheet peeks use the component tokens, with the short variant at viewport heights up to 650px. Preserve the actual floorplan, geometry, and hit testing; no mock replacement geometry or invented location certainty. Stamps follow a three-column alternating path using stamp-path-row and stamp-face tokens, with compact faces at widths up to 350px. The board scrolls instead of shrinking all stamps into one screen.
 
 ## Elevation & Depth
 
@@ -114,7 +156,9 @@ Primary and secondary commands have a minimum height of 50px. Icon commands are 
 
 ### Navigation
 
-Student navigation has four items with icon and label. Active items use green over mint. Operators use Overview, Tools, and History groups, plus a native task selector. The Tools list links only to implemented workflows.
+Student navigation has four items with icon and label. Active items use green over mint. Full-width underline tabs organize vouchers into claim, held, and used/ended history, and reviews into continuation and written reviews. Active tabs use green text and a bottom rule; tab counts remain readable.
+
+Operators use three tabs: Overview, Tools, and History. Tools exposes nine existing workflows: booth status/programs, NFC issuance, manual visits, participant/club roster, point adjustment, voucher rules, voucher issue/use, stamp simulation, and festival settings. Tool detail has a return-to-list command. Settings updates the existing event only; there is no event creation, new notice tool, or emergency server feature.
 
 ### Ink Stamps
 
@@ -122,7 +166,13 @@ Completed stamps use a white face, green outer ring, and inner ring. Small alter
 
 ### Reviews and Vouchers
 
-Selected rating stars have explicit green SVG fill and stroke; unselected stars have neutral outlines. Text reviews remain optional. Voucher summaries distinguish unissued entitlement, available coupons, and used coupons. Unknown reward state is not shown as zero claimable entitlement.
+Selected rating stars have explicit green SVG fill and stroke; unselected stars have neutral outlines. Text reviews remain optional. The redundant review eyebrow is removed. Voucher tabs distinguish unissued entitlement, held coupons, and used/ended history. Unknown reward state is not shown as zero claimable entitlement. Claim choices are single-column radio rows with a minimum height of 90px; tickets have an explicit state, eligibility/expiry details when present, and QR access only for available tickets.
+
+### Map, Profile, and Detail
+
+Map search is inline, retains Korean IME and clear-query behavior, and uses a 2px information-blue focus-within ring with a 2px offset. The sheet has a 68px handle and readable booth rows with a minimum height of 92px. Short-height peeks do not replace the existing drag, zoom, or floor controls.
+
+Profile presents identity, three statistics, shortcuts, and a full-width visit-history section. Booth detail uses a 56px visual column only when an official club visual exists; text-only headings occupy the full width. Its completed marker uses green on mint, independent of paused/closed operating status.
 
 ### Motion and Accessibility
 

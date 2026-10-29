@@ -7,6 +7,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 const {chromium}=require('playwright');
+const {openOperatorTool}=require('./operator-navigation.cjs');
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const dir=path.join(process.env.PGLITE_DIR,'node_modules/@electric-sql/pglite/dist');
 const {PGlite}=await import(pathToFileURL(path.join(dir,'index.js')));
@@ -86,8 +87,7 @@ async function pageFor(a,width) {
 }
 const routeTo=(page,route)=>page.evaluate(r=>{state.route=r;render();},route);
 async function tab(page,name,selector) {
-  await page.selectOption('#opsTab',name);
-  assert.equal(await page.locator('#opsTab').inputValue(),name);
+  await openOperatorTool(page,name);
   if(name!=='nfc') await page.waitForSelector('.ops-body[aria-busy="false"]');
   await page.locator(selector).first().waitFor({state:'visible'});
 }
@@ -101,10 +101,12 @@ try {
     const studentNumber=`11${width}`;
     await db.query('select festival_ops.import_review_roster($1,$2,$3)',[eventId,{format:1,sourceSha256:'a'.repeat(64),catalogKeys:catalog,
       records:[{studentNumber,realName:'가상학생',clubs:['인벨릭스'],boothKeys:['인벨릭스'],status:'ready',issues:[],sourceCells:['Synthetic!A1']}]},admin.uid]);
-    await routeTo(a.page,'admin'); await a.page.locator('[data-ops-form=event_save]').waitFor();
-    assert.equal(await a.page.getByRole('heading',{name:'축제 운영 설정',exact:true}).count(),1);
+    await routeTo(a.page,'admin');
     await a.page.getByText('운영 중인 부스가 없어 방문 인증이 중지돼 있어요.',{exact:true}).waitFor();
     await screenshot(a.page,width,'single-festival-dashboard');
+    await openOperatorTool(a.page,'settings');
+    await a.page.locator('[data-ops-form=event_save]').waitFor();
+    assert.equal(await a.page.getByRole('heading',{name:'축제 운영 설정',exact:true}).count(),1);
     const settings=a.page.locator('[data-ops-form=event_save]');
     const version=await settings.locator('[name=version]').inputValue();
     const writesBefore=a.calls.length;
@@ -113,17 +115,17 @@ try {
     await a.page.getByText('축제 정보를 다시 불러온 뒤 저장해 주세요.',{exact:true}).waitFor();
     assert.equal(a.calls.length,writesBefore,'Version zero must never reach the server creation path');
     await settings.locator('[name=version]').evaluate((input,value)=>input.value=value,version);
-    await a.page.locator('[data-ops-tab=catalog]').click();
+    await openOperatorTool(a.page,'catalog');
     await a.page.getByRole('heading',{name:'부스 수정',exact:true}).waitFor();
     assert.notEqual(await a.page.locator('#opsBoothSelect').inputValue(),'');
-    const menus={dashboard:'[data-ops-form=event_save]',catalog:'[data-ops-form=booth_save]',participants:'#reviewRosterLookup',visits:'[data-ops-form=visit_approve]',ledger:'[data-ops-form=points_adjust]',rules:'[data-ops-form=rule_save]',vouchers:'#opsRedeem',audit:'.ops-paging',nfc:'.nfc-manager-heading'};
+    const menus={dashboard:'.ops-stats',settings:'[data-ops-form=event_save]',catalog:'[data-ops-form=booth_save]',participants:'#reviewRosterLookup',visits:'[data-ops-form=visit_approve]',ledger:'[data-ops-form=points_adjust]',rules:'[data-ops-form=rule_save]',vouchers:'#opsRedeem',audit:'.ops-paging',nfc:'.nfc-manager-heading'};
     for(const [name,selector] of Object.entries(menus)) {
       await tab(a.page,name,selector);
       await screenshot(a.page,width,`tool-${name}`);
     }
     await a.page.locator('.festival-ops-tabs [data-ops-tab=tools]').click();
     await a.page.locator('.festival-ops-tools').waitFor();
-    assert.equal(await a.page.locator('.festival-ops-tools button').count(),8);
+    assert.equal(await a.page.locator('.festival-ops-tools button').count(),9);
     await screenshot(a.page,width,'tool-menu');
     await a.page.locator('.festival-ops-tools [data-ops-tab=ledger]').click();
     await a.page.locator('[data-ops-form=points_adjust]').waitFor();
@@ -166,10 +168,10 @@ try {
 
     a.control.slowKind='participants';
     const started=new Promise(r=>{a.control.waitStarted=r;});
-    await a.page.selectOption('#opsTab','participants'); await started;
-    await a.page.selectOption('#opsTab','ledger');
+    await openOperatorTool(a.page,'participants'); await started;
+    await openOperatorTool(a.page,'ledger');
     assert.equal(await a.page.locator('.ops-body h1').innerText(),'포인트');
-    await a.page.selectOption('#opsTab','rules');
+    await openOperatorTool(a.page,'rules');
     assert.equal(await a.page.locator('.ops-body h1').innerText(),'바우처 설정');
     a.control.release(); await a.page.locator('[data-ops-form=rule_save]').waitFor();
     assert.equal(await a.page.locator('#reviewRosterLookup').count(),0);
@@ -198,6 +200,7 @@ try {
     await screenshot(a.page,width,'issued');
 
     await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);state.route='vouchers';render();});
+    await s.page.locator('[data-voucher-filter="available"]').click();
     await s.page.locator('[data-ops-qr]').click(); await s.page.locator('.ops-qr svg').waitFor();
     assert.match(s.control.qrToken,/^fv1\.[0-9a-f]{64}$/);
     await a.page.locator('#opsRedeem [name=token]').fill(s.control.qrToken);
@@ -221,9 +224,10 @@ try {
     await screenshot(a.page,width,'single-festival-unavailable');
     const writesWhileMissing=a.calls.length;
     a.control.noEvent=false; await a.page.locator('.ops-unavailable [data-ops-refresh]').click();
+    await tab(a.page,'settings','[data-ops-form=event_save]');
     await a.page.locator('[data-ops-form=event_save]').waitFor();
     assert.equal(a.calls.length,writesWhileMissing,'Reload must be read-only');
-    await routeTo(s.page,'admin'); assert.equal(await s.page.locator('#opsTab').count(),0);
+    await routeTo(s.page,'admin'); assert.equal(await s.page.locator('[data-ops-tab]').count(),0);
     assert.deepEqual(a.errors,[]); assert.deepEqual(s.errors,[]);
     reports.push({width,passed:true,menus:9,flows:['single festival settings','no creation on missing event','version-zero write rejected','paused booth readiness','immediate tab changes','delayed response race','legacy rule save','manual issue','double-submit guard','student QR','redemption','missing/unknown API distinction','permission failure retry','empty event','student denied']});
     await a.context.close(); await s.context.close();

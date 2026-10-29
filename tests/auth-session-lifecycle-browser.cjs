@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const { openOperatorTool } = require('./operator-navigation.cjs');
 const root = path.resolve(process.env.AUTH_TEST_ROOT || path.join(__dirname, '..'));
 const output = path.resolve(process.env.AUTH_TEST_OUTPUT || path.join(__dirname, '../artifacts/auth-session-lifecycle'));
 const { PROJECT_URL, CLUB_IDS } = require(path.join(root, 'supabase-catalog.js'));
@@ -73,8 +74,9 @@ const captureClient = `\n;(() => { const sdk = window.supabase; window.__authEve
       await page.goto(origin);
       await page.waitForFunction(()=>typeof festivalOpsUI!=='undefined' && festivalOpsUI.snapshot()?.ready);
       await page.evaluate(()=>navigateTo('admin'));
-      await page.locator('[data-ops-form="event_save"]').waitFor();
       await page.waitForFunction(()=>document.querySelector('.ops-stats')?.textContent.includes('100'));
+      await openOperatorTool(page, 'settings');
+      await page.locator('[data-ops-form="event_save"]').waitFor();
       const name=page.locator('[data-ops-form="event_save"] input[name="name"]');
       await name.fill('Keep my unsaved draft');
       const refocus=async()=>{
@@ -96,8 +98,7 @@ const captureClient = `\n;(() => { const sdk = window.supabase; window.__authEve
       await page.waitForFunction(()=>!document.querySelector('[data-ops-form="event_save"] button')?.disabled);
       assert.equal(calls.filter(c=>c.path==='/rest/v1/rpc/festival_ops_write').length,1,'Operator save reaches only the mock RPC');
       for(const tab of ['participants','catalog','rules','dashboard']) {
-        await page.selectOption('#opsTab',tab);
-        await page.waitForFunction(tab=>document.querySelector('#opsTab')?.value===tab,tab);
+        await openOperatorTool(page, tab);
         await refocus();
         assert.equal((await page.evaluate(()=>festivalAccount.operations.read('dashboard'))).ok,true);
       }

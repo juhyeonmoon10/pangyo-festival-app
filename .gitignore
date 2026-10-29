@@ -1,5 +1,6 @@
 tests/*.png
 artifacts/
+.impeccable/review/release-1.6/
 .env
 .env.*
 !.env.example

@@ -214,7 +214,7 @@ test('ink stamps distinguish claimable, issued and future reward milestones', as
   assert.equal((html.match(/is-claimable/g) || []).length, 1);
   assert.equal((html.match(/is-issued/g) || []).length, 0);
   assert.match(html, /3번째 스탬프, 받기 가능/);
-  assert.match(html, /<b>3<\/b><svg data-icon="ticket"/);
+  assert.match(html, /<svg data-icon="ticket"[^>]*><\/svg><small>3개<\/small>/);
   assert.match(html, /9번째 스탬프, 바우처 확인/);
   await api.chooseReward('photo', 3);
   html = api.stamps();

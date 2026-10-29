@@ -40,12 +40,12 @@ fs.mkdirSync(output, { recursive: true });
       const geometry = await page.locator('.stamp-path-list').evaluate(list => {
         const nodes = [...list.querySelectorAll('.stamp-path-node')].map(el => el.getBoundingClientRect());
         const overlap = nodes.some((a,i) => nodes.slice(i+1).some(b => Math.min(a.right,b.right)>Math.max(a.left,b.left) && Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top)));
-        return { overlap, smallest: Math.min(...nodes.map(r=>r.width)), overflow: document.documentElement.scrollWidth > innerWidth, first: nodes[0].x, last: nodes.at(-1).y, height:innerHeight };
+        return { overlap, smallest: Math.min(...nodes.map(r=>r.width)), overflow: document.documentElement.scrollWidth > innerWidth, first: nodes[0].x, lastBottom: nodes.at(-1).bottom, navTop: document.querySelector('.bottom-nav').getBoundingClientRect().top };
       });
       assert.equal(geometry.overlap, false);
       assert.equal(geometry.overflow, false);
       assert.ok(geometry.smallest >= 68);
-      assert.ok(geometry.last > geometry.height, 'not all stamps squeezed into the first viewport');
+      assert.ok(geometry.lastBottom > geometry.navTop, 'not all stamps squeezed above the navigation');
       await page.screenshot({ path: path.join(output, `stamps-${width}.png`) });
       const history = page.locator('.stamp-visit-history');
       await history.locator('summary').scrollIntoViewIfNeeded();
