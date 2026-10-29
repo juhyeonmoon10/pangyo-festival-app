@@ -284,7 +284,10 @@ body.design-web {
 .design-web .stamp-path-step.is-reward .stamp-path-face > .ui-icon { margin-top: 0; }
 .design-web .stamp-path-step.is-earned .stamp-path-face { border-style: solid; }
 .design-web .stamp-path-step.is-earned .stamp-path-face::after { display: none; }
-.design-web .stamp-path-face small { font-size: 9px; line-height: 1.4; }
+.design-web .stamp-path-face small { font-size: 11px; line-height: 1.4; }
+
+.visit-sync-notice { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 12px 16px; color: #593d0d; background: #fff4d8; font-size: 13px; }
+.visit-sync-notice button { min-height: 44px; color: inherit; }
 .design-web .stamp-path-face .ui-icon { width: 24px; height: 24px; }
 .stamp-booth-label { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.4; max-width: 100%; }
 .design-web .stamp-path-stop { gap: 10px; }
