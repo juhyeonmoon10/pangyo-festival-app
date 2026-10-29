@@ -113,7 +113,7 @@ const festivalWeb = (() => {
   }
   function rewardPanel() {
     const reward = rewardState();
-    if (!reward.ready) return `<section class="reward-choice-section" aria-labelledby="rewardChoiceTitle"><div class="section-heading"><h2 id="rewardChoiceTitle">스탬프 혜택</h2><span>3개마다 1장</span></div><p role="status">바우처 발급 상태를 확인하지 못했어요.</p><button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 확인</button></section>`;
+    if (!reward.ready) return `<section class="reward-choice-section" aria-labelledby="rewardChoiceTitle"><div class="section-heading"><h2 id="rewardChoiceTitle">스탬프 혜택</h2><span>3개마다 1장</span></div><p role="status">${reward.supported ? '바우처 발급 준비 중이에요. 방문 스탬프는 계속 쌓여요.' : '바우처 발급 상태를 확인하지 못했어요.'}</p>${reward.supported ? '' : `<button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 확인</button>`}</section>`;
     const first = reward.firstChoice, other = first === "photo" ? "food" : "photo", a=reward.firstTarget, b=reward.secondTarget;
     return `<section class="reward-choice-section" aria-labelledby="rewardChoiceTitle"><div class="section-heading"><h2 id="rewardChoiceTitle">스탬프 혜택</h2><span>3개마다 1장</span></div>
       ${!first ? `<p>${a}개에서 하나 선택, ${b}개에서 나머지 하나</p><form id="rewardChoiceForm"><input type="hidden" name="firstTarget" value="${a}"><fieldset ${rewardBusy || !reward.canChoose ? "disabled" : ""}><legend class="sr-only">받을 바우처 선택</legend><div class="reward-choice-options">${reward.options.map(o => `<label class="reward-option"><input type="radio" name="kind" value="${escapeHtml(o.kind)}" required ${!o.available ? "disabled" : ""}><span>${icon("ticket")}<strong>${escapeHtml(o.title)}</strong>${!o.available ? '<small>발급 대기</small>' : ''}</span></label>`).join("")}</div><button class="primary-btn full-action" type="submit">${reward.count < a ? `스탬프 ${a-reward.count}개 더 필요해요` : rewardBusy ? "발급 중..." : "선택한 바우처 받기"}</button></fieldset><p class="reward-choice-note">선택 후에는 변경할 수 없어요.</p><p class="reward-choice-status" role="status"></p></form>`
@@ -266,7 +266,7 @@ const festivalWeb = (() => {
     const goal = (Math.floor(earned.length/3)+1)*3;
     const rewards=rewardState(), claimable=rewards.ready && rewards.count>= (rewards.firstChoice?rewards.secondTarget:rewards.firstTarget);
     const cycleProgress = earned.length % 3 || (earned.length > 0 && (claimable || !rewards.ready) ? 3 : 0);
-    const older = isServerMode() && festivalOpsUI.snapshot()?.ready ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
+    const older = isServerMode() && festivalOpsUI.snapshot()?.ready && !festivalOpsUI.visitSyncPending?.() ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
     return `<main class="screen web-page web-stamps stamp-path-page"><header class="stamp-board-header"><h1>스탬프</h1><button type="button" class="stamp-voucher-shortcut" data-route="vouchers">${icon("ticket")}<span>바우처</span>${claimable?'<i aria-label="받을 바우처 있음"></i>':''}</button></header>
       <section class="stamp-path-summary" aria-label="스탬프 진행 상황">
         <div class="stamp-count-line"><span>모은 스탬프</span><strong>${earned.length}<small>개</small></strong></div>

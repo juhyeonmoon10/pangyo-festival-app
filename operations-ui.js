@@ -7,6 +7,7 @@ const festivalOpsUI = (() => {
   let refreshQueued=false, queuedRepaint=false, notice='';
   let refreshWaiters=[];
   let visitRecipient=null;
+  let visitSyncPending=false, visitSyncGeneration=0;
   const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
   const localTabs=new Set(['tools','nfc','stamp-simulator','settings']);
   const h=value=>escapeHtml(String(value ?? ''));
@@ -19,14 +20,14 @@ const festivalOpsUI = (() => {
   const select=(name,label,options,value)=>`<label>${h(label)}<select class="select" name="${name}">${options.map(([id,text])=>`<option value="${h(id)}" ${String(id)===String(value)?'selected':''}>${h(text)}</option>`).join('')}</select></label>`;
   const form=(action,body,submit='저장')=>`<form class="ops-form" data-ops-form="${action}">${body}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit">${icon('save')} ${submit}</button></form>`;
   const reason=()=>field('reason','처리 사유','','required minlength="3" maxlength="300"');
-  const participant=()=>field('userId','참여자 번호','','required min="1" step="1"','number');
-  const visitParticipant=()=>`<div class="ops-recipient"><span id="visitRecipientLabel">스탬프를 받을 참여자</span><input type="hidden" name="userId" value="${h(visitRecipient?.id || '')}"><button type="button" class="ops-recipient-button" data-pick-participant aria-labelledby="visitRecipientLabel visitRecipientName">${icon('user')}<span id="visitRecipientName">${h(visitRecipient?.name || '참여자 선택')}</span>${icon('search')}</button></div>`;
+  const participant=(label='처리할 참여자')=>`<div class="ops-recipient"><span id="visitRecipientLabel">${h(label)}</span><input type="hidden" name="userId" value="${h(visitRecipient?.id || '')}"><button type="button" class="ops-recipient-button" data-pick-participant aria-labelledby="visitRecipientLabel visitRecipientName">${icon('user')}<span id="visitRecipientName">${h(visitRecipient?.name || '참여자 선택')}</span>${icon('search')}</button></div>`;
+  const visitParticipant=()=>participant('스탬프를 받을 참여자');
   const options=()=>catalog.map(b=>[b.key,b.name]);
   const currentEventReady=()=>Boolean(event?.id && Number.isInteger(event.version) && event.version>0);
 
   function reset() {
     owner=state.user?.id || null; mine=null; catalog=[]; event=null; data=null; loaded=false; failure=''; notice=''; tab='dashboard'; selectedBooth=null; selectedRule='';
-    visitRecipient=null; closeDialog();
+    visitRecipient=null; visitSyncPending=false; visitSyncGeneration++; closeDialog();
   }
   const viewKey=()=>JSON.stringify([state.user?.id,state.route,tab,offset,search]);
   function selectTab(next) {
@@ -58,15 +59,15 @@ const festivalOpsUI = (() => {
     const actor=state.user.id;
     if(owner!==actor) reset();
     const requestedView=viewKey(), requestedTab=tab, query={offset,search};
+    const requestedGeneration=visitSyncGeneration;
     loading=true;
     try {
-      const a=await api().read('catalog');
-      const b=await api().read('me');
-      const rewards=await api().read('reward_status');
-      if(state.user?.id!==actor || requestedView!==viewKey()) return;
-      if(!a.ok || !b.ok) { failure=(a.ok?b:a).message; loaded=true; return; }
+      const [a,b,rewards]=await Promise.all(['catalog','me','reward_status'].map(kind=>api().read(kind)));
+      if(state.user?.id!==actor || requestedView!==viewKey()) return {ok:false};
+      if(!a.ok || !b.ok) { failure=(a.ok?b:a).message; loaded=true; return {ok:false}; }
       if(event?.id!==a.data.event?.id) visitRecipient=null;
       catalog=a.data.items || []; mine=b.data; event=a.data.event || null; failure=''; loaded=true;
+      if(requestedGeneration===visitSyncGeneration) visitSyncPending=false;
       const program=rewards.data, kinds=['photo','food'];
       const validProgram=rewards.ok && program?.version===2 && program.eventId===event?.id
         && Number.isInteger(program.firstTarget) && program.firstTarget>=3 && program.firstTarget%6===3
@@ -106,8 +107,9 @@ const festivalOpsUI = (() => {
           updateCatalogDom(); festivalWeb.refreshIndicators();
         } else render();
       }
-      const waiters=refreshWaiters; refreshWaiters=[]; waiters.forEach(resolve=>resolve());
+      const waiters=refreshWaiters; refreshWaiters=[]; waiters.forEach(resolve=>resolve({ok:owner===state.user?.id && loaded && !failure}));
     }
+    return {ok:owner===actor && state.user?.id===actor && loaded && !failure};
   }
   function navigation() {
     const group=tab==='dashboard'?'dashboard':tab==='audit'?'audit':'tools';
@@ -168,6 +170,7 @@ const festivalOpsUI = (() => {
       field('photoStock','포토부스 이용권 총 수량',photo?.stock ?? 0,'required min="0" max="100000" step="1"','number')+
       field('foodStock','푸드트럭 교환권 총 수량',food?.stock ?? 0,'required min="0" max="100000" step="1"','number')+
       field('expiresAt','이용권 사용 마감 (한국 시간)',photo?.expiresAt ? new Date(new Date(photo.expiresAt).getTime()+9*3600000).toISOString().slice(0,16) : '', 'required','datetime-local')+
+      `<label class="ops-checkbox"><input name="enabled" type="checkbox" ${reward?.ready?'checked':''}>바우처 실제 지급 활성화</label>`+
       `<input type="hidden" name="eventId" value="${h(event?.id)}"><input type="hidden" name="photoVersion" value="${photo?.version || 0}"><input type="hidden" name="foodVersion" value="${food?.version || 0}">`,'지급 기준 저장')}</section>`;
   }
   async function chooseReward(kind,firstTarget) {
@@ -214,30 +217,30 @@ const festivalOpsUI = (() => {
       note.textContent='축제 정보를 다시 불러온 뒤 저장해 주세요.'; return;
     }
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
-    if(action==='visit_approve') {
+    if(['visit_approve','points_adjust','voucher_issue'].includes(action)) {
       if(!visitRecipient || body.userId!==visitRecipient.id || !Number.isInteger(body.userId) || body.userId===state.user?.serverUserId) {
-        note.textContent='스탬프를 받을 참여자를 선택해 주세요.'; return;
+        note.textContent='처리할 참여자를 선택해 주세요.'; return;
       }
-      if(!catalog.some(b=>b.key===body.booth && b.status==='open')) {
+      if(action==='visit_approve' && !catalog.some(b=>b.key===body.booth && b.status==='open')) {
         note.textContent='운영 중인 부스를 선택해 주세요.'; return;
       }
     }
     if(action==='rule_save') { body.enabled=form.elements.enabled.checked; body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); }
-    if(action==='reward_config') body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString();
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='reward_config'?'3개마다 바우처를 반복 지급할까요? 3·9·15개에서 선택하고, 6·12·18개에서 나머지를 지급합니다. 기존 자동 지급 기준은 중지됩니다.':'입력한 내용으로 처리할까요?')) return;
+    if(action==='reward_config') { body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); body.enabled=form.elements.enabled.checked; }
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'3개마다 바우처를 반복 지급할까요? 3·9·15개에서 선택하고, 6·12·18개에서 나머지를 지급합니다. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; note.textContent='처리 중...';
     try {
       const response=await api().write(action,body);
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!response.ok) {
-        if(action==='visit_approve' && response.code==='NOT_FOUND') {
+        if(['visit_approve','points_adjust','voucher_issue'].includes(action) && response.code==='NOT_FOUND') {
           visitRecipient=null; form.elements.userId.value='';
           form.querySelector('#visitRecipientName').textContent='참여자 다시 선택';
-          note.textContent='선택한 참여자 또는 부스를 찾지 못했어요. 새로고침 후 대상을 다시 선택해 주세요.';
+          note.textContent='선택한 참여자 또는 처리 대상을 찾지 못했어요. 새로고침 후 다시 선택해 주세요.';
           return;
         }
         note.textContent=action==='voucher_issue' && response.code==='INVALID_INPUT'
-          ? '참여자 번호와 처리 사유를 확인해 주세요. 본인 계정에는 발급할 수 없어요.' : response.message;
+          ? '참여자와 처리 사유를 확인해 주세요. 본인 계정에는 발급할 수 없어요.' : response.message;
         return;
       }
       notice=action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
@@ -246,12 +249,12 @@ const festivalOpsUI = (() => {
     } finally { busy=false; if(form.isConnected) form.querySelector('button[type=submit]').disabled=false; }
   }
 
-  function pickVisitParticipant() {
+  function pickVisitParticipant(click) {
     if(!isAdminUser() || busy || !currentEventReady()) return;
     const actor=state.user.id, requestedView=viewKey(), eventId=event.id;
-    const target=document.querySelector('[data-ops-form="visit_approve"]');
-    if(!target) return;
-    const d=dialog('스탬프를 받을 참여자'), body=d.querySelector('.ops-dialog-content');
+    const target=click.currentTarget.closest('[data-ops-form]');
+    if(!target || !['visit_approve','points_adjust','voucher_issue'].includes(target.dataset.opsForm)) return;
+    const d=dialog(target.dataset.opsForm==='visit_approve'?'스탬프를 받을 참여자':'처리할 참여자'), body=d.querySelector('.ops-dialog-content');
     d.classList.add('ops-participant-dialog');
     body.innerHTML=`<form class="ops-search" data-participant-search><input class="input" name="search" maxlength="100" placeholder="이름 검색" aria-label="참여자 이름" autocomplete="off"><button type="submit" class="icon-btn" aria-label="참여자 검색">${icon('search')}</button></form><p role="status" data-participant-status></p><div class="ops-participant-list" data-participant-list></div><div class="ops-paging"><button type="button" class="icon-btn" data-participant-prev aria-label="이전 참여자">${icon('back')}</button><span data-participant-page></span><button type="button" class="icon-btn" data-participant-next aria-label="다음 참여자">${icon('arrow')}</button></div>`;
     const searchForm=body.querySelector('form'), note=body.querySelector('[role=status]'), list=body.querySelector('[data-participant-list]');
@@ -266,7 +269,7 @@ const festivalOpsUI = (() => {
       catch { response={ok:false}; }
       if(!valid() || seq!==sequence) return;
       const identity=response.ok?response.data:null;
-      note.textContent=response.ok?'방문한 학생 본인인지 확인해 주세요.':'참여자 확인에 실패했어요. 다시 찾아 선택해 주세요.';
+      note.textContent=response.ok?'처리할 학생 본인인지 확인해 주세요.':'참여자 확인에 실패했어요. 다시 찾아 선택해 주세요.';
       list.innerHTML=`<div class="ops-participant-confirm"><strong>${h(person.name)}</strong>${identity?.verified && identity.roster?`<p>${h(identity.roster.studentNumber)} · ${h(identity.roster.realName)}</p><p>${identity.roster.clubs.map(h).join(', ')}</p>`:response.ok?'<p>연결된 동아리 명단 없음</p>':''}<button class="primary-btn" type="button" data-confirm-participant ${response.ok?'':'disabled'}>이 참여자 선택</button><button class="ghost-btn" type="button" data-return-participants>다시 찾기</button></div>`;
       list.querySelector('[data-return-participants]').onclick=()=>load();
       list.querySelector('[data-confirm-participant]').onclick=()=>{
@@ -444,5 +447,11 @@ const festivalOpsUI = (() => {
     document.querySelectorAll('[data-ops-claim]').forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await api().write('voucher_claim',{ruleId:b.dataset.opsClaim});if(r.ok)await refresh();else{document.querySelector('#opsVoucherStatus').textContent=r.message;b.disabled=false;}});
     if(!['admin','vouchers'].includes(state.route)) closeDialog();
   }
-  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward,eventId:()=>owner===state.user?.id?event?.id ?? null:null};
+  function markVisitPending() {
+    if(owner!==state.user?.id) reset();
+    visitSyncGeneration++; visitSyncPending=true;
+  }
+  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward,markVisitPending,
+    visitSyncPending:()=>owner===state.user?.id && visitSyncPending,
+    eventId:()=>owner===state.user?.id?event?.id ?? null:null};
 })();

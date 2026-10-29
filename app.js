@@ -931,11 +931,13 @@ const stampGateway = isServerMode() ? {
     const actingUser = state.user?.id;
     const result = await festivalAccount.claim(nfcToken);
     if (!result.ok) return result;
+    if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었어요. 다시 확인해 주세요.");
+    festivalOpsUI.markVisitPending();
     await festivalOpsUI.refresh(false);
     if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었어요. 다시 확인해 주세요.");
     serverCompletedBooths = result.completedBooths;
     const booth = boothForKey(result.boothKey);
-    return { ...result, boothId: booth?.id || null, earnedAt: null };
+    return { ...result, boothId: booth?.id || null, earnedAt: null, syncPending: festivalOpsUI.visitSyncPending() };
   },
 } : mockStampGateway;
 
@@ -1026,8 +1028,9 @@ const nfcAdapter = {
       state.scanResult = {
         type: duplicate ? "duplicate" : "success",
         boothId: result.boothId,
+        syncPending: Boolean(result.syncPending),
         title: duplicate ? "이미 적립한 부스예요" : "스탬프 1개 적립 완료",
-        body: duplicate
+        body: result.syncPending ? "방문 기록은 저장됐어요. 스탬프 수를 갱신하지 못해 다시 불러와야 해요." : duplicate
           ? "기존 방문 기록을 그대로 유지했어요."
           : result.replayed
             ? "같은 요청의 기존 성공 결과를 다시 불러왔어요."
@@ -1073,7 +1076,7 @@ function showNfcFeedback() {
   const result = state.scanResult;
   if (!result || !state.user) return;
   const booth = state.db.booths.find(item => item.id === result.boothId);
-  const canReview = booth && ["success", "duplicate"].includes(result.type) && !repo.hasReview(state.user.id, booth.id) && reviewEligibility(booth.id).allowed;
+  const canReview = !result.syncPending && booth && ["success", "duplicate"].includes(result.type) && !repo.hasReview(state.user.id, booth.id) && reviewEligibility(booth.id).allowed;
   const completed = ["success", "duplicate"].includes(result.type);
   const node = document.createElement(completed ? "dialog" : "aside");
   node.id = "nfcFeedback";
@@ -1084,12 +1087,14 @@ function showNfcFeedback() {
     ${booth ? `<p class="nfc-complete-booth">${escapeHtml(booth.name)}</p>` : ""}
     <p id="nfcFeedbackDescription">${escapeHtml(result.body)}</p>
     <div class="nfc-complete-actions">
+      ${result.syncPending ? `<button type="button" class="primary-btn" data-visit-sync-retry autofocus>기록 다시 불러오기 ${icon("refresh")}</button>` : ""}
       ${canReview ? `<button type="button" class="primary-btn feedback-action" autofocus>별점 남기기 ${icon("arrow")}</button>` : ""}
-      <button type="button" class="${canReview ? "secondary-btn" : "primary-btn"} feedback-close" ${canReview ? "" : "autofocus"}>${canReview ? "나중에" : "확인"}</button>
+      <button type="button" class="${canReview || result.syncPending ? "secondary-btn" : "primary-btn"} feedback-close" ${canReview || result.syncPending ? "" : "autofocus"}>${canReview ? "나중에" : "확인"}</button>
     </div>` : `<div class="nfc-feedback-content" role="status" aria-live="polite"><span class="nfc-feedback-icon">${icon("notice")}</span><div><strong>${escapeHtml(result.title)}</strong><p>${booth ? `${escapeHtml(booth.name)} · ` : ""}${escapeHtml(result.body)}</p></div></div>
     <button type="button" class="icon-btn feedback-close" aria-label="인증 알림 닫기">${icon("close")}</button>
     ${result.retryable ? `<button type="button" class="feedback-action">다시 시도 ${icon("refresh")}</button>` : ""}`;
   node.querySelector(".feedback-close").onclick = dismissNfcFeedback;
+  node.querySelector('[data-visit-sync-retry]')?.addEventListener('click', retryVisitSync);
   node.querySelector(".feedback-action")?.addEventListener("click", () => {
     dismissNfcFeedback();
     if (canReview) openBoothReview(booth.id);
@@ -1114,7 +1119,37 @@ function showNfcFeedback() {
   }
 }
 
+async function retryVisitSync(event) {
+  const button=event.currentTarget, actor=state.user?.id, result=state.scanResult;
+  if(button.disabled) return;
+  button.disabled=true; button.textContent='불러오는 중...';
+  await festivalOpsUI.refresh();
+  if(state.user?.id!==actor) return;
+  if(!festivalOpsUI.visitSyncPending()) {
+    if(state.scanResult===result && result?.syncPending) {
+      result.syncPending=false; result.body='저장된 방문 기록과 스탬프 수를 확인했어요.';
+      if(document.querySelector('#nfcFeedback')) showNfcFeedback();
+    }
+    refreshVisitIndicators();
+  } else if(button.isConnected) {
+    button.disabled=false; button.textContent='연결 확인 후 다시 불러오기';
+  }
+}
+
+function updateVisitSyncNotice() {
+  document.querySelector('[data-visit-sync-notice]')?.remove();
+  if(!isServerMode() || !state.user || !festivalOpsUI.visitSyncPending()) return;
+  const screen=document.querySelector('#app main');
+  if(!screen) return;
+  const notice=document.createElement('div');
+  notice.className='visit-sync-notice'; notice.dataset.visitSyncNotice=''; notice.setAttribute('role','status');
+  notice.innerHTML=`<span>방문 저장 완료 · 스탬프 수 갱신 대기</span><button type="button" class="text-link" data-visit-sync-retry>다시 불러오기 ${icon('refresh')}</button>`;
+  screen.prepend(notice);
+  notice.querySelector('button').onclick=retryVisitSync;
+}
+
 function refreshVisitIndicators() {
+  updateVisitSyncNotice();
   festivalWeb.refreshIndicators();
   const count = repo.stampsForUser(state.user.id).length;
   document.querySelectorAll("[data-stamp-count]").forEach(node => { node.textContent = count; });
@@ -1367,6 +1402,7 @@ function render() {
     bindEvents();
     festivalWeb.afterRender();
     updateCatalogDom();
+    updateVisitSyncNotice();
   } finally {
     renderInProgress = false;
   }

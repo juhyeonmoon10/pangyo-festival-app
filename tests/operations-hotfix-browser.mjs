@@ -170,7 +170,7 @@ try {
     await approval.locator('[name=reason]').fill('현장 학생 본인 확인');
     const beforeApproval=a.calls.filter(c=>c.p_action==='visit_approve').length;
     await approval.locator('button[type=submit]').click();
-    await approval.getByText('스탬프를 받을 참여자를 선택해 주세요.',{exact:true}).waitFor();
+    await approval.getByText('처리할 참여자를 선택해 주세요.',{exact:true}).waitFor();
     assert.equal(a.calls.filter(c=>c.p_action==='visit_approve').length,beforeApproval);
     await approval.locator('[data-pick-participant]').click();
     const picker=a.page.locator('.ops-participant-dialog');
@@ -199,7 +199,7 @@ try {
     await approval.locator('[name=reason]').fill('대상 변경 후 재확인');
     await db.query('update public.users set auth_user_id=null where id=$1',[student.uid]);
     await approval.locator('button[type=submit]').click();
-    await approval.getByText('선택한 참여자 또는 부스를 찾지 못했어요. 새로고침 후 대상을 다시 선택해 주세요.',{exact:true}).waitFor();
+    await approval.getByText('선택한 참여자 또는 처리 대상을 찾지 못했어요. 새로고침 후 다시 선택해 주세요.',{exact:true}).waitFor();
     assert.equal(await approval.locator('[name=userId]').inputValue(),'');
     await db.query('update public.users set auth_user_id=$1 where id=$2',[student.id,student.uid]);
     await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);state.route='stamps';render();});
@@ -249,10 +249,13 @@ try {
     const issue=a.page.locator('[data-ops-form=voucher_issue]');
     await issue.locator('[name=ruleId]').selectOption({label:`테스트 이용권 ${width}`});
     await issue.locator('[name=reason]').fill('격리 발급 검증');
-    await issue.locator('[name=userId]').fill(String(admin.uid));
     await issue.locator('button[type=submit]').click();
-    await a.page.getByText('참여자 번호와 처리 사유를 확인해 주세요. 본인 계정에는 발급할 수 없어요.',{exact:true}).waitFor();
-    await issue.locator('[name=userId]').fill(String(student.uid));
+    await issue.getByText('처리할 참여자를 선택해 주세요.',{exact:true}).waitFor();
+    assert.equal(await issue.locator('input[type=number]').count(),0);
+    await issue.locator('[data-pick-participant]').click();
+    await picker.locator(`[data-participant-id="${student.uid}"]`).click();
+    await picker.locator('[data-confirm-participant]').click();
+    assert.equal(await issue.locator('[name=reason]').inputValue(),'격리 발급 검증');
     const before=a.calls.filter(x=>x.p_action==='voucher_issue').length;
     await issue.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
     await a.page.getByText('바우처를 발급했어요.',{exact:true}).waitFor();
@@ -270,6 +273,20 @@ try {
     await a.page.waitForFunction(()=>document.querySelector('#opsRedeem [name=token]')?.value==='');
     assert.equal((await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}])).vouchers[0].state,'used');
     await screenshot(a.page,width,'redeemed');
+
+    await tab(a.page,'ledger','[data-ops-form=points_adjust]');
+    const adjustment=a.page.locator('[data-ops-form=points_adjust]');
+    assert.equal(await adjustment.locator('input[name=userId][type=number]').count(),0);
+    await adjustment.locator('[name=delta]').fill('10');
+    await adjustment.locator('[name=reason]').fill('합성 포인트 조정');
+    await adjustment.locator('[data-pick-participant]').click();
+    await picker.locator(`[data-participant-id="${student.uid}"]`).click();
+    await picker.locator('[data-confirm-participant]').click();
+    const beforePoints=a.calls.filter(c=>c.p_action==='points_adjust').length;
+    await adjustment.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
+    await a.page.getByText('저장했어요.',{exact:true}).waitFor();
+    assert.equal(a.calls.filter(c=>c.p_action==='points_adjust').length,beforePoints+1);
+    assert.equal(a.calls.filter(c=>c.p_action==='points_adjust').at(-1).p_payload.userId,student.uid);
 
     for(const mode of ['unknown','legacy']) {
       a.control.reward=mode; await tab(a.page,'rules','.ops-alert');
