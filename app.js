@@ -1630,7 +1630,6 @@ function profileView() {
       </section>
       <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>바우처</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div><div><dt>방문 기록</dt><dd>${stampCount}<small>개</small></dd></div></dl>
       <section class="profile-list">
-        <div><span>행사</span><strong>${state.db.event.name}</strong></div>
         <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
       </section>
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">

@@ -142,7 +142,9 @@ const festivalWeb = (() => {
 
   function points() { return isServerMode() ? festivalOpsUI.snapshot()?.points ?? null : Object.values(progress().points).reduce((a, b) => a + Number(b), 0); }
   function coupons() { return isServerMode() ? festivalOpsUI.snapshot()?.vouchers || [] : progress().coupons; }
-  function couponState(c) { return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : new Date(c.expiresAt || c.expires_at) <= new Date() ? "expired" : "available"; }
+  // The server stores "no deadline" as 'infinity', which Date cannot parse.
+  const noDeadline = value => value === 'infinity';
+  function couponState(c) { const expiry = c.expiresAt || c.expires_at; return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : !noDeadline(expiry) && new Date(expiry) <= new Date() ? "expired" : "available"; }
   function walletSummary() {
     const reward = rewardState(), all = coupons();
     // Only the server's confirmed reward state can advertise an unissued entitlement.
@@ -328,7 +330,7 @@ const festivalWeb = (() => {
     const target = c.target || c.stamp_target;
     const expiry = c.expiresAt || c.expires_at;
     const stateLabel = {available:'사용 가능', used:'사용 완료', expired:'만료', void:'발급 취소'}[status];
-    return `<article class="festival-ticket ${valid ? kind : 'used'}"><span class="festival-ticket-state">${stateLabel}</span><h2>${escapeHtml(c.title)}</h2>${expiry ? `<p>${new Date(expiry).toLocaleString('ko-KR')}까지</p>` : ''}<div class="festival-ticket-bottom"><span>${target ? `스탬프 ${Number(target)}개 달성` : '축제 바우처'}</span>${valid ? `<button type="button" class="text-link" ${isServerMode() ? 'data-ops-qr' : 'data-voucher'}="${escapeHtml(c.id)}">${icon('scan')} QR 보기</button>` : `<span>${stateLabel}</span>`}</div></article>`;
+    return `<article class="festival-ticket ${valid ? kind : 'used'}"><span class="festival-ticket-state">${stateLabel}</span><h2>${escapeHtml(c.title)}</h2>${noDeadline(expiry) ? '<p>사용 기한 없음</p>' : expiry ? `<p>${new Date(expiry).toLocaleString('ko-KR')}까지</p>` : ''}<div class="festival-ticket-bottom"><span>${target ? `스탬프 ${Number(target)}개 달성` : '축제 바우처'}</span>${valid ? `<button type="button" class="text-link" ${isServerMode() ? 'data-ops-qr' : 'data-voucher'}="${escapeHtml(c.id)}">${icon('scan')} QR 보기</button>` : `<span>${stateLabel}</span>`}</div></article>`;
   }
   function vouchers({ loading = false, failure = '' } = {}) {
     syncRewards();

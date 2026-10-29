@@ -18,6 +18,7 @@
     REWARD_NOT_READY: '바우처 발급 준비 중이에요.',
     REWARD_ORDER_REQUIRED: '앞선 바우처부터 선택해 주세요.',
     REWARD_MIGRATION_REQUIRED: '기존 발급 바우처의 이관 확인이 필요해요.',
+    RESET_CONFIRM_REQUIRED: '확인 문구로 "초기화"를 정확히 입력해 주세요.',
     REQUEST_CONFLICT: '이전 요청과 내용이 달라요. 화면을 새로고침해 주세요.',
     POINTS_INSUFFICIENT: '포인트 잔액이 부족해요.', SELF_ADJUSTMENT: '본인 계정에는 직접 지급하거나 조정할 수 없어요.',
     VOUCHER_USED: '이미 사용한 바우처예요.', VOUCHER_EXPIRED: '만료된 바우처예요.', VOUCHER_VOID: '취소된 바우처예요.',
@@ -30,6 +31,12 @@
   readKinds.add('reward_status');
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
+  writeKinds.add('participation_reset');
+  // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
+  function call(action, body, request) {
+    if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
+    return [action.startsWith('reward_') ? 'festival_reward_write' : 'festival_ops_write', { p_action: action, p_payload: body, p_request_id: request }];
+  }
   function error(value) {
     const codes = String(value?.message || '').match(/[A-Z][A-Z0-9_]+/g) || [];
     const found = Object.keys(messages).find(key => codes.includes(key));
@@ -83,7 +90,7 @@
         values[hash] = request;
         persist(id, values);
         try {
-          const result = await rpc(action.startsWith('reward_') ? 'festival_reward_write' : 'festival_ops_write', { p_action: action, p_payload: body, p_request_id: request });
+          const result = await rpc(...call(action, body, request));
           if (actor() !== id) return error(Error('AUTH_REQUIRED'));
           if (result.error) {
             const failure = error(result.error);

@@ -78,3 +78,13 @@
 .ops-participant-row:not(:disabled):hover,.ops-recipient-button:hover { background:#edf7f1; }
 .ops-participant-confirm { display:grid; gap:12px; padding:12px 0; overflow-wrap:anywhere; }
 .ops-participant-confirm p { margin:0; }
+.ops-reward-stock { display:grid; gap:10px; min-width:0; margin:0; padding:14px; border:1px solid var(--line,#dce3e0); border-radius:8px; }
+.ops-reward-stock legend { padding:0 6px; font-size:15px; font-weight:700; }
+.ops-reward-usage { margin:0; color:var(--muted,#56665f); font-size:14px; }
+.ops-reward-usage b { color:var(--text,#17251f); font-variant-numeric:tabular-nums; }
+.ops-form input:disabled { opacity:.55; }
+.ops-reset p { margin:0 0 12px; line-height:1.6; }
+.ops-reset-scope { display:grid; gap:8px; margin:0; padding:0; list-style:none; font-size:14px; line-height:1.6; }
+.ops-reset-scope strong { display:inline-block; min-width:40px; color:#a62936; }
+.ops-reset-scope li:last-child strong { color:var(--primary,#087652); }
+.design-web .ops-reset .primary-btn { background:#a62936; border-color:#a62936; }

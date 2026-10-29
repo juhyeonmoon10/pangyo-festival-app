@@ -13,6 +13,9 @@ Students use mobile browsers to find booths, confirm NFC visits, rate their visi
 - A confirmed distinct booth visit earns one stamp immediately, whether confirmed by NFC or an operator. Ratings and text reviews are separate; neither is required for the stamp. Repeated confirmation of the same booth never adds another stamp.
 - Manual approvals use an authenticated-participant picker and a named confirmation. Operators do not enter internal participant IDs. An approval retains its actor, reason, and duplicate protection on the server.
 - Vouchers are awarded only at 3 and 6 visits, at most two per participant per event. At 3, choose photo-booth or food-truck; at 6, receive the other benefit. Later visits add stamps but no more vouchers.
+- Voucher stock and the usage deadline may each be unlimited. Operators see issued and remaining counts per benefit and can change stock (never below issued) and the deadline.
+- Operators can reset all participation records (visits, stamps, vouchers, reviews, points, booth rating ranking) before the festival with a typed confirmation. Operator flags, accounts, booth setup, voucher rules, NFC tags, the roster, and the audit history are kept.
+- This is a single-festival platform: no festival name is edited or shown.
 - The backend remains authoritative for reward eligibility, stocks, issuance, expiry, usage, identity, and operator authorization. The UI must not invent a successful operation.
 - Reviews use an operator-verified real name. Own-club reviews remain blocked by the existing validation.
 - NFC links continue through the existing login and claim flow. Signed tag issuance, non-expiring tags, duplicate prevention, and existing expiry validation are unchanged by this UI release.
