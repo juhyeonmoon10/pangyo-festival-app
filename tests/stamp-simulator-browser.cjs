@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const {openOperatorTool}=require('./operator-navigation.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -19,7 +20,7 @@ fs.mkdirSync(out, { recursive: true });
       assert.equal(response.status(),200);
       if(!demo) {
         await page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready);
-        await page.locator('#opsTab').selectOption('stamp-simulator');
+        await openOperatorTool(page,'stamp-simulator');
       }
       await page.locator('#stampSimIssueForm').waitFor();
       const before=await page.evaluate(()=>JSON.stringify(state.db));
@@ -68,7 +69,7 @@ fs.mkdirSync(out, { recursive: true });
       assert.equal(await page.evaluate(()=>JSON.stringify(state.db)),before);
       await issue(0);
       await page.reload();
-      if(!demo){await page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready);await page.locator('#opsTab').selectOption('stamp-simulator');}
+      if(!demo){await page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready);await openOperatorTool(page,'stamp-simulator');}
       assert.equal(await page.evaluate(()=>festivalStampSimulator.snapshot().visits.length),0);
       await issue(0);
       await page.evaluate(()=>{state.user.role='user';render();});

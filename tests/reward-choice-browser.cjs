@@ -1,4 +1,5 @@
 const {chromium}=require('playwright');
+const {openOperatorTool}=require('./operator-navigation.cjs');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const out=path.resolve(__dirname,'../artifacts/reward-choice');fs.mkdirSync(out,{recursive:true});
 const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
@@ -19,7 +20,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
       assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight));
       assert.equal(await page.locator('.stamp-board-header h1').innerText(),'스탬프');
       await page.screenshot({path:path.join(out,`stamps-${count}-${width}.png`),fullPage:true});
-      await page.mouse.move(width/2,420);await page.mouse.wheel(0,520);
+      await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
       await page.waitForFunction(()=>scrollY>0);
       const last=await page.locator('.stamp-path-step').nth(14).locator('.stamp-path-node').boundingBox();
       const nav=await page.locator('.bottom-nav').boundingBox();
@@ -34,15 +35,19 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
       if(count>=3) {
         const kind=count===3?'photo':'food';
         let previous=0;
-        while(await panel.locator('button[type=submit]').count() && !await panel.locator('button[type=submit]').isDisabled()) {
+        while(previous<Math.floor(count/3)) {
+          await page.locator('[data-voucher-filter="claim"]').click();
           const target=Number(await panel.locator('[name=firstTarget]').inputValue());
           await panel.locator(`input[value=${target===3?kind:'photo'}]`).check();
           await panel.locator('button[type=submit]').click();
-          await page.waitForFunction(n=>document.querySelectorAll('.web-coupon').length>n,previous);
-          previous=await page.locator('.web-coupon').count();
+          await page.waitForFunction(n=>document.querySelectorAll('.festival-ticket').length>n,previous).catch(async error=>{
+            await page.screenshot({path:path.join(out,`failure-${count}-${width}.png`),fullPage:true});
+            console.error({width,count,previous,errors,body:await page.locator('body').innerText()});throw error;
+          });
+          previous=await page.locator('.festival-ticket').count();
         }
-        assert.equal(await page.locator('.web-coupon').count(),Math.floor(count/3));
-        const titles=await page.locator('.web-coupon h2').allTextContents();
+        assert.equal(await page.locator('.festival-ticket').count(),Math.floor(count/3));
+        const titles=await page.locator('.festival-ticket h2').allTextContents();
         assert.ok(titles.includes(kind==='photo'?'포토부스 이용권':'푸드트럭 교환권'));
         if(count>=6) assert.equal(new Set(titles).size,2);
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
@@ -50,7 +55,8 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
         await page.locator('.bottom-nav [data-route=stamps]').click();
         assert.equal(await page.locator('.reward-choice-section,#rewardChoiceForm').count(),0);
         await page.locator('.stamp-voucher-shortcut').click();
-        assert.equal(await page.locator('.web-coupon').count(),Math.floor(count/3));
+        await page.locator('[data-voucher-filter="available"]').click();
+        assert.equal(await page.locator('.festival-ticket').count(),Math.floor(count/3));
       }
       await page.locator('[data-history-back]').click();
       await page.locator('.stamp-path-track').waitFor();
@@ -67,20 +73,22 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
         await form.locator('button[type=submit]').click();
         assert.equal(await form.locator('button[type=submit]').isDisabled(),true);
         await page.waitForFunction(()=>document.querySelector('.reward-choice-status')?.textContent.includes('다시 시도'));
-        assert.equal(await page.locator('.ops-voucher').count(),0);
+        assert.equal(await page.locator('.festival-ticket').count(),0);
         assert.equal(await form.locator('[value=food]').isChecked(),true);
-        await form.locator('button[type=submit]').click();await page.waitForFunction(()=>document.querySelectorAll('.ops-voucher').length===2);
-        assert.equal(await page.locator('.ops-voucher').count(),2);
+        await form.locator('button[type=submit]').click();await page.waitForFunction(()=>document.querySelectorAll('.festival-ticket').length===2);
+        assert.equal(await page.locator('.festival-ticket').count(),2);
         const calls=await page.evaluate(()=>fixtureCalls);
         assert.equal(calls.length,2);assert.equal(calls[0].p_request_id,calls[1].p_request_id);
         assert.ok(calls.every(c=>c.name==='festival_reward_write'&&c.p_payload.kind==='food'&&!('userId' in c.p_payload)));
         assert.ok(calls.every(c=>c.p_payload.firstTarget===3));
+        await page.locator('[data-voucher-filter="claim"]').click();
         assert.equal(await form.locator('button[type=submit]').isDisabled(),true);
       } else if(mode==='missing'||mode==='legacy') {
-        await page.getByText('아직 발급된 바우처가 없어요.').waitFor();
+        await page.locator('[data-voucher-filter="available"]').click();
+        await page.getByText('보유한 바우처가 없어요',{exact:true}).waitFor();
         assert.equal(await page.locator('#rewardChoiceForm,[data-ops-claim]').count(),0);
       } else {
-        await page.locator('#opsTab').selectOption('rules');
+        await openOperatorTool(page,'rules');
         const form=page.locator('[data-ops-form=reward_config]');await form.waitFor();
         await form.locator('[name=photoStock]').fill('30');await form.locator('[name=foodStock]').fill('40');
         page.on('dialog',d=>d.accept());await form.locator('button[type=submit]').click();

@@ -143,7 +143,7 @@ test('removing diagnostics does not stop catalog refresh or in-place updates', a
 test('unavailable services, provisional locations, and review rules remain explicit', async () => {
   const api = await setup();
   assert.match(api.detailView(), /실제 부스 위치는 운영 안내를 확인/);
-  assert.match(api.festivalWeb.vouchers(), /아직 이용할 수 없어요/);
+  assert.match(api.festivalWeb.vouchers(), /바우처 발급 상태를 확인하지 못했어요/);
   assert.match(api.festivalWeb.reviews(), /별점은 필수, 글 후기는 선택/);
   assert.match(api.festivalWeb.reviews(), /부스당 한 번만 지급/);
   assert.doesNotMatch(api.festivalWeb.reviews(), /탭을 닫으면 사라지며 포인트는 적립되지/);

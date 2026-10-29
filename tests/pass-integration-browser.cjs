@@ -1,0 +1,93 @@
+const {chromium} = require('playwright');
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const {pathToFileURL} = require('node:url');
+const root = path.resolve(__dirname, '..');
+const out = path.join(root, 'artifacts/pass-integration');
+fs.mkdirSync(out, {recursive:true});
+const results = [];
+(async () => {
+  const browser = await chromium.launch({channel:'msedge',headless:true});
+  try {
+    for (const width of [320,390,430,1024]) {
+      const context = await browser.newContext({viewport:{width,height:844},reducedMotion:'reduce'});
+      await context.route('**/*', r => new URL(r.request().url()).protocol === 'file:' ? r.continue() : r.abort());
+      const page = await context.newPage(), errors = [];
+      page.on('pageerror', e => errors.push(e.message));
+      const capture = async (name, fullPage=false) => {
+        await page.evaluate(() => scrollTo({top:0,behavior:'instant'}));
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width} ${name}: overflow`);
+        await page.screenshot({path:path.join(out,`${width}-${name}.png`),fullPage});
+        results.push({width,name,passed:true});
+      };
+      await page.goto(pathToFileURL(path.join(root,'tests/reward-server-preview.html')).href+'?mode=student&count=6&retry=1');
+      await page.locator('#rewardChoiceForm').waitFor();
+      assert.equal(await page.locator('.festival-view-tabs button').count(),3);
+      await capture('server-claim');
+      const form = page.locator('#rewardChoiceForm');
+      await form.locator('[value=food]').check();
+      await form.locator('button[type=submit]').click();
+      await page.waitForFunction(() => document.querySelector('.reward-choice-status')?.textContent.includes('다시 시도'));
+      await capture('server-claim-error');
+      assert.equal(await form.locator('[value=food]').isChecked(), true);
+      await form.locator('button[type=submit]').click();
+      await page.waitForFunction(() => document.querySelectorAll('.festival-ticket').length === 2);
+      const calls = await page.evaluate(() => fixtureCalls);
+      assert.equal(calls.length,2);
+      assert.equal(calls[0].p_request_id,calls[1].p_request_id);
+      assert.ok(calls.every(c => !('userId' in c.p_payload)));
+      assert.equal(await page.locator('[data-voucher-filter=available][aria-pressed=true]').count(),1);
+      assert.equal(await page.locator('.bottom-nav [data-route=stamps][aria-current=page]').count(),1);
+      await capture('server-held');
+      await page.evaluate(() => {issued[0].state = 'used';issued[1].expiresAt = '2000-01-01T00:00:00Z';render();});
+      await page.locator('[data-voucher-filter=history]').click();
+      assert.equal(await page.locator('.festival-ticket').count(),2);
+      assert.equal(await page.locator('[data-ops-qr]').count(),0);
+      await capture('server-used-expired');
+      await page.locator('[data-voucher-filter=available]').click();
+      await capture('server-empty');
+      await page.goto(pathToFileURL(path.join(root,'tests/stamp-ui-preview.html')).href+'?demo=1&completed=3&pending=1');
+      for (const route of ['home','map','stamps','vouchers','profile','reviews']) {
+        await page.evaluate(r => navigateTo(r), route);
+        await capture(route);
+      }
+      await page.evaluate(() => navigateTo('map'));
+      const search = page.locator('#searchScreenInput');
+      await search.fill('1학년 1반');
+      const ids = await page.locator('#floorBoothList [data-list-select]').evaluateAll(ns=>ns.map(n=>n.dataset.listSelect));
+      await search.fill('1학년1반');
+      assert.deepEqual(await page.locator('#floorBoothList [data-list-select]').evaluateAll(ns=>ns.map(n=>n.dataset.listSelect)),ids);
+      assert.ok(ids.length);
+      assert.equal(await page.locator('.search-screen').count(),0);
+      await capture('map-search');
+      await page.locator('#clearSearchScreen').click();
+      await page.locator('#sheetToggle').click();
+      await page.locator('#sheetToggle').click();
+      await capture('map-expanded');
+      const sheet = await page.locator('#sheet').boundingBox(), nav = await page.locator('.bottom-nav').boundingBox();
+      assert.ok(Math.abs(sheet.y+sheet.height-nav.y)<2);
+      await page.locator('#floorBoothList [data-list-select]').first().click();
+      await capture('detail');
+      assert.equal(await page.locator('.detail-club-heading.is-text-only').count(),1);
+      assert.ok((await page.locator('.detail-club-heading .title').boundingBox()).width>=240);
+      assert.equal(await page.locator('.detail-hero .stamp.on').evaluate(n=>getComputedStyle(n).color),'rgb(8, 118, 82)');
+      assert.equal(await page.locator('.detail-hero .stamp.on').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(217, 250, 234)');
+      assert.equal(await page.locator('.review-heading span').count(),0);
+      await capture('detail-review',true);
+      await page.locator('[data-locate-booth]').click();
+      assert.equal(await page.locator('.map-screen').count(),1);
+      assert.ok(await page.evaluate(()=>Boolean(state.selectedBoothId)));
+      await page.evaluate(()=>{state.selectedBoothId=state.db.booths.find(b=>b.officialClubId).id;navigateTo('detail');});
+      await page.waitForFunction(()=>[...document.querySelectorAll('.detail-club-heading img')].every(i=>i.complete&&i.naturalWidth));
+      assert.equal(await page.locator('.detail-club-heading .club-visual').count(),1);
+      assert.ok((await page.locator('.detail-club-heading .title').boundingBox()).width>=180);
+      await capture('detail-logo');
+      await page.goto(pathToFileURL(path.join(root,'index.html')).href);
+      await page.locator('#googleLogin').waitFor();
+      await capture('login');
+      assert.deepEqual(errors,[]);
+      await context.close();
+    }
+    fs.writeFileSync(path.join(out,'report.json'),JSON.stringify({results,remoteRequests:0,sharedDatabaseWrites:0},null,2));
+    console.log(`${results.length} integration screens/flows passed`);
+  } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

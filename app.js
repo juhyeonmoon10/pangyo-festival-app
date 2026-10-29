@@ -1601,6 +1601,7 @@ function profileView() {
         ${[["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
       </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 도구 열기"}</button>` : ""}
+      <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(festivalWeb.visitRow).join('') : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
       ${bottomNav("profile")}
@@ -1799,6 +1800,7 @@ function mapCanvasView(booths, plan) {
 function mapView() {
   const booths = visibleBooths();
   const globalSearchResults = searchResults();
+  const list = state.search ? globalSearchResults : booths;
   const floorInfo = FLOORS.find((item) => item.floor === state.floor);
   const plan = mapPlanForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
@@ -1810,35 +1812,24 @@ function mapView() {
         <h1>부스 지도</h1>
         <span class="map-location-note">${isServerMode() ? "위치 임시 배치" : "판교고"}</span>
       </header>
-      <button class="map-search-bar" id="mapSearchBtn" type="button" aria-label="부스 검색" aria-haspopup="dialog">
-        ${icon("search")}<span>${state.search ? escapeHtml(state.search) : "부스 이름, 동아리, 교실 검색"}</span>
-        ${state.search ? `<b>${globalSearchResults.length}</b>` : ""}
-      </button>
+      <div class="festival-map-tools"><label class="map-search-bar search-screen-input ${state.search ? 'has-clear' : ''}">
+        ${icon('search')}<input id="searchScreenInput" aria-label="부스 이름이나 위치 검색" placeholder="부스, 동아리, 교실 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" /><button id="clearSearchScreen" class="icon-btn" type="button" aria-label="검색어 지우기" ${state.search ? '' : 'hidden'}>${icon('close')}</button>
+      </label><div class="festival-map-filter"><span>${floorInfo.label} · ${floorInfo.caption}</span><span>${icon('check')} 방문 완료</span></div></div>
       <section class="map-stage">
         ${floorTabsView()}
-        <div class="map-context-bar">
-          <strong class="map-floor-number">${state.floor}F</strong>
-          <div><strong>${floorInfo.caption === "시설" ? "학교 시설" : `${floorInfo.caption} 부스`}</strong><span>${plan.subtitle}</span></div>
-        </div>
-        <div class="map-legend" aria-label="지도 범례">
-          <span><i class="classroom"></i>학급</span>
-          <span><i class="facility"></i>시설</span>
-          <span><i class="visited">${icon("check")}</i>방문 완료</span>
-        </div>
+        <div class="map-context-bar"><span>${plan.subtitle}</span></div>
         ${mapCanvasView(booths, plan)}
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
         <button type="button" class="sheet-handle" id="sheetToggle" aria-label="${sheetHandleLabel}" aria-expanded="${state.sheetLevel !== "peek"}" aria-controls="floorBoothList">
           <span class="sheet-grip" aria-hidden="true"></span>
           <span class="map-sheet-summary">
-            <span class="map-sheet-icon" aria-hidden="true">${icon("list")}</span>
-            <span class="map-sheet-title"><strong>${floorInfo.label} 부스 <b>${booths.length}</b></strong><small>방문 <span data-floor-stamp-count>${stampedCount}</span> / ${booths.length}</small></span>
+            <span class="map-sheet-title"><strong id="mapResultTitle">${state.search ? '검색 결과' : `${floorInfo.label} 부스`}</strong><small id="mapResultCount">${list.length}개 · 방문 <span data-floor-stamp-count>${stampedCount}</span></small></span>
             <span class="map-sheet-chevron" aria-hidden="true">${icon("back")}</span>
           </span>
         </button>
-        <div class="booth-list" id="floorBoothList">${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
+        <div class="booth-list" id="floorBoothList">${list.length ? list.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
       </section>
-      ${state.searchOpen ? searchOverlay(globalSearchResults) : ""}
       ${bottomNav("map")}
     </main>
   `;
@@ -1868,10 +1859,10 @@ function searchOverlay(booths) {
 
 function updateSearchOverlay() {
   const input = document.querySelector("#searchScreenInput");
-  const resultList = document.querySelector("#searchResultList");
+  const resultList = document.querySelector("#searchResultList") || document.querySelector('#floorBoothList');
   if (!input || !resultList) return;
 
-  const booths = searchResults();
+  const booths = state.search ? searchResults() : visibleBooths();
   const inputShell = input.closest(".search-screen-input");
   const clearButton = document.querySelector("#clearSearchScreen");
   const resultCount = document.querySelector("#searchResultCount");
@@ -1881,6 +1872,9 @@ function updateSearchOverlay() {
   if (clearButton) clearButton.hidden = !state.search;
   if (resultCount) resultCount.textContent = `${booths.length}개 결과`;
   if (resultQuery) resultQuery.textContent = state.search ? `"${state.search}"` : "전체 부스";
+  const title = document.querySelector('#mapResultTitle'), count = document.querySelector('#mapResultCount');
+  if (title) title.textContent = state.search ? '검색 결과' : `${state.floor}층 부스`;
+  if (count) count.textContent = `${booths.length}개`;
   resultList.innerHTML = booths.length
     ? booths.map(boothItem).join("")
     : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`;
@@ -1997,7 +1991,7 @@ function detailView() {
       </header>
       <section class="detail-hero">
         <div class="detail-status-row">${statusBadge(booth.status)}<span>${formatOperatingHours(booth)}</span></div>
-        <div class="detail-club-heading">
+        <div class="detail-club-heading${booth.officialClubId ? '' : ' is-text-only'}">
           ${booth.officialClubId ? clubVisual(booth, "detail") : ""}
           <div>
             <div class="meta">${booth.officialClubId ? "판교고 동아리 · 임시 배치" : booth.clubName} · ${booth.floor}층 · ${booth.room}</div>
@@ -2011,6 +2005,7 @@ function detailView() {
           <span><small>${isServerMode() ? "리뷰" : "평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
           <span><small>내 방문</small><strong>${stamped ? "방문 완료" : "방문 전"}</strong></span>
         </div>
+        <button type="button" class="text-link festival-locate" data-locate-booth="${escapeHtml(booth.id)}">${icon('map')} 지도에서 위치 보기</button>
       </section>
       <p class="detail-data-note">${isServerMode() ? "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주세요." : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
       <section class="panel section">
@@ -2027,7 +2022,7 @@ function detailView() {
       </section>
       <section class="panel section review-section" id="boothReviewSection">
         <div class="review-heading">
-          <div><span>${isServerMode() ? "방문한 부스 평가" : "평가 · 앱을 닫으면 사라짐"}</span><h2>어떤 경험이었나요?</h2></div>
+          <h2>어떤 경험이었나요?</h2>
         </div>
         ${reviewed && festivalWeb.ownReview(booth.id)?.content?.trim()
           ? `<p class="review-guidance success">별점과 글 후기를 모두 남겼어요. 고마워요!</p>`
@@ -2328,7 +2323,7 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
-  const current = active === "scan" ? "stamps" : ["profile", "admin", "vouchers", "reviews"].includes(active) ? "profile" : active;
+  const current = ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews"].includes(active) ? "profile" : active;
   return `
     <nav class="bottom-nav" aria-label="주요 메뉴">
       ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}
@@ -2345,6 +2340,17 @@ function bindBoothListButtons(root = document) {
 }
 
 function bindEvents() {
+  document.querySelectorAll('[data-locate-booth]').forEach(button => button.addEventListener('click', () => {
+    const booth = state.db.booths.find(b => b.id === button.dataset.locateBooth);
+    if (!booth) return;
+    state.floor = booth.floor;
+    state.search = '';
+    state.selectedBoothId = booth.id;
+    state.mapZoom = 1;
+    state.mapOffsetX = state.mapOffsetY = 0;
+    setSheetLevel('peek');
+    navigateTo('map');
+  }));
   document.querySelectorAll("[data-open-reviews]").forEach(button => button.addEventListener("click", () => {
     state.reviewPickerOpen = true;
     render();
@@ -2497,7 +2503,7 @@ function bindEvents() {
   const commitSearch = (value) => {
     if (state.search === value) return;
     state.search = value;
-    state.searchOpen = true;
+    state.searchOpen = Boolean(searchInput?.closest('.search-screen'));
     updateSearchOverlay();
   };
   searchInput?.addEventListener("compositionstart", () => {
@@ -2518,7 +2524,7 @@ function bindEvents() {
   });
   document.querySelector("#clearSearchScreen")?.addEventListener("click", () => {
     state.search = "";
-    state.searchOpen = true;
+    state.searchOpen = Boolean(searchInput?.closest('.search-screen'));
     if (searchInput) searchInput.value = "";
     updateSearchOverlay();
     searchInput?.focus();
@@ -2619,6 +2625,7 @@ function closeMenus() {
 }
 
 function openSearchScreen() {
+  if (state.route === 'map') { focusSearchInput(); return; }
   if (state.searchOpen) return;
   state.searchOpen = true;
   closeMenus();

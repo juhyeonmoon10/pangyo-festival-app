@@ -39,9 +39,10 @@ test('map keeps one search action, one reset and no extra instructional copy', (
   const api = setup();
   const html = api.mapView();
   assert.equal((html.match(/<h1>/g) || []).length, 1);
-  assert.equal((html.match(/id="mapSearchBtn"/g) || []).length, 1);
+  assert.equal((html.match(/id="searchScreenInput"/g) || []).length, 1);
   assert.equal((html.match(/id="resetMapView"/g) || []).length, 1);
-  assert.match(html, /class="map-search-bar"[^>]*aria-haspopup="dialog"/);
+  assert.match(html, /class="map-search-bar search-screen-input/);
+  assert.doesNotMatch(html, /aria-modal="true"/);
   assert.doesNotMatch(html, /탭해서|sheet-hint|sheet-head/);
 });
 
@@ -53,7 +54,8 @@ test('each floor has exactly one selected floor control and correct list count',
     assert.equal((html.match(/data-floor="/g) || []).length, 4);
     assert.equal((html.match(/aria-pressed="true"/g) || []).length, 1);
     assert.match(html, new RegExp(`data-floor="${floor}"[^>]*aria-pressed="true"`));
-    assert.ok(html.includes(`${floor}층 부스 <b>${api.visibleBooths().length}</b>`));
+    assert.ok(html.includes(`${floor}층 부스</strong>`));
+    assert.ok(html.includes(`id="mapResultCount">${api.visibleBooths().length}개`));
   }
 });
 

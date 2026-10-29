@@ -1,4 +1,5 @@
 const {chromium}=require('playwright');
+const {openOperatorTool}=require('./operator-navigation.cjs');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const out=path.resolve(__dirname,'../artifacts/review-identity');
 const base=process.env.PREVIEW_URL || 'http://127.0.0.1:5195';
@@ -43,7 +44,7 @@ fs.mkdirSync(out,{recursive:true});
       await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
       const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.goto(`${base}/tests/review-ui-preview.html?mode=admin`);
-      await page.locator('#opsTab').selectOption('participants');
+      await openOperatorTool(page,'participants');
       await page.locator('#reviewRosterLookup button').click();
       const form=page.locator('#reviewRosterForm');
       await form.getByLabel('명단 학번').fill('11001');
