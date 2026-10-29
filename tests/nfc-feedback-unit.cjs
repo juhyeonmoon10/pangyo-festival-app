@@ -69,9 +69,10 @@ test('rating action closes feedback before opening the existing review form', ()
   const api = setup(); api.show(); api.nodes[0].buttons['.feedback-action'].click();
   assert.deepEqual(api.calls, ['close', ['review', 'booth']]);
 });
-test('duplicate visit remains a single result and explains pending rating', () => {
+test('duplicate visit retains the existing stamp without requiring a rating', () => {
   const api = setup({ type: 'duplicate' }); api.show();
-  assert.match(api.nodes[0].innerHTML, /이미 인증한 부스/); assert.equal(api.nodes[0].tag, 'dialog');
+  assert.match(api.nodes[0].innerHTML, /기존 방문 기록을 그대로 유지/); assert.equal(api.nodes[0].tag, 'dialog');
+  assert.doesNotMatch(api.nodes[0].innerHTML, /별점을 남기면 스탬프/);
 });
 test('retryable failures retain the existing nonmodal retry action', () => {
   const api = setup({ type: 'error' }); api.state.scanResult.retryable = true;

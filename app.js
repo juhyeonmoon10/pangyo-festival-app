@@ -934,7 +934,7 @@ const stampGateway = isServerMode() ? {
     await festivalOpsUI.refresh(false);
     if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었어요. 다시 확인해 주세요.");
     serverCompletedBooths = result.completedBooths;
-    const booth = state.db.booths.find(item => window.FestivalCatalog.CLUB_IDS[item.officialClubId] === result.boothKey);
+    const booth = boothForKey(result.boothKey);
     return { ...result, boothId: booth?.id || null, earnedAt: null };
   },
 } : mockStampGateway;
@@ -1026,12 +1026,12 @@ const nfcAdapter = {
       state.scanResult = {
         type: duplicate ? "duplicate" : "success",
         boothId: result.boothId,
-        title: repo.hasReview(state.user.id, result.boothId) ? "스탬프가 완성됐어요" : "방문 인증 완료 · 별점이 필요해요",
+        title: duplicate ? "이미 적립한 부스예요" : "스탬프 1개 적립 완료",
         body: duplicate
           ? "기존 방문 기록을 그대로 유지했어요."
           : result.replayed
             ? "같은 요청의 기존 성공 결과를 다시 불러왔어요."
-            : "방문 기록은 보관됐어요. 별점을 남겨 스탬프 날인을 완료하세요.",
+            : "방문을 인증하고 스탬프 1개를 적립했어요.",
       };
     } else {
       state.pendingNfcClaim = result.retryable ? request : null;
@@ -1080,9 +1080,9 @@ function showNfcFeedback() {
   node.className = `nfc-feedback ${result.type}${completed ? " is-complete" : ""}`;
   node.innerHTML = completed ? `
     <span class="nfc-complete-icon" aria-hidden="true">${icon("check")}</span>
-    <h2 id="nfcFeedbackTitle">${canReview ? "방문 인증 완료" : escapeHtml(result.title)}</h2>
+    <h2 id="nfcFeedbackTitle">${escapeHtml(result.title)}</h2>
     ${booth ? `<p class="nfc-complete-booth">${escapeHtml(booth.name)}</p>` : ""}
-    <p id="nfcFeedbackDescription">${canReview ? `${result.type === "duplicate" ? "이미 인증한 부스예요. " : ""}별점을 남기면 스탬프가 완성돼요.` : escapeHtml(result.body)}</p>
+    <p id="nfcFeedbackDescription">${escapeHtml(result.body)}</p>
     <div class="nfc-complete-actions">
       ${canReview ? `<button type="button" class="primary-btn feedback-action" autofocus>별점 남기기 ${icon("arrow")}</button>` : ""}
       <button type="button" class="${canReview ? "secondary-btn" : "primary-btn"} feedback-close" ${canReview ? "" : "autofocus"}>${canReview ? "나중에" : "확인"}</button>
@@ -1999,7 +1999,7 @@ function detailView() {
             <p class="catalog-position" data-catalog-position="${booth.id}">${escapeHtml(catalogPositionText(booth))}</p>
           </div>
         </div>
-        <div class="meta"><span class="stamp ${stamped && reviewed ? "on" : ""}">${icon("stamp")}</span> ${stamped ? reviewed ? "스탬프 날인 완료" : "방문 인증 완료 · 별점 등록 대기" : "아직 방문하지 않았어요"}</div>
+        <div class="meta"><span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span> ${stamped ? "스탬프 적립 완료" : "아직 방문하지 않았어요"}</div>
         <div class="detail-metrics" aria-label="부스 평가와 방문 상태">
           <span><small>별점</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong></span>
           <span><small>${isServerMode() ? "리뷰" : "평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
@@ -2028,7 +2028,7 @@ function detailView() {
           ? `<p class="review-guidance success">별점과 글 후기를 모두 남겼어요. 고마워요!</p>`
           : reviewForm({
             enabled: stamped,
-            message: reviewed ? "별점은 이미 저장됐어요. 못 쓴 글 후기를 이어서 남겨주세요." : stamped ? "별점 등록으로 스탬프를 완성하세요. 글 후기는 나중에 써도 돼요." : "방문 인증 후 별점을 남길 수 있어요.",
+            message: reviewed ? "별점은 이미 저장됐어요. 못 쓴 글 후기를 이어서 남겨주세요." : stamped ? "방문한 부스를 평가해 주세요. 글 후기는 나중에 써도 돼요." : "방문 인증 후 별점을 남길 수 있어요.",
           })}
         <div class="review-list">${reviewListMarkup(rating)}</div>
       </section>
@@ -3491,7 +3491,7 @@ function applyServerProfile(profile) {
   } else {
     // The operator flag comes from the caller's own users row. Every privileged call is
     // re-checked on the server, so this only decides which screens are offered.
-    state.user = { id: profile.authUserId, name: profile.name, studentNumber: profile.studentNumber,
+    state.user = { id: profile.authUserId, serverUserId: profile.id, name: profile.name, studentNumber: profile.studentNumber,
       googleEmail: profile.email, role: profile.isAdmin ? "admin" : "user", source: "server" };
     state.authStep = "google";
     state.loginError = "";

@@ -28,7 +28,7 @@ function rpc(a,sql,args=[]) {
 }
 async function account(admin=false) {
   const a={id:randomUUID(),session:randomUUID()};
-  await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data) values($1,$2,now(),'{"provider":"google"}','{"festival_name":"격리 학생","festival_student_number":"21001"}')`,[a.id,`${a.id}@example.invalid`]);
+  await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data) values($1,$2,now(),'{"provider":"google"}','{"full_name":"격리 학생","festival_name":"격리 학생","festival_student_number":"21001"}')`,[a.id,`${a.id}@example.invalid`]);
   await db.query('insert into auth.sessions(id,user_id) values($1,$2)',[a.session,a.id]);
   a.uid=(await rpc(a,'select public.festival_nfc_profile() value')).id;
   if(admin) await db.query('update public.users set admin=true where id=$1',[a.uid]);
@@ -159,6 +159,68 @@ try {
     const policy=await rpc(student,'select public.festival_ops_read($1,$2) value',['reviews',{booth:'인벨릭스'}]);
     assert.equal(policy.reviewPolicy.reason,'OWN_CLUB_REVIEW');
     await a.page.locator('.ops-dialog [aria-label=닫기]').click();
+
+    // Manual selection and NFC use the real RPC contract, without touching shared data.
+    await db.query("update festival_ops.booths set status='open' where event_id=$1 and key in ('인벨릭스','글빛누리','모멘트')",[eventId]);
+    await assert.rejects(write(admin,'visit_approve',{userId:999999,booth:'인벨릭스',reason:'unknown internal ID'}),/NOT_FOUND/);
+    await tab(a.page,'visits','[data-ops-form=visit_approve]');
+    const approval=a.page.locator('[data-ops-form=visit_approve]');
+    assert.equal(await approval.locator('input[type=number]').count(),0);
+    await approval.locator('[name=booth]').selectOption('인벨릭스');
+    await approval.locator('[name=reason]').fill('현장 학생 본인 확인');
+    const beforeApproval=a.calls.filter(c=>c.p_action==='visit_approve').length;
+    await approval.locator('button[type=submit]').click();
+    await approval.getByText('스탬프를 받을 참여자를 선택해 주세요.',{exact:true}).waitFor();
+    assert.equal(a.calls.filter(c=>c.p_action==='visit_approve').length,beforeApproval);
+    await approval.locator('[data-pick-participant]').click();
+    const picker=a.page.locator('.ops-participant-dialog');
+    await picker.locator(`[data-participant-id="${student.uid}"]`).waitFor();
+    assert.equal(await picker.locator(`[data-participant-id="${admin.uid}"]`).isDisabled(),true);
+    const searchBox=picker.getByRole('textbox',{name:'참여자 이름'});
+    await searchBox.fill('없는이름'); await picker.getByRole('button',{name:'참여자 검색',exact:true}).click();
+    await picker.getByText('검색 결과가 없어요. 이름을 다시 확인해 주세요.',{exact:true}).waitFor();
+    await searchBox.fill('격리 학생');
+    await searchBox.dispatchEvent('keydown',{key:'Enter',isComposing:true});
+    assert.equal(await searchBox.inputValue(),'격리 학생');
+    await picker.getByRole('button',{name:'참여자 검색',exact:true}).click();
+    await picker.locator(`[data-participant-id="${student.uid}"]`).click();
+    await picker.locator('[data-confirm-participant]').waitFor();
+    await screenshot(a.page,width,'manual-visit-participant');
+    await picker.locator('[data-confirm-participant]').click();
+    assert.equal(await approval.locator('[name=reason]').inputValue(),'현장 학생 본인 확인');
+    await approval.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
+    await a.page.getByText('격리 학생님에게 스탬프 1개를 적립했어요.',{exact:true}).waitFor();
+    assert.equal(a.calls.filter(c=>c.p_action==='visit_approve').length,beforeApproval+1);
+    assert.equal(a.calls.filter(c=>c.p_action==='visit_approve').at(-1).p_payload.userId,student.uid);
+    await approval.locator('[name=booth]').selectOption('인벨릭스');
+    await approval.locator('[name=reason]').fill('동일 방문 재확인');
+    await approval.locator('button[type=submit]').click();
+    await a.page.getByText('이미 적립한 부스예요. 스탬프는 1개만 유지돼요.',{exact:true}).waitFor();
+    await approval.locator('[name=reason]').fill('대상 변경 후 재확인');
+    await db.query('update public.users set auth_user_id=null where id=$1',[student.uid]);
+    await approval.locator('button[type=submit]').click();
+    await approval.getByText('선택한 참여자 또는 부스를 찾지 못했어요. 새로고침 후 대상을 다시 선택해 주세요.',{exact:true}).waitFor();
+    assert.equal(await approval.locator('[name=userId]').inputValue(),'');
+    await db.query('update public.users set auth_user_id=$1 where id=$2',[student.id,student.uid]);
+    await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);state.route='stamps';render();});
+    assert.equal(await s.page.evaluate(()=>festivalWeb.completed().length),1,'Own-club stamp counts without a review');
+    assert.equal((await rpc(student,'select public.festival_ops_read($1,$2) value',['reviews',{booth:'인벨릭스'}])).reviewPolicy.reason,'OWN_CLUB_REVIEW');
+    for(const [booth,expected] of [['글빛누리',2],['글빛누리',2],['모멘트',3]]) {
+      const token=(await db.query("select festival_nfc_private.issue_tag($1::public.booth_enum, now()+interval '1 hour') as token",[booth])).rows[0].token;
+      const result=await s.page.evaluate(token=>nfcAdapter.scan({nfcToken:token,idempotencyKey:crypto.randomUUID()}),token);
+      assert.equal(result.ok,true,JSON.stringify(result));
+      assert.equal(await s.page.evaluate(()=>festivalWeb.completed().length),expected);
+      assert.equal(await s.page.locator('.stamp-path-step.is-earned').count(),expected);
+      await s.page.locator('#nfcFeedback .feedback-close').click();
+    }
+    const visitsOnly=await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}]);
+    assert.equal(visitsOnly.visits.length,3); assert.equal(visitsOnly.reviews.length,0);
+    await s.page.reload(); await s.page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready);
+    await routeTo(s.page,'stamps'); assert.equal(await s.page.locator('.stamp-path-step.is-earned').count(),3);
+    await screenshot(s.page,width,'stamps-without-reviews');
+    await db.query("update festival_ops.booths set status='paused' where event_id=$1",[eventId]);
+    await tab(a.page,'participants','#reviewRosterLookup');
+    await lookup.locator('[name=userId]').selectOption(String(student.uid));
     await lookup.locator('button[type=submit]').click();
     await roster.locator('[data-roster-revoke]').waitFor();
     await roster.locator('[name=reason]').fill('합성 계정 확인 취소');
@@ -229,7 +291,7 @@ try {
     assert.equal(a.calls.length,writesWhileMissing,'Reload must be read-only');
     await routeTo(s.page,'admin'); assert.equal(await s.page.locator('[data-ops-tab]').count(),0);
     assert.deepEqual(a.errors,[]); assert.deepEqual(s.errors,[]);
-    reports.push({width,passed:true,menus:9,flows:['single festival settings','no creation on missing event','version-zero write rejected','paused booth readiness','immediate tab changes','delayed response race','legacy rule save','manual issue','double-submit guard','student QR','redemption','missing/unknown API distinction','permission failure retry','empty event','student denied']});
+    reports.push({width,passed:true,menus:9,flows:['single festival settings','no creation on missing event','version-zero write rejected','paused booth readiness','immediate tab changes','delayed response race','participant picker and Korean search','missing recipient rejected','own account disabled','manual approval double-submit','NOT_FOUND recovery','NFC one visit one stamp without rating','NFC duplicate guard','stamp persistence after reload','own-club review still denied','legacy rule save','manual issue','double-submit guard','student QR','redemption','missing/unknown API distinction','permission failure retry','empty event','student denied']});
     await a.context.close(); await s.context.close();
   }
 } catch(e) { reports.push({passed:false,error:e.stack}); console.error(e); process.exitCode=1; }
