@@ -16,10 +16,10 @@ const sampleBooths=params.has('stamps')?Array.from({length:count},(_,i)=>({key:`
 const sampleVisits=sampleBooths.map(b=>({booth_key:b.key,created_at:'2026-10-29T00:00:00Z',method:'nfc'}));
 const sampleReviews=sampleBooths.map(b=>({booth_key:b.key,rating:5,content:''}));
 window.fixtureCalls=[];
-function status(){let firstTarget=3;while(issued.some(v=>v.target===firstTarget)&&issued.some(v=>v.target===firstTarget+3))firstTarget+=6;
+function status(){const firstTarget=3;
   return {version:mode==='legacy'?1:2,eventId:event.id,ready:true,count,firstTarget,secondTarget:firstTarget+3,issuedCount:issued.length,
-    firstChoice:issued.find(v=>v.target===firstTarget)?.kind||null,secondIssued:issued.some(v=>v.target===firstTarget+3),canChoose:count>=firstTarget,options};}
-function issue(kind,target){const o=options.find(o=>o.kind===kind);if(!issued.some(v=>v.target===target))issued.push({id:String(target),target,kind,title:o.title,state:'available',expiresAt:o.expiresAt});}
+    firstChoice:issued.find(v=>v.target===firstTarget)?.kind||null,secondIssued:issued.some(v=>v.target===firstTarget+3),canChoose:count>=firstTarget&&!issued.some(v=>v.target===firstTarget),options};}
+function issue(kind,target){if(![3,6].includes(target))throw Error('Invalid reward stage');const o=options.find(o=>o.kind===kind);if(!issued.some(v=>v.target===target))issued.push({id:String(target),target,kind,title:o.title,state:'available',expiresAt:o.expiresAt});}
 const operations=FestivalOperations.create({storage:sessionStorage,actor:()=> 'fixture-user',rpc:async(name,args)=>{
   if(name==='festival_reward_read') return mode==='missing'?{error:{code:'PGRST202'}}:{data:status()};
   if(name==='festival_ops_read') return {data:{ready:true,event,items:sampleBooths,rules:[],vouchers:issued,reviews:sampleReviews,visits:sampleVisits,points:0}};

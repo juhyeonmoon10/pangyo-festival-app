@@ -70,8 +70,8 @@ const festivalOpsUI = (() => {
       if(requestedGeneration===visitSyncGeneration) visitSyncPending=false;
       const program=rewards.data, kinds=['photo','food'];
       const validProgram=rewards.ok && program?.version===2 && program.eventId===event?.id
-        && Number.isInteger(program.firstTarget) && program.firstTarget>=3 && program.firstTarget%6===3
-        && program.secondTarget===program.firstTarget+3 && Number.isInteger(program.issuedCount) && program.issuedCount>=0
+        && program.firstTarget===3 && program.secondTarget===6
+        && Number.isInteger(program.issuedCount) && program.issuedCount>=0 && program.issuedCount<=2
         && typeof program.ready==='boolean' && Number.isInteger(program.count) && program.count>=0
         && (program.firstChoice===null || kinds.includes(program.firstChoice))
         && typeof program.secondIssued==='boolean' && typeof program.canChoose==='boolean'
@@ -166,7 +166,7 @@ const festivalOpsUI = (() => {
   function rewardConfigForm() {
     const reward=snapshot()?.rewardProgram;
     const photo=reward?.options?.find(o=>o.kind==='photo'), food=reward?.options?.find(o=>o.kind==='food');
-    return `<section class="ops-section"><h2>스탬프 3개마다 바우처</h2>${form('reward_config',
+    return `<section class="ops-section"><h2>스탬프 3개·6개 바우처</h2>${form('reward_config',
       field('photoStock','포토부스 이용권 총 수량',photo?.stock ?? 0,'required min="0" max="100000" step="1"','number')+
       field('foodStock','푸드트럭 교환권 총 수량',food?.stock ?? 0,'required min="0" max="100000" step="1"','number')+
       field('expiresAt','이용권 사용 마감 (한국 시간)',photo?.expiresAt ? new Date(new Date(photo.expiresAt).getTime()+9*3600000).toISOString().slice(0,16) : '', 'required','datetime-local')+
@@ -175,6 +175,7 @@ const festivalOpsUI = (() => {
   }
   async function chooseReward(kind,firstTarget) {
     const actor=state.user?.id, reward=snapshot()?.rewardProgram;
+    if(firstTarget!==3) return {ok:false,message:'바우처는 스탬프 3개와 6개에서만 지급돼요.'};
     if(!reward?.ready || !event) return {ok:false,message:'바우처 발급 준비 중이에요.'};
     const response=await api().write('reward_choose',{kind,firstTarget,eventId:event.id});
     if(state.user?.id!==actor) return {ok:false,message:'다시 로그인해 주세요.'};
@@ -196,9 +197,9 @@ const festivalOpsUI = (() => {
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',visitParticipant()+select('booth','방문 부스',options().filter(([key])=>catalog.find(b=>b.key===key)?.status==='open'),null)+reason(),'스탬프 1개 승인')}</section>`+table(data?.items,[['시각',r=>time(r.created_at)],['참여자','name'],['부스',r=>catalog.find(b=>b.key===r.booth_key)?.name || r.booth_key],['방식','method'],['사유','reason']])+paging();
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['변경','delta'],['사유','reason']])+paging();
     if(tab==='rules') return (mine?.rewardProgram?.supported ? rewardConfigForm() : mine?.rewardProgram?.legacyRules
-      ? '<p class="ops-empty">3개마다 반복 지급은 아직 준비 중이에요. 기존 발급 기준은 관리할 수 있어요.</p>'+ruleForm()
-      : '<p class="ops-alert" role="alert">반복 지급 설정을 확인하지 못했어요. 새로고침 후 다시 확인해 주세요.</p>')
-      +table(data?.items,[['이름','title'],['기준',r=>r.reward_kind?'3개마다 반복 지급':r.target],['발급','issued'],['한도','stock'],['활성',r=>r.enabled?'예':'아니오']]);
+      ? '<p class="ops-empty">3개·6개 지급은 아직 준비 중이에요. 기존 발급 기준은 관리할 수 있어요.</p>'+ruleForm()
+      : '<p class="ops-alert" role="alert">바우처 지급 설정을 확인하지 못했어요. 새로고침 후 다시 확인해 주세요.</p>')
+      +table(data?.items,[['이름','title'],['기준',r=>r.reward_kind?'3개·6개 지급':r.target],['발급','issued'],['한도','stock'],['활성',r=>r.enabled?'예':'아니오']]);
     if(tab==='vouchers') return `<section class="ops-section"><h2>바우처 사용</h2><form id="opsRedeem" class="ops-form"><label>QR 인증 코드<input class="input" name="token" autocomplete="off" spellcheck="false" required pattern="fv1\\.[0-9a-f]{64}"></label><p class="ops-form-status" role="status"></p><div class="ops-actions"><button class="icon-btn" type="button" data-ops-camera title="QR 스캔" aria-label="QR 스캔">${icon('scan')}</button><button class="primary-btn" type="submit">바우처 확인</button></div></form></section><section class="ops-section"><h2>수동 발급</h2>${manualVoucherForm()}</section><section class="ops-section"><h2>발급 취소</h2>${form('voucher_void',select('id','취소할 바우처',(data?.items || []).filter(v=>v.state==='available').map(v=>[v.id,`${v.name} · ${v.title}`]),null)+reason(),'취소 확정')}</section>`+searchForm()+table(data?.items,[['참여자','user_id'],['이름','name'],['바우처','title'],['상태',r=>statusName(r.state)],['마감',r=>time(r.expires_at)]])+paging();
     return table(data?.items,[['시각',r=>time(r.created_at)],['처리자','actor_id'],['작업','action'],['대상','target'],['사유','reason']])+paging();
   }
@@ -227,7 +228,7 @@ const festivalOpsUI = (() => {
     }
     if(action==='rule_save') { body.enabled=form.elements.enabled.checked; body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); }
     if(action==='reward_config') { body.expiresAt=new Date(body.expiresAt+':00+09:00').toISOString(); body.enabled=form.elements.enabled.checked; }
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'3개마다 바우처를 반복 지급할까요? 3·9·15개에서 선택하고, 6·12·18개에서 나머지를 지급합니다. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config'].includes(action) && !confirm(action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장입니다. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; note.textContent='처리 중...';
     try {
       const response=await api().write(action,body);
