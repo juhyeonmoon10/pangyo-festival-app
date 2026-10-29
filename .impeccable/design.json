@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T00:00:00+09:00",
+  "title": "Design System: Bright Festival Pass",
+  "extensions": {
+    "shadows": [{"name":"map-sheet","value":"0 -6px 24px #183e2c12","purpose":"Movable map sheet"}],
+    "motion": [{"name":"stamp-press","value":"scale .12s ease","purpose":"Pressed stamp feedback; disabled for reduced motion"}],
+    "breakpoints": [{"name":"compact","value":"350px"},{"name":"narrow-stamps","value":"359px"}],
+    "typographyMeta": {"body":{"displayName":"Korean UI","purpose":"Local Korean-capable stack; no bundled remote font"}}
+  },
+  "components": [
+    {"name":"Primary action","kind":"button","refersTo":"button-primary","description":"Confirmed task action.","html":"<button class=\"ds-primary\">저장</button>","css":".ds-primary{min-height:50px;padding:12px 18px;border:0;border-radius:8px;background:var(--primary,#087652);color:#fff;font:650 15px/1.5 sans-serif}.ds-primary:hover{background:#075e43}.ds-primary:active{filter:brightness(.95)}.ds-primary:focus-visible{outline:3px solid #285e92;outline-offset:3px}.ds-primary:disabled{opacity:.55}"},
+    {"name":"Secondary action","kind":"button","refersTo":"button-secondary","description":"Quiet supporting action.","html":"<button class=\"ds-secondary\">다시 확인</button>","css":".ds-secondary{min-height:50px;padding:12px 18px;border:1px solid #e1ebe5;border-radius:8px;background:#f5f8f6;color:#20382e;font:650 15px/1.5 sans-serif}.ds-secondary:hover{background:#eaf1ed}.ds-secondary:active{filter:brightness(.97)}.ds-secondary:focus-visible{outline:3px solid #285e92;outline-offset:3px}.ds-secondary:disabled{opacity:.55}"},
+    {"name":"Text field","kind":"input","refersTo":"input","description":"Readable input with a visible focus state.","html":"<label class=\"ds-field\">이름<input class=\"ds-input\" autocomplete=\"name\" placeholder=\"이름\"></label>","css":".ds-field{display:grid;gap:8px;color:#20382e;font:600 13px/1.5 sans-serif}.ds-input{min-height:48px;max-width:100%;padding:0 12px;border:1px solid #bdcec4;border-radius:8px;background:#fff;color:#20382e;font:400 16px/1.5 sans-serif;caret-color:#087652}.ds-input::placeholder{color:#60736b}.ds-input:hover{border-color:#087652}.ds-input:focus-visible{outline:3px solid #285e92;outline-offset:3px}"},
+    {"name":"Ink stamp","kind":"custom","description":"A completed visit and rating.","html":"<button class=\"ds-stamp\" aria-label=\"첫 번째 스탬프 완료\"><span>1</span></button>","css":".ds-stamp{display:grid;place-items:center;width:76px;height:76px;padding:5px;border:2px solid #087652;border-radius:50%;background:#fff;color:#087652;transform:rotate(-5deg);font:650 27px/1 sans-serif}.ds-stamp span{display:grid;place-items:center;width:100%;height:100%;border:1px solid #087652;border-radius:50%}.ds-stamp:hover{background:#f5f8f6}.ds-stamp:active{scale:.96}.ds-stamp:focus-visible{outline:3px solid #285e92;outline-offset:6px}"},
+    {"name":"Operator navigation","kind":"nav","description":"Three compact work groups, not a dashboard card grid.","html":"<nav class=\"ds-nav\" aria-label=\"운영자 화면\"><button aria-current=\"page\">현황</button><button>관리 도구</button><button>기록</button></nav>","css":".ds-nav{display:flex;gap:22px;border-bottom:1px solid #e1ebe5}.ds-nav button{min-height:52px;padding:10px 2px;border:0;border-bottom:2px solid transparent;background:#fff;color:#60736b;font:650 14px/1.5 sans-serif}.ds-nav [aria-current=page]{border-bottom-color:#087652;color:#087652}.ds-nav button:hover{color:#087652}.ds-nav button:focus-visible{outline:3px solid #285e92;outline-offset:3px}"}
+  ],
+  "narrative": {
+    "northStar":"Bright Festival Pass",
+    "overview":"A light, Korean-first task interface. Green ink stamps carry the distinctive festival character; navigation, forms, and operator tools remain compact and familiar. The approved direction is bright rather than dark or muted beige.",
+    "keyCharacteristics":["White surfaces, mint actions, green records, blue information, and yellow claimable rewards.","Flat sections and readable lists, with cards reserved for individual coupons and focused tools.","Operating state, visit state, completed rating, and voucher issuance remain visually distinct."],
+    "rules":[{"name":"The Independent State Rule","body":"A completed visit never hides a paused booth or implies a voucher was issued.","section":"colors"}],
+    "dos":["Do preserve a bright fixed-light palette and comfortable Korean reading sizes.","Do distinguish visit completion, required rating, operating status, and voucher state.","Do use mint for ordinary voucher navigation and yellow for a confirmed reward action.","Do keep real authorization, errors, loading, and retry behavior intact when changing visuals."],
+    "donts":["Don't ship synthetic proposal data or mock operator actions as real features.","Don't reintroduce crowded dashboards, nested cards, crowding indicators, or event creation.","Don't carry legacy amber selected-star styling into new screens."]
+  }
+}

@@ -1379,7 +1379,6 @@ function loginView() {
       <header class="login-brand"><span class="brand-symbol" aria-hidden="true">P.</span><span>PANGYO FESTIVAL</span></header>
       <div class="login-content">
         <div class="login-intro">
-          <p class="login-kicker">${profileStep ? "만나서 반가워요" : "오늘의 우리, 오래 남을 순간"}</p>
           <h1 class="title">판교고 축제</h1>
           ${profileStep ? "" : `<img class="login-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />`}
         </div>
@@ -1573,7 +1572,7 @@ function profileView() {
   const stampCount = repo.stampsForUser(state.user.id).length;
   return `
     <main class="screen p0-page profile-screen">
-      ${festivalWeb.header("내 정보", isServerMode() ? "내 축제 기록" : "체험 중인 축제 기록", true)}
+      ${festivalWeb.header("MY", "", true)}
       <section class="profile-card">
         <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
@@ -1593,10 +1592,9 @@ function profileView() {
           </form>` : `<button id="editProfileName" type="button" class="text-link">${icon("user")} 이름 변경</button>`}
         <p class="profile-name-feedback" role="status">${escapeHtml(state.nameEdit.message)}</p>
       </section>
+      <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>바우처</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div><div><dt>방문 기록</dt><dd>${stampCount}<small>개</small></dd></div></dl>
       <section class="profile-list">
         <div><span>행사</span><strong>${state.db.event.name}</strong></div>
-        <div><span>방문 기록</span><strong>${stampCount}개</strong></div>
-        <div><span>완성한 스탬프</span><strong>${festivalWeb.completed().length}개</strong></div>
         <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
       </section>
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">

@@ -138,7 +138,18 @@ const festivalWeb = (() => {
 
   function points() { return isServerMode() ? festivalOpsUI.snapshot()?.points ?? null : Object.values(progress().points).reduce((a, b) => a + Number(b), 0); }
   function coupons() { return isServerMode() ? festivalOpsUI.snapshot()?.vouchers || [] : progress().coupons; }
-  function couponState(c) { return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : new Date(c.expiresAt) <= new Date() ? "expired" : "available"; }
+  function couponState(c) { return c.state === 'void' ? 'void' : c.redeemedAt || c.state === 'used' ? "used" : new Date(c.expiresAt || c.expires_at) <= new Date() ? "expired" : "available"; }
+  function walletSummary() {
+    const reward = rewardState(), all = coupons();
+    // Only the server's confirmed reward state can advertise an unissued entitlement.
+    const claimable = reward.ready ? Math.max(0, Math.floor(reward.count / 3) - reward.issuedCount) : null;
+    return { claimable, available: all.filter(c => couponState(c) === 'available').length,
+      used: all.filter(c => couponState(c) === 'used').length };
+  }
+  function walletSummaryView() {
+    const wallet = walletSummary();
+    return `<dl class="festival-wallet-summary"><div><dt>받을 바우처</dt><dd>${wallet.claimable ?? '—'}<small>장</small></dd></div><div><dt>사용 가능</dt><dd>${wallet.available}<small>장</small></dd></div><div><dt>사용 완료</dt><dd>${wallet.used}<small>장</small></dd></div></dl>`;
+  }
   function boothName(booth) { return escapeHtml(catalogBooth(booth)?.name || booth.name); }
 
   // Tab roots (stamps, MY) are reached from the bottom nav, so they skip back/home buttons.
@@ -157,16 +168,17 @@ const festivalWeb = (() => {
     const slots = Array.from({ length: 6 }, (_, i) => {
       const n = start + i + 1;
       const state = count >= n ? "on" : n === count + 1 ? "next" : "";
-      return `<span class="punch ${state}">${count >= n ? icon("stamp") : n}${rewardSlot(n - 1) && count < n ? `<i>${icon("ticket")}</i>` : ""}</span>`;
+      return `<span class="punch ${state}">${n}${rewardSlot(n - 1) ? `<i>${icon("ticket")}</i>` : ""}</span>`;
     }).join("");
     const rewards = rewardState();
     const text = !rewards.ready ? "스탬프 3개마다 바우처 1장"
       : !rewards.firstChoice && rewards.canChoose ? "받을 바우처를 선택할 수 있어요."
       : rewards.firstChoice && count>=rewards.secondTarget ? "남은 바우처를 확인해 주세요." : `${goal-count}개 더 모으면 바우처를 받아요.`;
+    const wallet = walletSummary();
     return `<section class="home-stamp-card" aria-labelledby="homeStampTitle">
-      <div class="section-heading"><h2 id="homeStampTitle">내 스탬프 <b data-complete-count>${count}</b>개</h2><button type="button" class="text-link" data-route="stamps">스탬프 판 ${icon("arrow")}</button></div>
-      <p>${text}</p>
-      <div class="punch-row" aria-hidden="true">${slots}</div>
+      <div class="festival-pass-heading"><div><h2 id="homeStampTitle">내 스탬프</h2><strong class="festival-pass-count"><span data-complete-count>${count}</span><small>개</small></strong></div><button type="button" class="festival-wallet-link ${wallet.claimable > 0 ? 'is-ready' : ''}" data-route="vouchers">${icon('ticket')}<span>${wallet.claimable > 0 ? `받을 바우처 ${wallet.claimable}` : `내 바우처 ${wallet.available}`}</span>${icon('arrow')}</button></div>
+      <div class="festival-pass-progress"><div class="punch-row" aria-hidden="true">${slots}</div><button type="button" class="icon-btn" data-route="stamps" aria-label="스탬프 판 보기" title="스탬프 판 보기">${icon('arrow')}</button></div>
+      <div class="festival-pass-caption"><p>${text}</p><span>3개마다 바우처</span></div>
     </section>`;
   }
 
@@ -181,19 +193,17 @@ const festivalWeb = (() => {
     const voucherCount = coupons().filter(c => couponState(c) === "available").length;
     return `<main class="web-home">
       <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-home-notices aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
-      <section class="web-welcome">
-        <div class="welcome-copy"><h1>${escapeHtml(state.user.name)}님,<br>오늘 어디부터 가볼까요?</h1><p>즐기고, 모으고, 기록하는<br>우리의 축제.</p></div>
-        <img class="welcome-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />
-      </section>
+      ${notice ? `<button type="button" class="festival-notice-strip" data-home-notices>${icon('notice')}<span>${escapeHtml(notice.title)}</span>${icon('arrow')}</button>` : ''}
+      <section class="web-welcome"><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 모아봐요.</h1></section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
+      ${stampCard(count)}
       <button type="button" class="web-map-action" data-route="map">
         <span class="map-action-copy"><strong>부스 찾아보기 ${icon("arrow")}</strong><span>층별 지도에서 부스 위치와 운영 상태를 확인해요.</span></span>
         <img class="map-action-art" src="./assets/festival-map-1.4.webp" width="1536" height="1024" alt="" />
       </button>
-      ${stampCard(count)}
       ${pending ? `<button class="web-pending" data-route="stamps">${icon("star")}<span><strong>별점을 기다리는 방문 ${pending}개</strong><small>별점을 남기면 스탬프가 완성돼요.</small></span>${icon("arrow")}</button>` : ""}
       <section class="web-section home-quick-section">
-        <div class="section-heading"><h2>바로가기</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 ${icon("arrow")}</button></div>
+        <div class="section-heading"><h2>내 축제 기록</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 ${icon("arrow")}</button></div>
         <nav class="web-shortcuts" aria-label="축제 바로가기">
           ${[["vouchers", "ticket", "바우처", `사용 가능 ${voucherCount}장`], ["reviews", "message", "리뷰", toWrite ? `작성할 후기 ${toWrite}개` : `남긴 리뷰 ${reviewCount}개`]].map(([route, symbol, title, text]) => `<button type="button" class="shortcut-${route}" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><span class="shortcut-copy"><strong>${title}</strong><small>${text}</small></span>${icon("arrow")}</button>`).join("")}
         </nav>
@@ -303,7 +313,7 @@ const festivalWeb = (() => {
     syncRewards();
     const all = coupons();
     const list = all.filter(c => voucherFilter === "available" ? couponState(c) === "available" : couponState(c) !== "available");
-    return `<main class="screen web-page">${header("나의 바우처", "축제에서 모은 작은 혜택")}
+    return `<main class="screen web-page">${header("나의 바우처")}${walletSummaryView()}
       ${rewardPanel()}
       <div class="web-segments" role="group" aria-label="바우처 상태"><button data-voucher-filter="available" aria-pressed="${voucherFilter === "available"}">사용 가능 ${all.filter(c => couponState(c) === "available").length}</button><button data-voucher-filter="history" aria-pressed="${voucherFilter === "history"}">사용 완료 · 만료</button></div>
       ${isServerMode() ? `<p class="web-muted">바우처 발급은 아직 이용할 수 없어요.</p>` : `<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>${list.length ? `<div class="web-coupons">${list.map(c => `<article class="web-coupon"><span class="coupon-symbol">${icon("ticket")}</span><div><small>DEMO · 스탬프 ${c.target}개 달성</small><h2>${escapeHtml(c.title)}</h2><p>${new Date(c.expiresAt).toLocaleDateString("ko-KR")}까지</p></div><button class="${couponState(c) === "available" ? "primary-btn" : "ghost-btn"}" data-voucher="${c.id}" ${couponState(c) === "available" ? "" : "disabled"}>${couponState(c) === "available" ? "QR 보기" : couponState(c) === "used" ? "사용 완료" : "만료"}</button></article>`).join("")}</div>` : `<div class="web-empty"><span>${icon("ticket")}</span><h2>${voucherFilter === "available" ? "사용 가능한 바우처가 없어요" : "아직 사용 내역이 없어요"}</h2><button class="ghost-btn" data-route="stamps">스탬프 보기</button></div>`}`}
@@ -490,6 +500,6 @@ const festivalWeb = (() => {
   }
 
   return { home, stamps, reviews, vouchers, program, ownReview, completed, waiting, reviewPending,
-    draft, saveDraft, clearDraft, syncRewards, rewardState, rewardPanel, chooseReward, points, coupons, header, afterRender, refreshIndicators,
+    draft, saveDraft, clearDraft, syncRewards, rewardState, rewardPanel, chooseReward, points, coupons, walletSummary, walletSummaryView, header, afterRender, refreshIndicators,
     loadReviewContents, scanControls, webTagUrl, bind, previewStamps, REVIEW_POINTS };
 })();

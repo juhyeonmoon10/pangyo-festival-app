@@ -37,6 +37,26 @@ test('empty scrollable board has one next stamp, numbered slots and zero progres
   assert.doesNotMatch(html, /web-stamp-grid|web-stamp-cell/);
 });
 
+test('wallet counts distinguish unissued, available and used vouchers', async () => {
+  const { api, records } = setup({ count: 9 });
+  assert.equal(api.walletSummary().claimable, 3);
+  await api.chooseReward('photo', 3);
+  assert.equal(api.walletSummary().claimable, 1);
+  assert.equal(api.walletSummary().available, 2);
+  const value = JSON.parse(records.get('festival-web-demo:fixture'));
+  value.coupons[0].redeemedAt = new Date().toISOString();
+  records.set('festival-web-demo:fixture', JSON.stringify(value));
+  assert.equal(api.walletSummary().available, 1);
+  assert.equal(api.walletSummary().used, 1);
+  assert.equal(api.walletSummary().claimable, 1);
+});
+
+test('unconfirmed server rewards do not invent claimable vouchers', () => {
+  const { api } = setup({ server: true, count: 9 });
+  assert.equal(api.walletSummary().claimable, null);
+  assert.match(api.walletSummaryView(), /—/);
+});
+
 test('rated visits alone become completed nodes; the next action opens a pending review', () => {
   const { api, visits, reviews } = setup({ count: 3, pending: 2 });
   const html = api.stamps();

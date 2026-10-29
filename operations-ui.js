@@ -5,7 +5,8 @@ const festivalOpsUI = (() => {
   let stream=null, cameraTimer=null, qrTimer=null;
   let lastRoute=null;
   let refreshQueued=false, queuedRepaint=false, notice='';
-  const labels={dashboard:'운영 현황',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급'};
+  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급'};
+  const localTabs=new Set(['tools','nfc','stamp-simulator']);
   const h=value=>escapeHtml(String(value ?? ''));
   const api=()=>festivalAccount?.operations;
   const active=()=>isServerMode() && !!state.user;
@@ -28,7 +29,7 @@ const festivalOpsUI = (() => {
   function selectTab(next) {
     if(!Object.hasOwn(labels,next)) return;
     if(owner!==state.user?.id) reset();
-    tab=next; offset=0; search=''; data=null; failure=''; notice=''; loaded=['nfc','stamp-simulator'].includes(next);
+    tab=next; offset=0; search=''; data=null; failure=''; notice=''; loaded=localTabs.has(next);
     closeDialog();
     render();
   }
@@ -78,7 +79,7 @@ const festivalOpsUI = (() => {
         const before=serverReviews.get(r.booth_key);
         if(before) serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:r.author_name || '참여자',createdAt:r.created_at}]});
       }
-      if(state.route==='admin' && isAdminUser() && !['nfc','stamp-simulator'].includes(requestedTab)) {
+      if(state.route==='admin' && isAdminUser() && !localTabs.has(requestedTab)) {
         if(requestedTab==='catalog') data=a.data;
         else {
           const r=await api().read(requestedTab,query);
@@ -103,7 +104,12 @@ const festivalOpsUI = (() => {
     }
   }
   function navigation() {
-    return `<nav class="ops-nav" aria-label="운영 메뉴"><select id="opsTab" class="select" aria-label="운영 메뉴">${Object.entries(labels).map(([id,label])=>`<option value="${id}" ${tab===id?'selected':''}>${label}</option>`).join('')}</select><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>`;
+    const group=tab==='dashboard'?'dashboard':tab==='audit'?'audit':'tools';
+    return `<nav class="festival-ops-tabs" aria-label="운영자 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav><nav class="ops-nav" aria-label="운영 메뉴"><select id="opsTab" class="select" aria-label="운영 메뉴">${Object.entries(labels).map(([id,label])=>`<option value="${id}" ${tab===id?'selected':''}>${label}</option>`).join('')}</select></nav>`;
+  }
+  function toolsMenu() {
+    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['visits','stamp','방문 수동 승인'],['participants','user','참여자·동아리 명단'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['stamp-simulator','stamp','스탬프 모의 발급']];
+    return `<nav class="festival-ops-tools" aria-label="관리 도구">${tools.map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</nav>`;
   }
   function eventForm() {
     if(!currentEventReady()) return '';
@@ -172,6 +178,7 @@ const festivalOpsUI = (() => {
     return form('voucher_issue',participant()+select('ruleId','바우처',rules.map(r=>[r.id,r.title]),null)+reason(),'발급 확정');
   }
   function content() {
+    if(tab==='tools') return toolsMenu();
     if(!currentEventReady()) return unavailableEvent();
     if(tab==='dashboard') return `<dl class="ops-stats">${[['방문 참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['발급',data?.issued],['사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${eventForm()}`;
     if(tab==='catalog') return boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
@@ -341,7 +348,7 @@ const festivalOpsUI = (() => {
   }
   function vouchers() {
     const me=snapshot();
-    return `<main class="screen web-page">${festivalWeb.header('나의 바우처','축제에서 모은 혜택')}${festivalWeb.rewardPanel()}
+    return `<main class="screen web-page">${festivalWeb.header('나의 바우처')}${festivalWeb.walletSummaryView()}${festivalWeb.rewardPanel()}
       <div class="ops-vouchers">${failure?`<p role="alert">${h(failure)}</p>`:''}
       ${(me?.vouchers || []).map(c=>{const valid=c.state==='available'&&new Date(c.expiresAt)>new Date();return `<article class="ops-voucher"><div>${icon('ticket')}<h2>${h(c.title)}</h2></div><p>${h(time(c.expiresAt))}까지</p>${valid?`<button class="primary-btn" data-ops-qr="${h(c.id)}">QR 보기</button>`:`<strong>${h(c.state==='available'?'만료':statusName(c.state))}</strong>`}</article>`;}).join('') || `<p class="ops-empty">${loaded?'아직 발급된 바우처가 없어요.':'불러오는 중...'}</p>`}
       <p id="opsVoucherStatus" role="status"></p></div>${bottomNav('vouchers')}</main>`;

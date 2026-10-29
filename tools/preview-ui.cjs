@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, '..');
 const entrypoints = new Set(['index.html', 'app.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'web-experience.js', 'programs.js', 'supabase-catalog.js', 'festival-account.js', 'nfc-manager.js']);
 ['festival-operations.js','operations-ui.js','operations.css'].forEach(file => entrypoints.add(file));
 entrypoints.add('stamp-simulator.js');
+entrypoints.add('festival-bright.css');
 entrypoints.add('tests/stamp-simulator-preview.html');
 entrypoints.add('tests/login-ui-preview.html');
 entrypoints.add('tests/stamp-ui-preview.html');
