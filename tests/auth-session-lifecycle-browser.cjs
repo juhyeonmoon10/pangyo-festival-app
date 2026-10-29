@@ -77,8 +77,9 @@ const captureClient = `\n;(() => { const sdk = window.supabase; window.__authEve
       await page.waitForFunction(()=>document.querySelector('.ops-stats')?.textContent.includes('100'));
       await openOperatorTool(page, 'settings');
       await page.locator('[data-ops-form="event_save"]').waitFor();
-      const name=page.locator('[data-ops-form="event_save"] input[name="name"]');
-      await name.fill('Keep my unsaved draft');
+      // The festival name is not editable; the review points field holds the unsaved draft.
+      const draft=page.locator('[data-ops-form="event_save"] input[name="reviewPoints"]');
+      await draft.fill('37');
       const refocus=async()=>{
         const previous=await page.evaluate(()=>__authEvents.filter(x=>x==='SIGNED_IN').length);
         await page.evaluate(()=>{window.__testVisibility='hidden';window.dispatchEvent(new Event('visibilitychange'));});
@@ -86,8 +87,8 @@ const captureClient = `\n;(() => { const sdk = window.supabase; window.__authEve
         await page.waitForFunction(previous=>__authEvents.filter(x=>x==='SIGNED_IN').length>previous,previous);
       };
       for(let i=0;i<3;i++) await refocus();
-      assert.equal(await name.inputValue(),'Keep my unsaved draft');
-      assert.equal(await page.evaluate(()=>document.activeElement?.name),'name');
+      assert.equal(await draft.inputValue(),'37');
+      assert.equal(await page.evaluate(()=>document.activeElement?.name),'reviewPoints');
       assert.equal((await page.evaluate(()=>festivalAccount.operations.read('dashboard'))).ok,true,'Refocusing must preserve operator access');
       const refresh=await page.evaluate(async()=>{const result=await __testClient.auth.refreshSession();return {error:result.error?.message||null};});
       assert.equal(refresh.error,null);

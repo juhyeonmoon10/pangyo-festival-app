@@ -48,3 +48,13 @@ test('reward choice timeout retries retain their request ID',async()=>{
   await second.write('reward_choose',{kind:'food',eventId:'event',firstTarget:3});assert.equal(ids[0],ids[1]);
   await second.write('reward_choose',{kind:'food',eventId:'event',firstTarget:9});assert.notEqual(ids[0],ids[2]);
 });
+test('participation reset calls its own RPC with payload and request ID only',async()=>{
+  const calls=[];
+  const api=create({actor:()=> 'a',storage:storage(),rpc:async(name,args)=>{calls.push({name,args});return {data:{reset:true,visits:2}};}});
+  const result=await api.write('participation_reset',{eventId:'fixture',confirm:'초기화',identities:true});
+  assert.equal(result.ok,true);assert.equal(calls[0].name,'festival_ops_reset');
+  assert.deepEqual(Object.keys(calls[0].args).sort(),['p_payload','p_request_id']);
+  assert.equal(calls[0].args.p_payload.confirm,'초기화');
+  const wrong=await create({actor:()=> 'a',storage:storage(),rpc:async()=>({error:{message:'RESET_CONFIRM_REQUIRED'}})}).write('participation_reset',{confirm:'x'});
+  assert.equal(wrong.code,'RESET_CONFIRM_REQUIRED');
+});
