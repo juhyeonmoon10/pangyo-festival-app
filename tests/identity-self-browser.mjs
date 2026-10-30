@@ -45,6 +45,7 @@ for(const file of ['operations-server/review-identity.draft.sql','operations-ser
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
 await sql('operations-server/operator-identity-and-scoped-reset.sql');
 await sql('operations-server/self-identity-and-own-club-stamps.sql');
+await sql('operations-server/student-number-display.sql');
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
@@ -139,7 +140,14 @@ try {
     await openOperatorTool(a.page,'identity_overview');
     const overview=a.page.locator('.ops-identity-overview'); await overview.waitFor();
     assert.match(await overview.innerText(),/본인 확인\s*1/);
-    await a.page.locator(`[data-identity-open="${impostor.uid}"]`).first().waitFor();
+    const conflict=a.page.locator(`[data-identity-open="${impostor.uid}"]`).first(); await conflict.waitFor();
+    // Accounts are identified by student number; the internal account number is never shown.
+    assert.match(await conflict.innerText(),new RegExp(`\(${number(width)}\)`));
+    assert.doesNotMatch(await a.page.locator('.ops-body').innerText(),/#d|참여자 번호/);
+    const find=a.page.locator('[data-identity-find]');
+    await find.locator('[name=search]').fill(number(width)); await find.locator('button').click();
+    await a.page.locator('[data-identity-find-status]').getByText('같은 학번이나 이름의 계정이 여러 개예요.',{exact:false}).waitFor();
+    assert.equal(await a.page.locator('[data-identity-found]').count(),2);
     const row=a.page.locator(`[data-identity-user="${student.uid}"]`); await row.waitFor();
     assert.match(await row.innerText(),/본인 확인/);
     await screenshot(a.page,width,'operator-identity-overview');

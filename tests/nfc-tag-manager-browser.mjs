@@ -44,6 +44,8 @@ await write(admin,'event_save',{name:'Synthetic NFC event',state:'open',reviewPo
 for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql','operations-server/nfc-tag-registry.sql','operations-server/booth-stamp-counts.sql','operations-server/claim-guard.sql','operations-server/booth-bulk-and-tag-register.sql','operations-server/notices.sql']) await sql(file);
 const booth='매커니즘';
 await sql('operations-server/operator-identity-and-scoped-reset.sql');
+await sql('operations-server/self-identity-and-own-club-stamps.sql');
+await sql('operations-server/student-number-display.sql');
 await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 // A card written before the registry: it is listed after its first scan.
 const legacyToken=(await db.query(`select festival_nfc_private.issue_tag('${booth}',null) t`)).rows[0].t;
@@ -190,7 +192,7 @@ try {
     // A student who stamps two new booths quickly is refused on the third and told why.
     const keys=(await db.query("select key from festival_ops.booths where key<>$1 order by key collate \"C\" limit 3",[booth])).rows.map(r=>r.key);
     for(const key of keys) await write(admin,'booth_save',{booth:key,name:key,floor:1,status:'open',version:1});
-    const fast=await account('11500');
+    const fast=await account(`15${width}`);
     const tags=[];
     for(const key of keys) tags.push((await db.query('select festival_nfc_private.issue_tag($1::public.booth_enum,null) t',[key])).rows[0].t);
     for(const t of tags.slice(0,2)) assert.equal((await write(fast,'claim',{token:t})).result,'EARNED');
@@ -203,7 +205,9 @@ try {
     await s.context.close();
 
     await page.locator('[data-ops-refresh]').first().click();
-    const row=page.locator('.ops-guard-list tr',{hasText:`#${fast.uid}`}); await row.waitFor();
+    // Listed by student number, not by the internal account number.
+    const row=page.locator('.ops-guard-list tr',{hasText:`(15${width})`}); await row.waitFor();
+    assert.doesNotMatch(await row.innerText(),/#d/);
     assert.match(await row.innerText(),/2개/);
     await screenshot(page,width,'guard-list');
     assert.deepEqual(errors,[]);
