@@ -23,6 +23,8 @@
     REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
     OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
     OWN_CLUB_STAMP: "본인 동아리 부스는 스탬프를 적립할 수 없어요.",
+    STUDENT_NOT_FOUND: "이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.",
+    STUDENT_AMBIGUOUS: "같은 학번으로 가입한 계정이 여러 개예요. 학생 본인의 계정을 골라 주세요.",
     REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주세요.",
     REVIEW_POLICY_REQUIRED: "리뷰 작성 가능 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
     INVALID_INPUT: "입력한 내용을 확인해 주세요.",
@@ -409,9 +411,10 @@
       reviews, myReviews, submitReview, issueTag, nfcTags, operations,
       reviewIdentity: async (action, payload) => {
         try {
-          const { data, error } = await client.rpc('festival_review_identity_admin', { p_action: action, p_payload: payload });
+          const { data, error } = await client.rpc('festival_review_identity_student', { p_action: action, p_payload: payload });
           if (error) throw error;
-          if (!data || data.eventId !== payload.eventId || data.userId !== payload.userId
+          if (!data || data.eventId !== payload.eventId || !data.account || !/^[1-3][0-9]{4}$/.test(data.account.studentNumber || '')
+            || typeof data.account.email !== 'string' || Object.prototype.hasOwnProperty.call(data, 'userId')
             || !Number.isInteger(data.version) || data.version < 0 || typeof data.verified !== 'boolean'
             || typeof data.accountName !== 'string' || !Array.isArray(data.boothKeys)
             || data.boothKeys.some(key => typeof key !== 'string')
@@ -444,10 +447,10 @@
       },
       reviewIdentityList: async payload => {
         try {
-          const { data, error } = await client.rpc('festival_review_identity_admin', { p_action: 'list', p_payload: payload });
+          const { data, error } = await client.rpc('festival_review_identity_student', { p_action: 'list', p_payload: payload });
           if (error) throw error;
           if (!data || data.eventId !== payload.eventId || !Array.isArray(data.items)
-            || data.items.some(item => !Number.isInteger(item?.userId) || typeof item.selfRegistered !== 'boolean' || !item.state)) {
+            || data.items.some(item => typeof item?.email !== 'string' || 'userId' in item || typeof item.selfRegistered !== 'boolean' || !item.state)) {
             throw new Error('REVIEW_POLICY_REQUIRED');
           }
           return { ok: true, data };

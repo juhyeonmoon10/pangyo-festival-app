@@ -14,6 +14,8 @@
     OWN_CLUB_REVIEW: '본인 동아리에는 별점과 후기를 남길 수 없어요.',
     REVIEW_IDENTITY_REQUIRED: '내 정보에서 본인 소속을 먼저 확인해 주세요.',
     OWN_CLUB_STAMP: '본인 동아리 부스는 스탬프를 적립할 수 없어요.',
+    STUDENT_NOT_FOUND: '이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.',
+    STUDENT_AMBIGUOUS: '같은 학번으로 가입한 계정이 여러 개예요. 학생 확인을 다시 눌러 학생 본인의 계정을 골라 주세요.',
     REVIEW_POLICY_REQUIRED: '리뷰 작성 가능 여부를 확인하지 못했어요. 다시 시도해 주세요.',
     REWARD_CHOICE_LOCKED: '이미 선택한 바우처는 바꿀 수 없어요.',
     REWARD_NOT_READY: '바우처 발급 준비 중이에요.',
@@ -41,6 +43,7 @@
   readKinds.add('notices');
   readKinds.add('notice_admin');
   readKinds.add('identity_overview');
+  readKinds.add('student_lookup');
   writeKinds.add('notice_save');
   writeKinds.add('notice_delete');
   writeKinds.add('voucher_code_redeem');
@@ -53,6 +56,8 @@
     if (action === 'booth_status_bulk') return ['festival_booth_status_bulk', { p_payload: body, p_request_id: request }];
     if (action === 'claim_guard_save') return ['festival_claim_guard', { p_action: 'save', p_payload: body }];
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
+    // Participants are named by 학번; the server resolves the account.
+    if (['visit_approve', 'points_adjust', 'voucher_issue'].includes(action)) return ['festival_ops_write_student', { p_action: action, p_payload: body, p_request_id: request }];
     if (action === 'voucher_code_redeem') return ['festival_voucher_redeem', { p_action: 'redeem', p_payload: body, p_request_id: request }];
     return [action.startsWith('reward_') ? 'festival_reward_write' : 'festival_ops_write', { p_action: action, p_payload: body, p_request_id: request }];
   }
@@ -91,6 +96,7 @@
           : kind === 'notices' ? await rpc('festival_notices', {})
           : kind === 'notice_admin' ? await rpc('festival_notice_admin', { p_action: 'list', p_payload: {} })
           : kind === 'identity_overview' ? await rpc('festival_identity_overview', {})
+          : kind === 'student_lookup' ? await rpc('festival_student_lookup', { p_payload: { studentNumber: query.studentNumber } })
           : kind === 'claim_guard' ? await rpc('festival_claim_guard', { p_action: 'read', p_payload: {} })
           : kind === 'booth_stamps' ? await rpc('festival_booth_stamp_counts', {})
           : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })

@@ -46,6 +46,7 @@ const eventId=(await db.query('select id from festival_ops.events where current'
 await sql('operations-server/operator-identity-and-scoped-reset.sql');
 await sql('operations-server/self-identity-and-own-club-stamps.sql');
 await sql('operations-server/student-number-display.sql');
+await sql('operations-server/student-number-only.sql');
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
@@ -72,6 +73,9 @@ async function pageFor(a,width) {
       else if(url.pathname==='/rest/v1/rpc/festival_reward_read') value=await call('festival_reward_read',[]);
       else if(url.pathname==='/rest/v1/rpc/festival_review_identity_self') value=await call('festival_review_identity_self',[p.p_action,p.p_payload]);
       else if(url.pathname==='/rest/v1/rpc/festival_identity_overview') value=await call('festival_identity_overview',[]);
+      else if(url.pathname==='/rest/v1/rpc/festival_student_lookup') value=await call('festival_student_lookup',[p.p_payload]);
+      else if(url.pathname==='/rest/v1/rpc/festival_ops_write_student') value=await call('festival_ops_write_student',[p.p_action,p.p_payload,p.p_request_id]);
+      else if(url.pathname==='/rest/v1/rpc/festival_review_identity_student') value=await call('festival_review_identity_student',[p.p_action,p.p_payload]);
       else if(url.pathname==='/rest/v1/rpc/festival_review_identity_admin') value=await call('festival_review_identity_admin',[p.p_action,p.p_payload]);
       else if(url.pathname==='/rest/v1/rpc/festival_ops_read') value=await call('festival_ops_read',[p.p_kind,p.p_query]);
       else if(url.pathname==='/rest/v1/rpc/festival_ops_write') value=await call('festival_ops_write',[p.p_action,p.p_payload,p.p_request_id]);
@@ -92,7 +96,7 @@ async function screenshot(page,width,name) {
 try {
   for(const width of widths) {
     const student=await account(number(width));
-    await write(admin,'visit_approve',{booth:away,userId:student.uid,reason:'Synthetic visit check'});
+    await rpc(admin,'select public.festival_ops_write_student($1,$2,$3) value',['visit_approve',{booth:away,studentNumber:number(width),reason:'Synthetic visit check'},randomUUID()]);
     const s=await pageFor(student,width);
     await routeTo(s.page,'home');
     const prompt=s.page.locator('.festival-identity-prompt'); await prompt.waitFor();
@@ -135,20 +139,20 @@ try {
     const a=await pageFor(admin,width);
     await routeTo(a.page,'admin'); await a.page.locator('.festival-op-status').waitFor();
     // Own-club stamps are refused for manual approvals too, with a clear message.
-    const refused=await a.page.evaluate(async args=>(await festivalAccount.operations.write('visit_approve',args)).message,{booth:own,userId:student.uid,reason:'Synthetic own-club check'});
+    const refused=await a.page.evaluate(async args=>(await festivalAccount.operations.write('visit_approve',args)).message,{booth:own,studentNumber:number(width),reason:'Synthetic own-club check'});
     assert.equal(refused,'본인 동아리 부스는 스탬프를 적립할 수 없어요.');
     await openOperatorTool(a.page,'identity_overview');
     const overview=a.page.locator('.ops-identity-overview'); await overview.waitFor();
     assert.match(await overview.innerText(),/본인 확인\s*1/);
-    const conflict=a.page.locator(`[data-identity-open="${impostor.uid}"]`).first(); await conflict.waitFor();
+    const conflict=a.page.locator(`[data-identity-open][data-identity-email="${impostor.id}@example.invalid"]`).first(); await conflict.waitFor();
     // Accounts are identified by student number; the internal account number is never shown.
     assert.match(await conflict.innerText(),new RegExp(`\(${number(width)}\)`));
     assert.doesNotMatch(await a.page.locator('.ops-body').innerText(),/#d|참여자 번호/);
     const find=a.page.locator('[data-identity-find]');
     await find.locator('[name=search]').fill(number(width)); await find.locator('button').click();
-    await a.page.locator('[data-identity-find-status]').getByText('같은 학번이나 이름의 계정이 여러 개예요.',{exact:false}).waitFor();
+    await a.page.locator('[data-identity-find-status]').getByText('같은 학번으로 가입한 계정이 여러 개예요.',{exact:false}).waitFor();
     assert.equal(await a.page.locator('[data-identity-found]').count(),2);
-    const row=a.page.locator(`[data-identity-user="${student.uid}"]`); await row.waitFor();
+    const row=a.page.locator(`[data-identity-row][data-identity-email="${student.id}@example.invalid"]`); await row.waitFor();
     assert.match(await row.innerText(),/본인 확인/);
     await screenshot(a.page,width,'operator-identity-overview');
 
@@ -160,7 +164,7 @@ try {
     await dialog.locator('[data-roster-revoke]').click();
     await dialog.getByText('확인을 취소했어요.').waitFor();
     await a.page.keyboard.press('Escape');
-    await a.page.locator(`[data-identity-user="${student.uid}"]`).getByText('운영자 취소').waitFor();
+    await a.page.locator(`[data-identity-row][data-identity-email="${student.id}@example.invalid"]`).getByText('운영자 취소').waitFor();
 
     await s.page.evaluate(()=>festivalOpsUI.refresh());
     await routeTo(s.page,'home');
