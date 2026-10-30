@@ -2,7 +2,10 @@
 const festivalOpsUI = (() => {
   let owner=null, mine=null, catalog=[], event=null, busy=false, loading=false, loaded=false, failure='';
   let tab='dashboard', data=null, offset=0, search='', selectedBooth=null, selectedRule='';
-  let stream=null, cameraTimer=null, qrTimer=null;
+  let stream=null, cameraTimer=null, qrTimer=null, qrPoll=null, walletPoll=null;
+  // Seconds between voucher state checks while a voucher is on screen.
+  const VOUCHER_POLL_MS=5000;
+  const VOUCHER_FINISHED={VOUCHER_USED:['사용이 완료되었어요','이 바우처는 사용 처리되었어요.'],VOUCHER_VOID:['발급이 취소되었어요','운영자가 이 바우처를 취소했어요.'],VOUCHER_EXPIRED:['사용 기한이 지났어요','이 바우처는 더 이상 사용할 수 없어요.'],NOT_FOUND:['바우처를 찾을 수 없어요','바우처 목록을 다시 확인해 주세요.']};
   let lastRoute=null;
   let refreshQueued=false, queuedRepaint=false, notice='';
   let refreshWaiters=[];
@@ -498,7 +501,7 @@ const festivalOpsUI = (() => {
   }
   function closeDialog() {
     stream?.getTracks().forEach(t=>t.stop()); stream=null;
-    clearTimeout(cameraTimer); clearTimeout(qrTimer); cameraTimer=null; qrTimer=null;
+    clearTimeout(cameraTimer); clearTimeout(qrTimer); clearInterval(qrPoll); cameraTimer=null; qrTimer=null; qrPoll=null;
     document.querySelector('.ops-dialog')?.remove();
   }
   function dialog(title) {
@@ -545,11 +548,32 @@ const festivalOpsUI = (() => {
   }
   async function qr(id) {
     const d=dialog('바우처 사용'), body=d.querySelector('.ops-dialog-content'); body.innerHTML='<p role="status">인증키 준비 중...</p>';
+    let shown=null, checking=false;
+    // A used, cancelled or expired voucher replaces the code at once and updates the wallet.
+    const finish=code=>{
+      clearTimeout(qrTimer); clearInterval(qrPoll); qrTimer=null; qrPoll=null;
+      const [title,text]=VOUCHER_FINISHED[code];
+      body.innerHTML=`<div class="ops-voucher-done ${code==='VOUCHER_USED'?'used':''}" role="status" aria-live="assertive">${icon(code==='VOUCHER_USED'?'check':'notice')}<strong>${title}</strong><p>${text}</p></div><button type="button" class="primary-btn" data-voucher-done>확인</button>`;
+      body.querySelector('[data-voucher-done]').onclick=closeDialog;
+      refresh();
+    };
+    const check=async()=>{
+      if(!d.isConnected) { clearInterval(qrPoll); return; }
+      if(checking || document.hidden) return;
+      checking=true;
+      try {
+        const r=await api().read('voucher_code',{id}); if(!d.isConnected) return;
+        if(!r.ok) { if(VOUCHER_FINISHED[r.code]) finish(r.code); return; }
+        if(shown && r.data.code!==shown) await show();
+      } finally { checking=false; }
+    };
     const show=async()=>{
       clearTimeout(qrTimer);
       const r=await api().read('voucher_code',{id}); if(!d.isConnected) return;
-      if(!r.ok) { body.innerHTML=`<p role="alert">${h(r.message)}</p>`; return; }
-      const current=r.data, offset=new Date(current.serverTime)-Date.now();
+      if(!r.ok) { if(VOUCHER_FINISHED[r.code]) finish(r.code); else body.innerHTML=`<p role="alert">${h(r.message)}</p>`; return; }
+      const current=r.data;
+      shown=current.code;
+      const offset=new Date(current.serverTime)-Date.now();
       const code=qrcode(0,'M'); code.addData(current.code); code.make();
       body.innerHTML=`<div class="ops-qr" role="img" aria-label="바우처 인증 QR">${code.createSvgTag({cellSize:5,margin:16,scalable:true})}</div><p class="ops-voucher-code" aria-label="인증키 ${h(current.code.split('').join(' '))}">${h(current.code.slice(0,4))} ${h(current.code.slice(4))}</p><p class="ops-code-timer" role="timer"></p><button type="button" class="ghost-btn" data-copy-code>${icon('copy')} 인증키 복사</button><p class="ops-copy-status" role="status" aria-live="polite"></p><p class="ops-code-help">카메라가 안 되면 운영자에게 인증키 8자리를 보여 주세요. 인증키는 30초마다 바뀌어요.</p>`;
       body.querySelector('[data-copy-code]').onclick=async()=>{
@@ -568,7 +592,27 @@ const festivalOpsUI = (() => {
       };
       tick();
     };
+    clearInterval(qrPoll); qrPoll=setInterval(check,VOUCHER_POLL_MS);
     await show();
+  }
+  // The wallet re-reads voucher states while an available voucher is on screen, so a voucher
+  // redeemed on another device (or by an operator) turns into "사용 완료" without a reload.
+  function watchWallet() {
+    const wanted=state.route==='vouchers' && active() && (mine?.vouchers || []).some(v=>v.state==='available');
+    if(!wanted) { clearInterval(walletPoll); walletPoll=null; return; }
+    if(walletPoll) return;
+    let checking=false;
+    walletPoll=setInterval(async()=>{
+      if(state.route!=='vouchers' || !active()) { clearInterval(walletPoll); walletPoll=null; return; }
+      if(checking || loading || document.hidden || document.querySelector('.ops-dialog')) return;
+      checking=true;
+      try {
+        const actor=state.user.id, r=await api().read('me');
+        if(!r.ok || state.user?.id!==actor) return;
+        const key=list=>JSON.stringify((list || []).map(v=>[v.id,v.state]).sort());
+        if(key(r.data.vouchers)!==key(mine?.vouchers)) await refresh();
+      } finally { checking=false; }
+    },VOUCHER_POLL_MS);
   }
   function vouchers() {
     return festivalWeb.vouchers({loading:!loaded, failure});
@@ -603,6 +647,7 @@ const festivalOpsUI = (() => {
     document.querySelectorAll('[data-ops-qr]').forEach(b=>b.onclick=()=>qr(b.dataset.opsQr));
     document.querySelectorAll('[data-ops-claim]').forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await api().write('voucher_claim',{ruleId:b.dataset.opsClaim});if(r.ok)await refresh();else{document.querySelector('#opsVoucherStatus').textContent=r.message;b.disabled=false;}});
     if(!['admin','vouchers'].includes(state.route)) closeDialog();
+    watchWallet();
   }
   function markVisitPending() {
     if(owner!==state.user?.id) reset();
