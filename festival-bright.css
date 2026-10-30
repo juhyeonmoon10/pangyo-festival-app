@@ -421,3 +421,37 @@ body.design-web {
 @media (max-width: 359px) { .booth-review-summary { grid-template-columns: 1fr; } }
 .design-web .booth-review-more { color: var(--primary); background: none; }
 .design-web .own-club-review .review-guidance { margin: 6px 0 4px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+/* Issued NFC tag management (server operator screen). */
+.server-admin .nfc-issued { margin-top: 28px; padding-top: 4px; border-top: 1px solid var(--line); }
+.server-admin .nfc-issued .nfc-section-title h2 { font-size: 18px; margin: 0; }
+.server-admin .nfc-issued .nfc-summary { margin-bottom: 8px; }
+.server-admin .nfc-issued .nfc-manager-filters { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; }
+.nfc-issued-list { display: grid; margin: 0 0 16px; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.nfc-issued-tag { display: grid; gap: 4px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.nfc-issued-tag.is-revoked, .nfc-issued-tag.is-expired { background: linear-gradient(90deg, rgba(160, 68, 73, .04), transparent 60%); }
+.nfc-issued-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.nfc-issued-head strong { min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+.nfc-issued-head .nfc-tag-state { font-size: 12px; font-weight: 700; }
+.nfc-issued-memo { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.nfc-issued-memo.empty { color: var(--muted); }
+.nfc-issued-meta { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.nfc-issued-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.nfc-issued-actions:empty { display: none; }
+.server-admin .nfc-issued-actions .ghost-btn { display: inline-flex; align-items: center; gap: 4px; width: auto; min-height: 38px; padding: 6px 12px; font-size: 13px; }
+.server-admin .nfc-issued-actions .ghost-btn .ui-icon { width: 15px; height: 15px; }
+.server-admin .nfc-issued-actions .ghost-btn.danger { color: #a14449; border-color: rgba(161, 68, 73, .35); }
+.nfc-issued-label { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; margin-top: 6px; }
+.nfc-issued-label .input { min-width: 0; height: 40px; font-size: 14px; }
+.server-admin .nfc-issued-label :is(.primary-btn, .ghost-btn) { width: auto; min-height: 40px; padding: 6px 12px; font-size: 13px; }
+#serverAdminResult { scroll-margin-top: 16px; }
+/* Per-booth stamp completion on the operator dashboard. */
+.ops-booth-stamps > p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.ops-stamp-list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.ops-stamp-list li { display: grid; gap: 5px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.ops-stamp-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ops-stamp-row strong { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.ops-stamp-row span { flex-shrink: 0; color: var(--muted); font-size: 13px; }
+.ops-stamp-row b { margin-right: 2px; color: var(--primary); font-size: 17px; font-variant-numeric: tabular-nums; }
+.ops-stamp-bar { display: block; height: 6px; border-radius: 3px; background: #eef2ef; overflow: hidden; }
+.ops-stamp-bar i { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.ops-stamp-list small { color: var(--muted); font-size: 12px; }

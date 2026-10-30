@@ -31,6 +31,7 @@
   readKinds.add('reward_status');
   readKinds.add('voucher_code');
   readKinds.add('voucher_code_check');
+  readKinds.add('booth_stamps');
   writeKinds.add('voucher_code_redeem');
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
@@ -73,6 +74,7 @@
       try {
         const result = kind === 'reward_status' ? await rpc('festival_reward_read', {})
           : kind === 'voucher_code' ? await rpc('festival_voucher_code', { p_voucher: query.id })
+          : kind === 'booth_stamps' ? await rpc('festival_booth_stamp_counts', {})
           : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })
           : await rpc('festival_ops_read', { p_kind: kind, p_query: query });
         if (actor() !== id) return error(Error('AUTH_REQUIRED'));

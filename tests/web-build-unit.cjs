@@ -4,7 +4,7 @@ const path = require('node:path');
 const { build, publicFiles, output } = require('../tools/build-web.cjs');
 
 const first = build();
-assert.equal(first.version, '1.14');
+assert.equal(first.version, '1.15');
 assert.equal(fs.existsSync(path.join(output, 'functions')), false);
 fs.writeFileSync(path.join(output, 'static/stale-secret.txt'), 'synthetic stale file');
 build();

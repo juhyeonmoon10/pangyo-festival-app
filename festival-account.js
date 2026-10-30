@@ -14,7 +14,8 @@
     INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
     PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했어요. 새로고침 후 이름을 확인해 주세요.",
     NFC_DISABLED: "방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
-    NFC_TAG_EXPIRED: "태그의 사용 기간이 지났거나 교체되었습니다.",
+    NFC_TAG_EXPIRED: "사용이 중지되었거나 교체·만료된 태그입니다.",
+    NOT_FOUND: "대상을 찾을 수 없어요. 목록을 새로고침해 주세요.",
     VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있어요.",
     ALREADY_REVIEWED: "이 부스에는 이미 별점을 남겼어요.",
     RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",
@@ -115,6 +116,24 @@
     // Missing lifetime fields are not proof that the server issued a permanent tag.
     if (value.expiresAt !== null || value.validMinutes !== null) throw new Error("NFC_PERMANENT_NOT_READY");
     return { token: value.token, boothKey: value.boothKey, expiresAt: value.expiresAt, validMinutes: value.validMinutes };
+  }
+
+  const TAG_STATUSES = new Set(["active", "revoked", "expired"]);
+  const optionalTime = value => value === null || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+  // Operator tag list: rejects anything that could render an unexpected shape.
+  function validateTagList(value) {
+    if (!value || typeof value.enabled !== "boolean" || !Array.isArray(value.items)) throw new Error("INVALID_TAG_RESPONSE");
+    const items = value.items.map(item => {
+      if (!item || !/^[0-9a-f]{32}$/.test(item.id) || typeof item.boothKey !== "string" || typeof item.label !== "string"
+        || item.label.length > 40 || !["issued", "discovered"].includes(item.source) || !TAG_STATUSES.has(item.status)
+        || !Number.isInteger(item.useCount) || item.useCount < 0 || typeof item.issuedAt !== "string"
+        || !optionalTime(item.expiresAt) || !optionalTime(item.revokedAt) || !optionalTime(item.lastUsedAt)
+        || !(item.issuerName === null || typeof item.issuerName === "string")) throw new Error("INVALID_TAG_RESPONSE");
+      return { id: item.id, boothKey: item.boothKey, label: item.label, source: item.source, status: item.status,
+        useCount: item.useCount, issuedAt: item.issuedAt, issuerName: item.issuerName, expiresAt: item.expiresAt,
+        revokedAt: item.revokedAt, lastUsedAt: item.lastUsedAt };
+    });
+    return { enabled: value.enabled, items };
   }
 
   function createAccount({ sdk, config, storage, location, openUrl = url => { location.href = url; }, onChange = () => {} }) {
@@ -344,6 +363,23 @@
       } catch (error) { return { ok: false, ...normalizeError(error) }; }
     }
 
+    // Operator-only issued tag management; the server re-checks the admin flag on every action.
+    async function nfcTags(action, payload = {}) {
+      try {
+        const { data, error } = await client.rpc("festival_nfc_tag_admin", { p_action: action, p_payload: payload });
+        if (error) return { ok: false, ...normalizeError(error) };
+        if (action === "list") return { ok: true, ...validateTagList(data) };
+        if (action === "issue" || action === "url") {
+          const tag = { token: data?.token, boothKey: data?.boothKey };
+          if (!TOKEN_PATTERN.test(String(tag.token || "")) || tag.token.length > 1024 || typeof tag.boothKey !== "string"
+            || (payload.booth && tag.boothKey !== payload.booth)) throw new Error("INVALID_TAG_RESPONSE");
+          return { ok: true, ...tag, id: action === "url" ? data.id : data.tagId };
+        }
+        if (!data || data.id !== payload.id) throw new Error("INVALID_TAG_RESPONSE");
+        return { ok: true, id: data.id, label: data.label, revokedAt: data.revokedAt };
+      } catch (error) { return { ok: false, ...normalizeError(error) }; }
+    }
+
     function savePending(claim) {
       try {
         if (!claim) storage.removeItem(PENDING_KEY);
@@ -364,7 +400,7 @@
     }
 
     return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
-      reviews, myReviews, submitReview, issueTag, operations,
+      reviews, myReviews, submitReview, issueTag, nfcTags, operations,
       reviewIdentity: async (action, payload) => {
         try {
           const { data, error } = await client.rpc('festival_review_identity_admin', { p_action: action, p_payload: payload });

@@ -12,7 +12,7 @@ let serverCompletedBooths = [];
 // Server-mode caches. Keys are DB booth enum values, never local booth ids.
 let serverMyReviews = null;
 const serverReviews = new Map();
-const serverAdmin = { busy: false, boothId: null, result: null };
+const serverAdmin = { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null };
 const MOCK_NFC_TOKEN_PREFIX = "mock-v1.";
 const ADMIN_ONLY_NFC_SOURCES = new Set(["mock-panel", "detail-shortcut", "detail-action"]);
 const CLUB_CATALOG_VERSION = 1;
@@ -2238,7 +2238,7 @@ function serverAdminView() {
     <main class="screen admin-screen server-admin">
       <header class="top-bar">
         <button class="icon-btn" data-route="home" aria-label="홈으로 돌아가기">${icon("back")}</button>
-        <div class="top-title"><strong>운영자 도구</strong><span>NFC 태그 발급</span></div>
+        <div class="top-title"><strong>운영자 도구</strong><span>NFC 태그 발급·관리</span></div>
         <span class="icon-btn" aria-hidden="true"></span>
       </header>
       ${festivalOpsUI.navigation()}
@@ -2252,13 +2252,16 @@ function serverAdminView() {
               ${booths.map(booth => `<option value="${escapeHtml(booth.id)}" ${selected?.id === booth.id ? "selected" : ""}>${escapeHtml(catalogBooth(booth)?.name || booth.name)} · ${escapeHtml(booth.location)}</option>`).join("")}
             </select>
           </label>
+          <label class="field" for="serverAdminLabel">카드 메모 (선택)
+            <input class="input" id="serverAdminLabel" maxlength="40" autocomplete="off" placeholder="예: 정문 카드" value="${escapeHtml(serverAdmin.label)}" />
+          </label>
           <div class="nfc-save-row">
             <span id="serverAdminStatus" role="status">${serverAdmin.busy ? "발급하는 중이에요" : "발급 준비됨"}</span>
             <button type="submit" class="primary-btn" id="serverAdminIssue" ${serverAdmin.busy ? "disabled" : ""}>${icon("scan")} 태그 발급</button>
           </div>
         </form>
         ${result ? `
-        <section class="nfc-saved-tools" aria-label="발급 결과">
+        <section class="nfc-saved-tools" id="serverAdminResult" aria-label="발급 결과">
           <div class="nfc-manager-result ${result.tone}"><strong>${escapeHtml(result.title)}</strong><p>${escapeHtml(result.body)}</p></div>
           ${result.url ? `
           <label class="field" for="serverAdminUrl">카드에 기록할 주소
@@ -2270,10 +2273,66 @@ function serverAdminView() {
           <p class="nfc-field-note">NFC 쓰기 앱에서 URL(URI) 레코드로 기록하세요. 길이 ${result.url.length}자 · NTAG215 이상이 필요합니다.</p>` : ""}
         </section>` : ""}
         ` : `<p class="nfc-empty">서버 카탈로그에 연결된 부스가 없습니다.</p>`}
+        ${issuedTagsSection(booths)}
       </section>
       ${bottomNav("admin")}
     </main>
   `;
+}
+
+const TAG_STATUS_LABELS = { active: "사용 중", revoked: "사용 중지", expired: "만료" };
+
+function formatShortDateTime(value) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(new Date(value));
+}
+
+function tagBoothName(key) {
+  const booth = state.db.booths.find(item => boothKeyFor(item) === key);
+  return booth ? catalogBooth(booth)?.name || booth.name : key;
+}
+
+function issuedTagItem(tag) {
+  const busy = serverAdmin.tagBusy === tag.id;
+  const tone = tag.status === "revoked" ? "disabled" : tag.status === "expired" ? "missing" : "enabled";
+  const editing = serverAdmin.editingTag === tag.id;
+  return `<li class="nfc-issued-tag is-${tag.status}" data-tag-id="${escapeHtml(tag.id)}">
+      <div class="nfc-issued-head"><strong>${escapeHtml(tagBoothName(tag.boothKey))}</strong><span class="nfc-tag-state ${tone}">${TAG_STATUS_LABELS[tag.status]}</span></div>
+      <p class="nfc-issued-memo ${tag.label ? "" : "empty"}">${escapeHtml(tag.label || "메모 없음")}</p>
+      <p class="nfc-issued-meta">${tag.source === "discovered" ? `이전 발급 · ${formatShortDateTime(tag.issuedAt)} 첫 인식` : `${formatShortDateTime(tag.issuedAt)} 발급${tag.issuerName ? ` · ${escapeHtml(tag.issuerName)}` : ""}`}</p>
+      <p class="nfc-issued-meta">인식 ${tag.useCount}회${tag.lastUsedAt ? ` · 마지막 ${formatShortDateTime(tag.lastUsedAt)}` : ""}${tag.revokedAt ? ` · ${formatShortDateTime(tag.revokedAt)} 중지` : ""}</p>
+      ${editing ? `<form class="nfc-issued-label" data-tag-label-form="${escapeHtml(tag.id)}"><input class="input" name="label" maxlength="40" value="${escapeHtml(tag.label)}" aria-label="카드 메모" autocomplete="off" /><button type="submit" class="primary-btn" ${busy ? "disabled" : ""}>저장</button><button type="button" class="ghost-btn" data-server-tag="cancel" data-tag="${escapeHtml(tag.id)}">취소</button></form>` : ""}
+      <div class="nfc-issued-actions">
+        ${tag.status === "active" ? `<button type="button" class="ghost-btn" data-server-tag="url" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>${icon("copy")} 주소 보기</button>` : ""}
+        ${editing ? "" : `<button type="button" class="ghost-btn" data-server-tag="edit" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>메모</button>`}
+        ${tag.status === "active" ? `<button type="button" class="ghost-btn danger" data-server-tag="revoke" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>사용 중지</button>` : ""}
+        ${tag.status === "revoked" ? `<button type="button" class="ghost-btn" data-server-tag="restore" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>다시 사용</button>` : ""}
+      </div>
+    </li>`;
+}
+
+function issuedTagsSection(booths) {
+  const tags = serverAdmin.tags;
+  const heading = `<div class="nfc-section-title"><h2>발급된 태그</h2><button type="button" class="icon-btn" data-server-tags-refresh aria-label="발급된 태그 새로고침" title="새로고침" ${serverAdmin.tagsLoading ? "disabled" : ""}>${icon("refresh")}</button></div>`;
+  if (!tags) {
+    return `<section class="nfc-issued" id="serverTagList" aria-busy="${serverAdmin.tagsLoading}">${heading}
+      ${serverAdmin.tagsError ? `<p class="ops-alert" role="alert">${escapeHtml(serverAdmin.tagsError)}</p>` : '<p class="nfc-empty" role="status">발급된 태그를 불러오는 중이에요.</p>'}</section>`;
+  }
+  const count = status => tags.filter(tag => tag.status === status).length;
+  const shown = tags.filter(tag => (serverAdmin.tagBooth === "all" || tag.boothKey === serverAdmin.tagBooth)
+    && (serverAdmin.tagStatus === "all" || tag.status === serverAdmin.tagStatus));
+  const boothOptions = [...new Map(booths.map(booth => [boothKeyFor(booth), catalogBooth(booth)?.name || booth.name])).entries()];
+  return `<section class="nfc-issued" id="serverTagList" aria-busy="${serverAdmin.tagsLoading}">${heading}
+    ${serverAdmin.tagsEnabled ? "" : '<p class="ops-alert" role="alert">NFC 방문 인증이 서버에서 중지돼 있어요. 주소 보기와 새 발급이 되지 않아요.</p>'}
+    ${serverAdmin.tagsError ? `<p class="ops-alert" role="alert">${escapeHtml(serverAdmin.tagsError)}</p>` : ""}
+    <dl class="nfc-summary">${[["전체", tags.length], ["사용 중", count("active")], ["사용 중지", count("revoked")], ["만료", count("expired")]].map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl>
+    <div class="nfc-manager-filters">
+      <label for="serverTagBooth">부스<select class="select" id="serverTagBooth"><option value="all">전체 부스</option>${boothOptions.map(([key, name]) => `<option value="${escapeHtml(key)}" ${serverAdmin.tagBooth === key ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select></label>
+      <label for="serverTagStatus">상태<select class="select" id="serverTagStatus">${Object.entries({ all: "전체 상태", ...TAG_STATUS_LABELS }).map(([value, label]) => `<option value="${value}" ${serverAdmin.tagStatus === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+      <span role="status">${shown.length}개</span>
+    </div>
+    ${shown.length ? `<ul class="nfc-issued-list">${shown.map(issuedTagItem).join("")}</ul>` : `<p class="nfc-empty">${tags.length ? "조건에 맞는 태그가 없어요." : "아직 발급된 태그가 없어요."}</p>`}
+    <p class="nfc-field-note">사용 중지한 카드로는 스탬프가 적립되지 않아요. 이미 적립된 스탬프는 그대로예요. 이 목록이 생기기 전에 발급한 카드는 학생이 처음 인식할 때 "이전 발급"으로 나타나요.</p>
+  </section>`;
 }
 
 function adminView() {
@@ -2768,6 +2827,16 @@ function bindEvents() {
   });
   document.querySelector("#serverAdminBooth")?.addEventListener("change", (event) => { serverAdmin.boothId = event.target.value; });
   document.querySelector('[data-server-admin="copy"]')?.addEventListener("click", copyServerTagUrl);
+  document.querySelector("#serverAdminLabel")?.addEventListener("input", (event) => { serverAdmin.label = event.target.value; });
+  document.querySelector("[data-server-tags-refresh]")?.addEventListener("click", () => runActionOnce("server-tags-refresh", loadServerTags));
+  document.querySelector("#serverTagBooth")?.addEventListener("change", (event) => { serverAdmin.tagBooth = event.target.value; render(); });
+  document.querySelector("#serverTagStatus")?.addEventListener("change", (event) => { serverAdmin.tagStatus = event.target.value; render(); });
+  document.querySelectorAll("[data-server-tag]").forEach((button) => button.addEventListener("click", () => serverTagAction(button.dataset.serverTag, button.dataset.tag)));
+  document.querySelectorAll("[data-tag-label-form]").forEach((form) => form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    serverTagAction("label", form.dataset.tagLabelForm);
+  }));
+  if (document.querySelector("#serverTagList") && !serverAdmin.tags && !serverAdmin.tagsLoading && !serverAdmin.tagsError) loadServerTags();
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
     state.adminTab = button.dataset.adminTab;
@@ -3076,7 +3145,7 @@ async function resetLogin() {
     serverCompletedBooths = [];
     serverMyReviews = null;
     serverReviews.clear();
-    Object.assign(serverAdmin, { busy: false, boothId: null, result: null });
+    Object.assign(serverAdmin, { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null });
     state.pendingNfcClaim = null;
   }
   state.user = null;
@@ -3573,6 +3642,53 @@ function testNfcTag(id) {
   return nfcManagement.simulate(id);
 }
 
+async function loadServerTags() {
+  if (!isServerMode() || !isAdminUser() || !festivalAccount?.nfcTags || serverAdmin.tagsLoading) return;
+  const actingUser = state.user.id;
+  serverAdmin.tagsLoading = true;
+  const response = await festivalAccount.nfcTags("list");
+  serverAdmin.tagsLoading = false;
+  if (state.user?.id !== actingUser || !isAdminUser()) return;
+  if (response.ok) Object.assign(serverAdmin, { tags: response.items, tagsEnabled: response.enabled, tagsError: "" });
+  else serverAdmin.tagsError = response.code === "SERVER_NOT_READY"
+    ? "발급된 태그 관리를 위한 서버 업데이트가 아직 적용되지 않았어요." : response.message;
+  if (state.route === "admin") render();
+}
+
+async function serverTagAction(action, id) {
+  const tag = serverAdmin.tags?.find(item => item.id === id);
+  if (!tag || serverAdmin.tagBusy) return;
+  if (action === "edit" || action === "cancel") { serverAdmin.editingTag = action === "edit" ? id : null; render(); return; }
+  const name = `${tagBoothName(tag.boothKey)}${tag.label ? ` (${tag.label})` : ""}`;
+  if (action === "revoke" && !confirm(`${name} 태그를 사용 중지할까요?\n이 카드로는 더 이상 스탬프를 적립할 수 없어요. 이미 적립된 스탬프는 유지돼요.`)) return;
+  if (action === "restore" && !confirm(`${name} 태그를 다시 사용할까요?\n이 카드로 다시 스탬프를 적립할 수 있어요.`)) return;
+  const payload = { id };
+  if (action === "label") payload.label = String(document.querySelector(`[data-tag-label-form="${id}"] [name="label"]`)?.value || "").trim();
+  const actingUser = state.user.id;
+  serverAdmin.tagBusy = id;
+  render();
+  const response = await festivalAccount.nfcTags(action, payload);
+  serverAdmin.tagBusy = null;
+  if (state.user?.id !== actingUser || !isAdminUser()) return;
+  if (!response.ok) {
+    serverAdmin.tagsError = response.message;
+    render();
+    return;
+  }
+  serverAdmin.tagsError = "";
+  if (action === "url") {
+    serverAdmin.result = { tone: "success", title: `${name} 태그 주소`,
+      body: "이미 발급한 태그와 같은 주소예요. 카드를 다시 기록할 때 사용하세요.",
+      // Kept in memory only, like a newly issued address.
+      url: festivalWeb.webTagUrl(response.token) };
+    render();
+    document.querySelector("#serverAdminResult")?.scrollIntoView({ block: "start", behavior: "auto" });
+    return;
+  }
+  if (action === "label") serverAdmin.editingTag = null;
+  await loadServerTags();
+}
+
 async function issueServerTag() {
   if (!isServerMode() || !isAdminUser() || serverAdmin.busy || !festivalAccount) return;
   if (!festivalWeb.webTagUrl("check")) {
@@ -3592,19 +3708,24 @@ async function issueServerTag() {
   serverAdmin.busy = true;
   serverAdmin.result = null;
   render();
-  const response = await festivalAccount.issueTag(key);
+  const label = String(document.querySelector("#serverAdminLabel")?.value ?? serverAdmin.label).trim();
+  // The management endpoint records the memo; before its migration the plain issue call still works.
+  let response = festivalAccount.nfcTags ? await festivalAccount.nfcTags("issue", { booth: key, label }) : null;
+  if (!response || response.code === "SERVER_NOT_READY") response = await festivalAccount.issueTag(key);
   serverAdmin.busy = false;
   if (state.user?.id !== actingUser || !isAdminUser()) return;
   serverAdmin.result = response.ok
     ? {
       tone: "success",
-      title: `${catalogBooth(booth)?.name || booth.name} 태그를 발급했습니다`,
+      title: `${catalogBooth(booth)?.name || booth.name}${label ? ` (${label})` : ""} 태그를 발급했습니다`,
       body: "유효기한 없이 발급했습니다. 카드에 기록한 뒤 다시 읽어 주소가 온전한지 확인하세요.",
       // Kept in memory only: the signed token is never written to storage or logs.
       url: festivalWeb.webTagUrl(response.token),
     }
     : { tone: "error", title: "발급하지 못했습니다", body: response.message };
+  if (response.ok) serverAdmin.label = "";
   render();
+  if (response.ok) loadServerTags();
 }
 
 async function copyServerTagUrl() {
@@ -3618,6 +3739,13 @@ async function copyServerTagUrl() {
     const input = document.querySelector("#serverAdminUrl");
     input?.focus();
     input?.select();
+    let copied = false;
+    try { copied = document.execCommand("copy"); } catch { copied = false; }
+    serverAdmin.result = { ...serverAdmin.result, body: copied
+      ? "발급 주소를 복사했습니다. NFC 쓰기 앱에 URL 레코드로 붙여 넣으세요."
+      : "자동 복사를 사용할 수 없어요. 선택된 주소를 길게 눌러 복사해 주세요." };
+    render();
+    if (!copied) document.querySelector("#serverAdminUrl")?.select();
   }
 }
 
