@@ -40,14 +40,15 @@ async function account(studentNumber,admin=false) {
 const admin=await account('29999',true);
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'Stored legacy name',state:'open',reviewPoints:10,version:0});
-for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql']) await sql(file);
+for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql']) await sql(file);
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
 const [booth,quiet]=['매커니즘','인사이트'];
 for(const key of [booth,quiet]) await write(admin,'booth_save',{booth:key,name:key,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
-const people=[['11001','가 학생',5,'정말 재미있었어요'],['11002','나 학생',4,''],['11003','다 학생',4,'설명이 친절했어요'],['11004','라 학생',2,'']];
+const people=[['11001','김가온',5,'정말 재미있었어요'],['11002','이나래',4,''],['11003','박다솜',4,'설명이 친절했어요'],['11004','최라온',2,''],['11005','정마루',5,'']];
 await db.query('select festival_ops.import_review_roster($1,$2,$3)',[eventId,{format:1,sourceSha256:'d'.repeat(64),catalogKeys:catalog,
-  records:people.map(([sid,name])=>({studentNumber:sid,realName:name,clubs:['축구반'],boothKeys:[],status:'ready',issues:[],sourceCells:['Synthetic!A1']}))},admin.uid]);
+  records:[...people.map(([sid,name])=>({studentNumber:sid,realName:name,clubs:['축구반'],boothKeys:[],status:'ready',issues:[],sourceCells:['Synthetic!A1']})),
+    {studentNumber:'11009',realName:'한부원',clubs:['매커니즘'],boothKeys:[booth],status:'ready',issues:[],sourceCells:['Synthetic!A9']}]},admin.uid]);
 const reviewers=[];
 for(const [sid,name,rating,content] of people) {
   const a=await account(sid); reviewers.push(a);
@@ -56,6 +57,10 @@ for(const [sid,name,rating,content] of people) {
   await write(a,'review_save',{booth,rating,content});
 }
 const viewer=reviewers[0];
+// A member of the booth's own club: the stamp is earned, but rating must not be offered.
+const member=await account('11009');
+await rpc(member,'select public.festival_review_identity_self($1,$2) value',['confirm',{eventId,realName:'한부원'}]);
+await write(admin,'visit_approve',{booth,userId:member.uid,reason:'Synthetic visit check'});
 const output=path.join(root,'artifacts/booth-reviews'); fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
 const reports=[];
@@ -96,30 +101,33 @@ try {
     const v=await pageFor(viewer,width);
     await detail(v.page,booth);
     const link=v.page.locator('[data-open-booth-reviews]'); await link.waitFor();
-    await v.page.locator('[data-review-count-link]').getByText('4개').waitFor();
+    await v.page.locator('[data-review-count-link]').getByText('5개').waitFor();
     await screenshot(v.page,width,'detail-review-button');
     const before=v.reads.length;
     await link.click();
     const summary=v.page.locator('.booth-review-summary'); await summary.waitFor();
     assert.ok(v.reads.length>before,'opening the review screen refreshes from the server');
     assert.match(await v.page.locator('.top-title strong').innerText(),/매커니즘 리뷰/);
-    assert.equal(await v.page.locator('.booth-review-score strong').innerText(),'3.8');
-    assert.match(await v.page.locator('.booth-review-score small').innerText(),/리뷰 4개/);
-    assert.equal(await v.page.locator('.booth-review-stars .star.on').count(),4);
-    const bars=await v.page.locator('.booth-review-bar-count').allInnerTexts();
-    assert.deepEqual(bars,['1','2','0','1','0']);
-    const items=v.page.locator('.booth-review-list .review');
-    assert.equal(await items.count(),4);
+    assert.equal(await v.page.locator('.booth-review-score strong').innerText(),'4.0');
+    assert.match(await v.page.locator('.booth-review-score small').innerText(),/총\s*5건/);
+    assert.equal(await v.page.locator('.booth-review-stars .booth-star.on').count(),4);
+    const bars=await v.page.locator('.booth-review-bar').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')));
+    assert.deepEqual(bars,['5점 2개','4점 2개','3점 0개','2점 1개','1점 0개']);
+    const items=v.page.locator('.booth-review-item');
+    assert.equal(await items.count(),4,'first four reviews before expanding');
+    assert.equal(await v.page.locator('.booth-review-avatar').first().innerText(),'마루');
+    assert.match(await items.first().innerText(),/\d{4}년 \d{1,2}월 \d{1,2}일/);
+    assert.equal(await v.page.locator('.booth-review-item.mine').count(),0,'own review is the oldest, not yet shown');
+    await screenshot(v.page,width,'booth-reviews');
+    await v.page.locator('[data-booth-reviews-more]').click();
+    assert.equal(await items.count(),5);
+    assert.equal(await v.page.locator('[data-booth-reviews-more]').count(),0);
     const text=await v.page.locator('.booth-review-list').innerText();
     for(const [,name,,content] of people) { assert.match(text,new RegExp(name)); if(content) assert.match(text,new RegExp(content)); }
-    assert.equal(await v.page.locator('.booth-review-list .review.mine').count(),1);
-    assert.match(await v.page.locator('.booth-review-list .review.mine').innerText(),/\(나\)/);
-    await screenshot(v.page,width,'booth-reviews');
-    await v.page.locator('[data-booth-review-filter=written]').click();
-    assert.equal(await v.page.locator('.booth-review-list .review').count(),2);
-    assert.equal(await v.page.locator('[data-booth-review-filter=written]').getAttribute('aria-pressed'),'true');
-    await v.page.locator('[data-booth-review-filter=all]').click();
-    assert.equal(await v.page.locator('.booth-review-list .review').count(),4);
+    assert.equal(await v.page.locator('.booth-review-item.mine').count(),1);
+    assert.match(await v.page.locator('.booth-review-item.mine').innerText(),/내 리뷰/);
+    assert.equal(await v.page.locator('.booth-review-item.mine .booth-review-item-stars .booth-star.on').count(),5);
+    await screenshot(v.page,width,'booth-reviews-all');
     assert.equal(await v.page.locator('.bottom-nav .nav-btn.active').innerText(),'부스 지도');
     await v.page.locator('[data-history-back="detail"]').click();
     await v.page.locator('[data-open-booth-reviews]').waitFor();
@@ -128,10 +136,22 @@ try {
     await detail(v.page,quiet);
     await v.page.locator('[data-open-booth-reviews]').click();
     await v.page.locator('.booth-review-list').getByText('아직 등록된 리뷰가 없어요').waitFor();
-    assert.match(await v.page.locator('.booth-review-score small').innerText(),/리뷰 0개/);
+    assert.match(await v.page.locator('.booth-review-score small').innerText(),/총\s*0건/);
     await screenshot(v.page,width,'booth-reviews-empty');
     assert.deepEqual(v.errors,[]);
-    reports.push({width,passed:true,flows:['detail button with count','server refresh','average and stars','distribution','all reviewers and texts','mine highlighted','written filter','map tab active','back to detail','empty booth']});
+    // Own club: stamped, yet the detail has no rating form and the booth is not a pending review.
+    const m=await pageFor(member,width);
+    await detail(m.page,booth);
+    await m.page.locator('#boothReviewSection.own-club-review').waitFor();
+    assert.equal(await m.page.locator('#boothReviewSection .review-compose,#submitReview,[data-rating]').count(),0);
+    assert.match(await m.page.locator('#boothReviewSection').innerText(),/본인 동아리 부스에는 별점을 남길 수 없어요/);
+    assert.match(await m.page.locator('.detail-hero').innerText(),/스탬프 적립 완료/);
+    await screenshot(m.page,width,'own-club-detail');
+    await m.page.evaluate(()=>navigateTo('reviews'));
+    assert.equal(await m.page.locator('[data-review-booth]').count(),0,'own-club booth is not listed for review');
+    assert.deepEqual(m.errors,[]);
+    await m.context.close();
+    reports.push({width,passed:true,flows:['detail button with count','server refresh','average and stars','exact distribution','avatar initials','full date','first four then all','mine marked','back to detail','empty booth','own club has no rating form','own club not pending']});
     await v.context.close();
   }
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(reports,null,2));

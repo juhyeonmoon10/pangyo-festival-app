@@ -16,9 +16,14 @@ fs.mkdirSync(out,{recursive:true});
       await page.goto(`${base}/tests/review-ui-preview.html?demo=1&mode=${mode}`);
       const section=page.locator('#boothReviewSection');
       await section.scrollIntoViewIfNeeded();
-      assert.equal(await page.locator('#submitReview').isDisabled(),mode!=='allowed');
-      assert.equal(await page.locator('#reviewContent').isDisabled(),mode!=='allowed');
-      if(mode==='own') assert.match(await section.innerText(),/본인 동아리/);
+      if(mode==='own') {
+        // Own-club booths show no rating form at all, only the explanation.
+        assert.equal(await page.locator('#boothReviewSection .review-compose,#submitReview,#reviewContent,[data-rating]').count(),0);
+        assert.match(await section.innerText(),/본인 동아리 부스에는 별점을 남길 수 없어요/);
+      } else {
+        assert.equal(await page.locator('#submitReview').isDisabled(),mode!=='allowed');
+        assert.equal(await page.locator('#reviewContent').isDisabled(),mode!=='allowed');
+      }
       if(mode==='unknown') assert.match(await section.innerText(),/본인 소속을 먼저 확인/);
       if(mode==='allowed') {
         assert.match(await section.innerText(),/김하늘 이름으로 공개/);

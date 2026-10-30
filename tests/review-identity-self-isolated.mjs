@@ -33,7 +33,7 @@ async function test(name,fn){try{await fn();results.push({name,ok:true});console
 for(const f of ['nfc-server/isolated-test/shim.sql','nfc-server/install.sql','nfc-server/admin-issue.sql','nfc-server/reviews.sql','operations-server/install.sql']) await db.exec(read(f));
 const admin=await account('29999',true);
 const event=(await ops(admin,'event_save',{name:'Synthetic identity test',state:'open',reviewPoints:10,version:0})).event;
-for(const f of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql']) await db.exec(read(f));
+for(const f of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql']) await db.exec(read(f));
 const catalog=(await db.query('select key from festival_ops.booths where event_id=$1 order by key collate "C"',[event.id])).rows.map(r=>r.key);
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await ops(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
@@ -73,6 +73,8 @@ await test('own club stays blocked and other booths use the roster name',async()
   await assert.rejects(ops(student,'review_save',{booth:own,rating:5,content:''}),/OWN_CLUB_REVIEW/);
   await ops(student,'review_save',{booth:away,rating:4,content:''});
   assert.equal((await one('select author_name from festival_ops.reviews where user_id=$1',[student.uid])).author_name,'김 하나');
+  const summary=await rpc(other,'select public.festival_ops_read($1,$2) value',['reviews',{booth:away}]);
+  assert.deepEqual(summary.distribution,{'5':0,'4':1,'3':0,'2':0,'1':0});assert.equal(summary.count,1);
 });
 await test('the same student number cannot be confirmed by a second account',async()=>{
   assert.equal((await confirm(impostor,'김하나')).result,'ROSTER_ALREADY_LINKED');

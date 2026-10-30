@@ -35,7 +35,7 @@ async function test(name,fn){try{await fn();results.push({name,ok:true});console
 for(const f of ['nfc-server/isolated-test/shim.sql','nfc-server/install.sql','nfc-server/admin-issue.sql','nfc-server/reviews.sql','operations-server/install.sql']) await db.exec(read(f));
 const admin=await account(true),admin2=await account(true),student=await account(),other=await account(),late=await account();
 const event=(await ops(admin,'event_save',{name:'Synthetic code test',state:'open',reviewPoints:10,version:0})).event;
-for(const f of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/voucher-short-code.sql']) await db.exec(read(f));
+for(const f of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql']) await db.exec(read(f));
 const booths=(await db.query('select key from festival_ops.booths where event_id=$1 order by key collate "C" limit 3',[event.id])).rows.map(r=>r.key);
 for(const booth of booths) await ops(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 await reward(admin,'reward_config',{eventId:event.id,photoStock:null,foodStock:null,photoVersion:0,foodVersion:0,expiresAt:'infinity',enabled:true});
@@ -82,10 +82,13 @@ await test('only operators can check or redeem',async()=>{
   await assert.rejects(check(student,await stepCode(vid,0)),/ADMIN_REQUIRED/);
   await assert.rejects(redeem(other,await stepCode(vid,0)),/ADMIN_REQUIRED/);
 });
-await test('an operator cannot redeem an own voucher',async()=>{
+await test('an operator can confirm an own voucher, and the audit marks it',async()=>{
   await codeOf(admin2,ownVid);const c=await stepCode(ownVid,0);
-  assert.equal((await check(admin2,c)).own,true);assert.equal((await check(admin2,c)).valid,false);
-  await assert.rejects(redeem(admin2,c),/SELF_REDEMPTION/);
+  const r=await check(admin2,c);assert.equal(r.own,true);assert.equal(r.valid,true);
+  const done=await redeem(admin2,c);assert.equal(done.result,'REDEEMED');assert.equal(done.own,true);
+  const row=await one('select state,redeemed_by from festival_ops.vouchers where id=$1',[ownVid]);
+  assert.equal(row.state,'used');assert.equal(row.redeemed_by,admin2.uid);
+  assert.equal((await one("select reason from festival_ops.audit where action='voucher_redeem' and target=$1",[ownVid])).reason,'Own voucher');
 });
 await test('redeeming marks the voucher used once and replays the same request',async()=>{
   const c=await stepCode(vid,1),id=randomUUID();
