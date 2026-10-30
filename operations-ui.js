@@ -96,9 +96,11 @@ const festivalOpsUI = (() => {
       if(state.route==='admin' && isAdminUser() && !localTabs.has(requestedTab)) {
         if(requestedTab==='catalog') data=a.data;
         else {
-          const r=await api().read(requestedTab,query);
+          // Per-booth stamp counts are optional: the dashboard still loads without them.
+          const [r,stamps]=await Promise.all([api().read(requestedTab,query),requestedTab==='dashboard'?api().read('booth_stamps'):null]);
           if(state.user?.id!==actor || requestedView!==viewKey()) return;
           if(r.ok) data=r.data; else failure=r.message;
+          if(r.ok && stamps) data={...data,boothStamps:stamps.ok && Array.isArray(stamps.data.items) ? stamps.data.items.filter(x=>x && typeof x.booth==='string' && Number.isInteger(x.stamps) && Number.isInteger(x.nfc) && Number.isInteger(x.manual)) : null};
         }
       }
     } catch {
@@ -149,6 +151,13 @@ const festivalOpsUI = (() => {
     const counts={open:0,paused:0,closed:0};
     for(const booth of catalog) if(Object.hasOwn(counts,booth.status)) counts[booth.status]++;
     return `<section class="ops-section ops-readiness"><h2>부스 운영 상태</h2><dl class="ops-booth-counts">${Object.entries(counts).map(([status,count])=>`<div><dt>${statusName(status)}</dt><dd>${count}<span>개</span></dd></div>`).join('')}</dl>${event.state!=='open'?'<p class="ops-alert">축제가 운영 중이 아니어서 방문 인증이 중지돼 있어요.</p>':counts.open===0?'<p class="ops-alert">운영 중인 부스가 없어 방문 인증이 중지돼 있어요.</p>':''}<button type="button" class="ghost-btn" data-ops-tab="catalog">${icon('map')} 부스 상태 관리</button></section>`;
+  }
+  function boothStamps() {
+    const rows=data?.boothStamps;
+    if(!rows) return '<section class="ops-section ops-booth-stamps"><h2>부스별 스탬프 완료</h2><p class="ops-empty">부스별 완료 인원을 불러오지 못했어요. 새로고침해 주세요.</p></section>';
+    const max=Math.max(1,...rows.map(r=>r.stamps)), total=rows.reduce((sum,r)=>sum+r.stamps,0);
+    const name=r=>catalog.find(b=>b.key===r.booth)?.name || r.name || r.booth;
+    return `<section class="ops-section ops-booth-stamps"><h2>부스별 스탬프 완료</h2><p>부스를 완료한 참여자 수예요. 한 사람은 부스마다 한 번만 세요. 전체 ${total}건</p>${rows.length?`<ol class="ops-stamp-list">${rows.map(r=>`<li data-booth-stamps="${h(r.booth)}"><div class="ops-stamp-row"><strong>${h(name(r))}</strong><span><b>${r.stamps}</b>명</span></div><span class="ops-stamp-bar" aria-hidden="true"><i style="width:${Math.round(r.stamps/max*100)}%"></i></span><small>NFC ${r.nfc} · 수동 ${r.manual}${r.status==='open'?'':` · ${h(statusName(r.status))}`}</small></li>`).join('')}</ol>`:'<p class="ops-empty">등록된 부스가 없어요.</p>'}</section>`;
   }
   function table(rows,cols) {
     if(!rows?.length) return '<p class="ops-empty">기록이 없어요.</p>';
@@ -215,7 +224,7 @@ const festivalOpsUI = (() => {
     if(tab==='tools') return toolsMenu();
     if(!currentEventReady()) return unavailableEvent();
     if(tab==='settings') return eventForm()+resetForm();
-    if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
+    if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${boothStamps()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
     if(tab==='catalog') return boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
     if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><form id="reviewRosterLookup" class="ops-form">${select('userId','참여자',(data?.items || []).map(p=>[p.id,`${p.name} (#${p.id})`]),null)}<p role="status"></p><button class="primary-btn" type="submit">명단 확인</button></form></section>`+identityList();
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',visitParticipant()+select('booth','방문 부스',options().filter(([key])=>catalog.find(b=>b.key===key)?.status==='open'),null)+reason(),'스탬프 1개 승인')}</section>`+table(data?.items,[['시각',r=>time(r.created_at)],['참여자','name'],['부스',r=>catalog.find(b=>b.key===r.booth_key)?.name || r.booth_key],['방식','method'],['사유','reason']])+paging();

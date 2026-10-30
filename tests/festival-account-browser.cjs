@@ -59,6 +59,8 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
           reviews.set(booth, [...rows, { rating, content: content ?? null, mine: true }]);
           return route.fulfill({ json: { result: 'SAVED', ...summary(booth) } });
         }
+        // Before the tag registry migration the app falls back to the plain issue call.
+        if (pathname === '/rest/v1/rpc/festival_nfc_tag_admin') return route.fulfill({ status: 404, json: { code: 'PGRST202', message: 'Could not find the function in the schema cache' } });
         if (pathname === '/rest/v1/rpc/festival_nfc_admin_issue') {
           const { p_booth: booth, p_valid_minutes: minutes } = req.postDataJSON();
           if (!admin) return route.fulfill({ status: 403, json: { message: 'ADMIN_REQUIRED' } });
@@ -151,6 +153,7 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
       const issued = await page.locator('#serverAdminUrl').inputValue();
       assert.equal(issued, `pangyofestival://nfc#t=${token('issued')}`);
       assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('nf1.')), false, 'issued tokens must never be stored');
+      await page.locator('#serverTagList .ops-alert').getByText('서버 업데이트가 아직 적용되지 않았어요', { exact: false }).waitFor();
       await capture('admin-issue');
 
       await page.locator('.bottom-nav [data-route="profile"]').click();
