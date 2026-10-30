@@ -468,3 +468,42 @@ body.design-web {
 .ops-guard-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .ops-guard-list h2 span { margin-left: 6px; color: var(--muted); font-size: 14px; font-weight: 400; }
 .ops-guard-list > p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+/* Bulk booth operating status. */
+.ops-bulk-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.ops-bulk-quick .ghost-btn { width: auto; min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.ops-bulk-list { display: grid; gap: 2px; max-height: 320px; margin: 0; padding: 8px 10px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 8px; }
+.ops-bulk-list legend { padding: 0 4px; font-size: 13px; font-weight: 700; }
+.ops-bulk-list legend span { margin-left: 4px; color: var(--primary); }
+.ops-bulk-list .ops-checkbox { align-items: center; min-height: 40px; }
+.ops-bulk-list .ops-checkbox span { display: grid; min-width: 0; }
+.ops-bulk-list .ops-checkbox small { color: var(--muted); font-size: 12px; }
+.ops-guard-open { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; min-height: 44px; }
+/* Registering cards issued before the tag list existed. */
+.nfc-register { display: grid; gap: 10px; margin-top: 20px; padding: 16px; border-radius: 10px; background: #f6f8f7; }
+.nfc-register h3 { margin: 0; font-size: 16px; }
+.nfc-register > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.server-admin .nfc-register-read { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
+.server-admin .nfc-register .nfc-field-note { margin: 0; }
+.nfc-register-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.nfc-register-form input[name="address"] { grid-column: 1 / -1; }
+.nfc-register-form .input { min-width: 0; height: 44px; font-size: 14px; }
+.server-admin .nfc-register-form .primary-btn { width: auto; min-height: 44px; padding: 8px 18px; }
+.nfc-register-status { min-height: 1.4em; margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.nfc-register-status.success { color: var(--primary); font-weight: 700; }
+.nfc-register-status.error { color: #a14449; }
+/* Festival notices: operator management and the home news list. */
+.ops-notice-list { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.ops-notice-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.ops-notice-list li.is-hidden { opacity: .6; }
+.ops-notice-list strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
+.ops-notice-list p { margin: 4px 0 0; color: var(--text); font-size: 13px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+.ops-notice-list small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.ops-notice-list .ghost-btn { width: auto; min-height: 36px; padding: 6px 12px; font-size: 13px; }
+.ops-notice-flag, .web-news-flag { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 999px; background: #fdecea; color: #a14449; font-size: 11px; font-weight: 700; vertical-align: 2px; }
+.ops-notice-delete { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; min-height: 44px; color: #a14449; }
+.ops-count { margin-left: 6px; color: var(--muted); font-size: 14px; font-weight: 400; }
+.web-news-list { display: grid; gap: 12px; margin: 6px 0 0; padding: 0; list-style: none; }
+.web-news-list li + li { padding-top: 12px; border-top: 1px solid var(--line); }
+.web-news-list strong { display: block; overflow-wrap: anywhere; }
+.web-news-list p { margin: 4px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.web-news-list small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }

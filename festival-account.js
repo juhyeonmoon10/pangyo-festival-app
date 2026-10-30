@@ -376,6 +376,10 @@
             || (payload.booth && tag.boothKey !== payload.booth)) throw new Error("INVALID_TAG_RESPONSE");
           return { ok: true, ...tag, id: action === "url" ? data.id : data.tagId };
         }
+        if (action === "register") {
+          if (!data || !/^[0-9a-f]{32}$/.test(data.id) || typeof data.boothKey !== "string" || typeof data.added !== "boolean") throw new Error("INVALID_TAG_RESPONSE");
+          return { ok: true, id: data.id, boothKey: data.boothKey, added: data.added };
+        }
         if (!data || data.id !== payload.id) throw new Error("INVALID_TAG_RESPONSE");
         return { ok: true, id: data.id, label: data.label, revokedAt: data.revokedAt };
       } catch (error) { return { ok: false, ...normalizeError(error) }; }

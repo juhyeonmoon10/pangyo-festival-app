@@ -12,7 +12,7 @@ let serverCompletedBooths = [];
 // Server-mode caches. Keys are DB booth enum values, never local booth ids.
 let serverMyReviews = null;
 const serverReviews = new Map();
-const serverAdmin = { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null };
+const serverAdmin = { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null, registerNote: "", registerTone: "", tagReading: false };
 const MOCK_NFC_TOKEN_PREFIX = "mock-v1.";
 const ADMIN_ONLY_NFC_SOURCES = new Set(["mock-panel", "detail-shortcut", "detail-action"]);
 const CLUB_CATALOG_VERSION = 1;
@@ -2315,6 +2315,103 @@ function issuedTagItem(tag) {
     </li>`;
 }
 
+// Cards issued before the registry are unknown to the server until they are read once.
+function tagRegisterSection() {
+  const nfc = window.isSecureContext && "NDEFReader" in window;
+  return `<section class="nfc-register" aria-labelledby="serverTagRegisterTitle">
+      <h3 id="serverTagRegisterTitle">기존 카드 등록</h3>
+      <p>이 목록이 생기기 전에 발급한 카드는 서버에 기록이 없어요. 카드를 읽거나 카드 주소를 붙여 넣으면 목록에 추가돼 관리할 수 있어요. 스탬프는 적립되지 않아요.</p>
+      <button type="button" class="${serverAdmin.tagReading ? "primary-btn" : "ghost-btn"} nfc-register-read" data-server-tag-read ${nfc ? "" : "disabled"}>${icon("scan")} ${serverAdmin.tagReading ? "카드 읽기 중지" : "NFC로 카드 읽기"}</button>
+      ${nfc ? (serverAdmin.tagReading ? '<p class="nfc-field-note">카드를 휴대폰 뒷면에 차례로 대세요. 읽을 때마다 등록돼요.</p>' : "") : '<p class="nfc-field-note">NFC 읽기는 안드로이드 크롬에서만 돼요. 다른 기기에서는 카드 주소를 붙여 넣어 주세요.</p>'}
+      <form class="nfc-register-form" data-server-tag-register>
+        <input class="input" name="address" autocomplete="off" spellcheck="false" placeholder="카드 주소 붙여넣기 (…#t=nf1.…)" aria-label="카드 주소" />
+        <input class="input" name="label" maxlength="40" autocomplete="off" placeholder="메모 (선택)" aria-label="카드 메모" />
+        <button type="submit" class="primary-btn">등록</button>
+      </form>
+      <p class="nfc-register-status ${serverAdmin.registerTone}" id="serverTagRegisterStatus" role="status" aria-live="polite">${escapeHtml(serverAdmin.registerNote)}</p>
+    </section>`;
+}
+
+// Accepts a card address in any form the cards were written with, or the bare token.
+function extractTagToken(text) {
+  const value = String(text || "").trim();
+  if (window.FestivalAccount.TOKEN_PATTERN.test(value)) return value;
+  const hash = value.includes("#") ? value.slice(value.indexOf("#") + 1) : "";
+  const query = value.includes("?") ? value.slice(value.indexOf("?") + 1).split("#")[0] : "";
+  for (const part of [hash, query]) {
+    const token = new URLSearchParams(part).get("t");
+    if (window.FestivalAccount.TOKEN_PATTERN.test(token || "")) return token;
+  }
+  return null;
+}
+
+let serverTagReader = null;
+async function registerServerTag(text, label = "") {
+  const token = extractTagToken(text);
+  if (!token) {
+    Object.assign(serverAdmin, { registerNote: "카드 주소를 확인해 주세요. 주소 끝에 #t=nf1.로 시작하는 부분이 있어야 해요.", registerTone: "error" });
+    renderTagRegisterStatus();
+    return false;
+  }
+  const actingUser = state.user.id;
+  Object.assign(serverAdmin, { registerNote: "확인하는 중이에요...", registerTone: "" });
+  renderTagRegisterStatus();
+  const response = await festivalAccount.nfcTags("register", label ? { token, label } : { token });
+  if (state.user?.id !== actingUser || !isAdminUser()) return false;
+  Object.assign(serverAdmin, response.ok
+    ? { registerNote: `${tagBoothName(response.boothKey)} 카드를 ${response.added ? "목록에 추가했어요" : "확인했어요. 이미 목록에 있어요"}.`, registerTone: "success" }
+    : { registerNote: response.message, registerTone: "error" });
+  if (response.ok) await loadServerTags();
+  else renderTagRegisterStatus();
+  return response.ok;
+}
+
+function renderTagRegisterStatus() {
+  const node = document.querySelector("#serverTagRegisterStatus");
+  if (!node) return;
+  node.textContent = serverAdmin.registerNote;
+  node.className = `nfc-register-status ${serverAdmin.registerTone}`;
+}
+
+function stopServerTagReading() {
+  serverTagReader?.abort();
+  serverTagReader = null;
+  serverAdmin.tagReading = false;
+}
+
+async function toggleServerTagReading() {
+  if (serverAdmin.tagReading) { stopServerTagReading(); render(); return; }
+  if (!window.isSecureContext || !("NDEFReader" in window)) return;
+  const controller = new AbortController();
+  serverTagReader = controller;
+  serverAdmin.tagReading = true;
+  Object.assign(serverAdmin, { registerNote: "카드를 대 주세요.", registerTone: "" });
+  render();
+  try {
+    const reader = new NDEFReader();
+    reader.onreading = event => {
+      if (controller.signal.aborted) return;
+      for (const record of event.message.records) {
+        if (record.recordType !== "url" && record.recordType !== "absolute-url" && record.recordType !== "text") continue;
+        const text = new TextDecoder(record.encoding || "utf-8").decode(record.data);
+        if (extractTagToken(text)) { registerServerTag(text); return; }
+      }
+      Object.assign(serverAdmin, { registerNote: "축제 방문 태그가 아니에요.", registerTone: "error" });
+      renderTagRegisterStatus();
+    };
+    reader.onreadingerror = () => {
+      Object.assign(serverAdmin, { registerNote: "카드를 읽지 못했어요. 다시 가까이 대 주세요.", registerTone: "error" });
+      renderTagRegisterStatus();
+    };
+    await reader.scan({ signal: controller.signal });
+  } catch {
+    if (controller.signal.aborted) return;
+    stopServerTagReading();
+    Object.assign(serverAdmin, { registerNote: "NFC를 켤 수 없어요. 휴대폰 NFC 설정과 권한을 확인해 주세요.", registerTone: "error" });
+    render();
+  }
+}
+
 function issuedTagsSection(booths) {
   const tags = serverAdmin.tags;
   const heading = `<div class="nfc-section-title"><h2>발급된 태그</h2><button type="button" class="icon-btn" data-server-tags-refresh aria-label="발급된 태그 새로고침" title="새로고침" ${serverAdmin.tagsLoading ? "disabled" : ""}>${icon("refresh")}</button></div>`;
@@ -2335,8 +2432,9 @@ function issuedTagsSection(booths) {
       <label for="serverTagStatus">상태<select class="select" id="serverTagStatus">${Object.entries({ all: "전체 상태", ...TAG_STATUS_LABELS }).map(([value, label]) => `<option value="${value}" ${serverAdmin.tagStatus === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
       <span role="status">${shown.length}개</span>
     </div>
-    ${shown.length ? `<ul class="nfc-issued-list">${shown.map(issuedTagItem).join("")}</ul>` : `<p class="nfc-empty">${tags.length ? "조건에 맞는 태그가 없어요." : "아직 발급된 태그가 없어요."}</p>`}
-    <p class="nfc-field-note">사용 중지한 카드로는 스탬프가 적립되지 않아요. 이미 적립된 스탬프는 그대로예요. 이 목록이 생기기 전에 발급한 카드는 학생이 처음 인식할 때 "이전 발급"으로 나타나요.</p>
+    ${shown.length ? `<ul class="nfc-issued-list">${shown.map(issuedTagItem).join("")}</ul>` : `<p class="nfc-empty">${tags.length ? "조건에 맞는 태그가 없어요." : "아직 목록에 있는 태그가 없어요. 이전에 발급한 카드는 아래에서 등록해 주세요."}</p>`}
+    <p class="nfc-field-note">사용 중지한 카드로는 스탬프가 적립되지 않아요. 이미 적립된 스탬프는 그대로예요.</p>
+    ${tagRegisterSection()}
   </section>`;
 }
 
@@ -2842,6 +2940,16 @@ function bindEvents() {
     serverTagAction("label", form.dataset.tagLabelForm);
   }));
   if (document.querySelector("#serverTagList") && !serverAdmin.tags && !serverAdmin.tagsLoading && !serverAdmin.tagsError) loadServerTags();
+  document.querySelector("[data-server-tag-read]")?.addEventListener("click", toggleServerTagReading);
+  document.querySelector("[data-server-tag-register]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    runActionOnce("server-tag-register", async () => {
+      if (await registerServerTag(form.elements.address.value, form.elements.label.value.trim())) form.reset();
+    });
+  });
+  // Leaving the NFC screen stops reading so cards tapped elsewhere behave normally.
+  if (serverAdmin.tagReading && !document.querySelector("[data-server-tag-read]")) stopServerTagReading();
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
     state.adminTab = button.dataset.adminTab;
@@ -3150,7 +3258,7 @@ async function resetLogin() {
     serverCompletedBooths = [];
     serverMyReviews = null;
     serverReviews.clear();
-    Object.assign(serverAdmin, { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null });
+    Object.assign(serverAdmin, { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null, registerNote: "", registerTone: "", tagReading: false });
     state.pendingNfcClaim = null;
   }
   state.user = null;

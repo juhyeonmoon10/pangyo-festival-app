@@ -1,6 +1,7 @@
 /* Real operations UI. All authorization and rewards remain in guarded server RPCs. */
 const festivalOpsUI = (() => {
   let owner=null, mine=null, catalog=[], event=null, busy=false, loading=false, loaded=false, failure='';
+  let guardData=null, notices=[], selectedNotice='';
   let tab='dashboard', data=null, offset=0, search='', selectedBooth=null, selectedRule='';
   let stream=null, cameraTimer=null, qrTimer=null, qrPoll=null, walletPoll=null;
   // Seconds between voucher state checks while a voucher is on screen.
@@ -12,7 +13,7 @@ const festivalOpsUI = (() => {
   let visitRecipient=null;
   let visitSyncPending=false, visitSyncGeneration=0;
   let identity=null, identityBusy=false, identityNote='', identityQuery='', identityDraft='';
-  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
+  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
   const localTabs=new Set(['tools','nfc','stamp-simulator','settings']);
   const h=value=>escapeHtml(String(value ?? ''));
   const VOUCHER_CODE=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
@@ -35,7 +36,7 @@ const festivalOpsUI = (() => {
   const currentEventReady=()=>Boolean(event?.id && Number.isInteger(event.version) && event.version>0);
 
   function reset() {
-    owner=state.user?.id || null; mine=null; catalog=[]; event=null; data=null; loaded=false; failure=''; notice=''; tab='dashboard'; selectedBooth=null; selectedRule='';
+    owner=state.user?.id || null; mine=null; guardData=null; notices=[]; selectedNotice=''; catalog=[]; event=null; data=null; loaded=false; failure=''; notice=''; tab='dashboard'; selectedBooth=null; selectedRule='';
     visitRecipient=null; visitSyncPending=false; visitSyncGeneration++; identity=null; identityNote=''; identityDraft=''; closeDialog();
   }
   const viewKey=()=>JSON.stringify([state.user?.id,state.route,tab,offset,search]);
@@ -43,6 +44,7 @@ const festivalOpsUI = (() => {
     if(!Object.hasOwn(labels,next)) return;
     if(owner!==state.user?.id) reset();
     tab=next; offset=0; search=''; data=null; failure=''; notice=''; loaded=localTabs.has(next);
+    if(next==='settings') guardData=null;
     visitRecipient=null;
     closeDialog();
     render();
@@ -71,7 +73,7 @@ const festivalOpsUI = (() => {
     const requestedGeneration=visitSyncGeneration;
     loading=true;
     try {
-      const [a,b,rewards]=await Promise.all(['catalog','me','reward_status'].map(kind=>api().read(kind)));
+      const [a,b,rewards,news]=await Promise.all(['catalog','me','reward_status','notices'].map(kind=>api().read(kind)));
       if(state.user?.id!==actor || requestedView!==viewKey()) return {ok:false};
       if(!a.ok || !b.ok) { failure=(a.ok?b:a).message; loaded=true; return {ok:false}; }
       if(event?.id!==a.data.event?.id) visitRecipient=null;
@@ -89,12 +91,19 @@ const festivalOpsUI = (() => {
         && Array.isArray(program.options) && program.options.every(o=>o && kinds.includes(o.kind) && typeof o.title==='string' && typeof o.available==='boolean')
         && new Set(program.options.map(o=>o.kind)).size===program.options.length
         && (!program.ready || program.options.length===2);
+      // Notices are optional: before their migration the home simply shows none.
+      notices=news.ok && Array.isArray(news.data.items) ? news.data.items.filter(n=>n && typeof n.title==='string' && typeof n.body==='string' && typeof n.important==='boolean' && !Number.isNaN(Date.parse(n.publishedAt))) : [];
       mine.rewardProgram=validProgram ? {...program,supported:true} : {ready:false,supported:false,legacyRules:rewards.code==='OPS_NOT_READY'};
       mergeCatalog();
       serverMyReviews=new Set((mine.reviews || []).map(x=>x.booth_key));
       for(const r of mine.reviews || []) {
         const before=serverReviews.get(r.booth_key);
         if(before) serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:r.author_name || '참여자',createdAt:r.created_at}]});
+      }
+      if(state.route==='admin' && isAdminUser() && requestedTab==='settings') {
+        const g=await api().read('claim_guard');
+        if(state.user?.id!==actor || requestedView!==viewKey()) return;
+        guardData=g.ok ? g.data : {error:g.message};
       }
       if(state.route==='admin' && isAdminUser() && !localTabs.has(requestedTab)) {
         if(requestedTab==='catalog') data=a.data;
@@ -129,7 +138,7 @@ const festivalOpsUI = (() => {
     return `<nav class="festival-ops-tabs" aria-label="운영자 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>${!['dashboard','tools','audit'].includes(tab) ? '<button type="button" class="text-link festival-tool-back" data-ops-tab="tools">'+icon('back')+' 관리 도구 목록</button>' : ''}`;
   }
   function toolsMenu() {
-    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['visits','stamp','방문 수동 승인'],['participants','user','참여자·동아리 명단'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
+    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['visits','stamp','방문 수동 승인'],['participants','user','참여자·동아리 명단'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
     return `<nav class="festival-ops-tools" aria-label="관리 도구">${tools.map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</nav>`;
   }
   function eventForm() {
@@ -162,16 +171,26 @@ const festivalOpsUI = (() => {
     const name=r=>catalog.find(b=>b.key===r.booth)?.name || r.name || r.booth;
     return `<section class="ops-section ops-booth-stamps"><h2>부스별 스탬프 완료</h2><p>부스를 완료한 참여자 수예요. 한 사람은 부스마다 한 번만 세요. 전체 ${total}건</p>${rows.length?`<ol class="ops-stamp-list">${rows.map(r=>`<li data-booth-stamps="${h(r.booth)}"><div class="ops-stamp-row"><strong>${h(name(r))}</strong><span><b>${r.stamps}</b>명</span></div><span class="ops-stamp-bar" aria-hidden="true"><i style="width:${Math.round(r.stamps/max*100)}%"></i></span><small>NFC ${r.nfc} · 수동 ${r.manual}${r.status==='open'?'':` · ${h(statusName(r.status))}`}</small></li>`).join('')}</ol>`:'<p class="ops-empty">등록된 부스가 없어요.</p>'}</section>`;
   }
-  function claimGuardView() {
-    const g=data;
+  function claimGuardView(g=data,withList=true) {
     if(typeof g?.enabled!=='boolean' || !Number.isInteger(g.windowMinutes) || !Number.isInteger(g.maxClaims)) return '<p class="ops-alert" role="alert">부정 적립 감지를 불러오지 못했어요. 서버 업데이트가 필요하거나 연결을 확인해야 해요.</p>';
     const items=Array.isArray(g.items) ? g.items : [];
-    return `<section class="ops-section ops-claim-guard"><h2>적립 제한 기준</h2><p>NFC로 새 부스를 짧은 시간에 너무 많이 적립하면 다음 적립을 막아요. 이미 적립한 부스를 다시 찍는 것과 운영자 수동 승인은 막지 않아요.</p>${form('claim_guard_save',
+    return `<section class="ops-section ops-claim-guard"><h2>부정 적립 제한</h2><p>NFC로 새 부스를 짧은 시간에 너무 많이 적립하면 다음 적립을 막아요. 이미 적립한 부스를 다시 찍는 것과 운영자 수동 승인은 막지 않아요.</p>${form('claim_guard_save',
       `<div class="ops-guard-fields">${field('windowMinutes','기간 (분)',g.windowMinutes,'required min="1" max="180" step="1" inputmode="numeric"','number')}${field('maxClaims','최대 적립 수',g.maxClaims,'required min="1" max="100" step="1" inputmode="numeric"','number')}</div>`+
       `<p class="ops-guard-summary" data-guard-summary>${guardSummary(g.windowMinutes,g.maxClaims)}</p>`+
-      `<label class="ops-checkbox"><input name="enabled" type="checkbox" ${g.enabled?'checked':''}>적립 제한 사용</label><input type="hidden" name="version" value="${g.version}">`,'기준 저장')}<p class="ops-guard-note">링크를 복사해 붙여 넣은 것과 카드를 직접 찍은 것은 지금 카드로는 구분할 수 없어요. 몰아서 적립하는 것을 막고 아래 목록으로 찾아내는 방식이에요.</p></section>`
-      +`<section class="ops-section ops-guard-list"><h2>기준에 도달한 참여자 <span>${items.length}명</span></h2><p>${g.windowMinutes}분 안에 NFC로 ${g.maxClaims}개 이상 적립한 적이 있는 참여자예요. 현재 기준으로 다시 계산해요.</p>`
-      +(items.length ? table(items,[['참여자',r=>`${r.name} (#${r.userId})`],['기간 내 최다',r=>`${r.peak}개`],['NFC',r=>r.nfc],['수동',r=>r.manual],['마지막 적립',r=>time(r.lastAt)]]) : '<p class="ops-empty">아직 기준에 도달한 참여자가 없어요.</p>')+'</section>';
+      `<label class="ops-checkbox"><input name="enabled" type="checkbox" ${g.enabled?'checked':''}>적립 제한 사용</label><input type="hidden" name="version" value="${g.version}">`,'기준 저장')}<p class="ops-guard-note">링크를 복사해 붙여 넣은 것과 카드를 직접 찍은 것은 지금 카드로는 구분할 수 없어요. 몰아서 적립하는 것을 막고, 기준에 도달한 참여자를 따로 보여 주는 방식이에요.</p></section>`
+      +(withList ? `<section class="ops-section ops-guard-list"><h2>기준에 도달한 참여자 <span>${items.length}명</span></h2><p>${g.windowMinutes}분 안에 NFC로 ${g.maxClaims}개 이상 적립한 적이 있는 참여자예요. 현재 기준으로 다시 계산해요.</p>`
+      +(items.length ? table(items,[['참여자',r=>`${r.name} (#${r.userId})`],['기간 내 최다',r=>`${r.peak}개`],['NFC',r=>r.nfc],['수동',r=>r.manual],['마지막 적립',r=>time(r.lastAt)]]) : '<p class="ops-empty">아직 기준에 도달한 참여자가 없어요.</p>')+'</section>' : `<button type="button" class="ghost-btn ops-guard-open" data-ops-tab="claim_guard">${icon('notice')} 기준에 도달한 참여자 보기</button>`);
+  }
+  function noticeAdminView() {
+    if(!Array.isArray(data?.items)) return '<p class="ops-alert" role="alert">공지를 불러오지 못했어요. 서버 업데이트가 필요하거나 연결을 확인해야 해요.</p>';
+    const items=data.items, n=items.find(x=>x.id===selectedNotice);
+    return `<section class="ops-section ops-notice-form"><h2>${n?'공지 수정':'새 공지'}</h2><label>편집할 공지<select id="opsNoticeSelect" class="select"><option value="">새 공지 작성</option>${items.map(x=>`<option value="${h(x.id)}" ${x.id===selectedNotice?'selected':''}>${h(x.title)}${x.published?'':' (숨김)'}</option>`).join('')}</select></label>${form('notice_save',
+      field('title','제목',n?.title,'required maxlength="80" autocomplete="off"')+
+      `<label>내용<textarea class="textarea" name="body" maxlength="1000" rows="5" placeholder="학생 홈 화면의 축제 소식에 보여요.">${h(n?.body)}</textarea></label>`+
+      `<label class="ops-checkbox"><input name="important" type="checkbox" ${n?.important?'checked':''}>중요 공지 (홈 맨 위 알림 띠에 표시)</label>`+
+      `<label class="ops-checkbox"><input name="published" type="checkbox" ${!n || n.published?'checked':''}>학생에게 게시</label>`+
+      `<input type="hidden" name="id" value="${h(n?.id)}"><input type="hidden" name="version" value="${n?.version || 0}">`,n?'공지 수정':'공지 등록',n?'save':'plus')}${n?`<button type="button" class="ghost-btn danger ops-notice-delete" data-notice-delete="${h(n.id)}" data-notice-version="${n.version}">${icon('close')} 공지 삭제</button>`:''}</section>`
+      +`<section class="ops-section"><h2>등록된 공지 <span class="ops-count">${items.length}개</span></h2>${items.length?`<ul class="ops-notice-list">${items.map(x=>`<li class="${x.published?'':'is-hidden'}"><div><strong>${x.important?'<span class="ops-notice-flag">중요</span>':''}${h(x.title)}</strong>${x.body?`<p>${h(x.body)}</p>`:''}<small>${h(time(x.createdAt))} · ${h(x.author)}${x.published?'':' · 숨김'}</small></div><button type="button" class="ghost-btn" data-notice-edit="${h(x.id)}">수정</button></li>`).join('')}</ul>`:'<p class="ops-empty">아직 등록된 공지가 없어요.</p>'}</section>`;
   }
   function guardSummary(minutes,count) {
     return Number.isInteger(minutes) && Number.isInteger(count) && minutes>0 && count>0
@@ -186,6 +205,16 @@ const festivalOpsUI = (() => {
   }
   function paging() {
     return `<div class="ops-paging"><button class="icon-btn" data-ops-page="-50" ${offset?'':'disabled'} aria-label="이전 페이지">${icon('back')}</button><span>${Math.floor(offset/50)+1}페이지</span><button class="icon-btn" data-ops-page="50" ${(data?.items?.length || 0)<50?'disabled':''} aria-label="다음 페이지">${icon('arrow')}</button></div>`;
+  }
+  function bulkStatusForm() {
+    if(!catalog.length) return '';
+    const floors=[...new Set(catalog.map(b=>b.floor))].sort();
+    const quick=[['all','전체'],['none','선택 해제'],...floors.map(f=>[`floor-${f}`,`${f}층`]),['status-paused','일시 중지만'],['status-open','운영 중만']];
+    return `<section class="ops-section ops-bulk-status"><h2>운영 상태 일괄 변경</h2><p>여러 부스를 골라 한 번에 운영 중·일시 중지·마감으로 바꿔요.</p>${form('booth_status_bulk',
+      `<div class="ops-bulk-quick" role="group" aria-label="빠른 선택">${quick.map(([id,label])=>`<button type="button" class="ghost-btn" data-bulk-pick="${id}">${label}</button>`).join('')}</div>`+
+      `<fieldset class="ops-bulk-list"><legend>부스 선택 <span data-bulk-count>0개 선택</span></legend>${catalog.map(b=>`<label class="ops-checkbox"><input type="checkbox" name="booths" value="${h(b.key)}" data-floor="${h(b.floor)}" data-status="${h(b.status)}"><span>${h(b.name)}<small>${h(b.floor)}층 · ${h(statusName(b.status))}</small></span></label>`).join('')}</fieldset>`+
+      select('status','바꿀 운영 상태',[['open','운영 중'],['paused','일시 중지'],['closed','마감']],'open')+
+      `<input type="hidden" name="eventId" value="${h(event?.id)}">`,'선택한 부스 상태 변경','check')}</section>`;
   }
   function boothForm() {
     const b=selectedBooth===null ? catalog[0] : catalog.find(x=>x.key===selectedBooth);
@@ -241,10 +270,11 @@ const festivalOpsUI = (() => {
   function content() {
     if(tab==='tools') return toolsMenu();
     if(!currentEventReady()) return unavailableEvent();
-    if(tab==='settings') return eventForm()+resetForm();
-    if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${boothStamps()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
+    if(tab==='settings') return eventForm()+(!guardData ? '<section class="ops-section"><h2>부정 적립 제한</h2><p role="status">불러오는 중...</p></section>' : guardData.error ? `<section class="ops-section"><h2>부정 적립 제한</h2><p class="ops-alert" role="alert">${h(guardData.error)}</p><button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 불러오기</button></section>` : claimGuardView(guardData,false))+resetForm();
+    if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${boothStamps()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급'],['claim_guard','notice','부정 적립 감지']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
     if(tab==='claim_guard') return claimGuardView();
-    if(tab==='catalog') return boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
+    if(tab==='notice_admin') return noticeAdminView();
+    if(tab==='catalog') return bulkStatusForm()+boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
     if(tab==='participants') return searchForm()+table(data?.items,[['번호','id'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><form id="reviewRosterLookup" class="ops-form">${select('userId','참여자',(data?.items || []).map(p=>[p.id,`${p.name} (#${p.id})`]),null)}<p role="status"></p><button class="primary-btn" type="submit">명단 확인</button></form></section>`+identityList();
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',visitParticipant()+select('booth','방문 부스',options().filter(([key])=>catalog.find(b=>b.key===key)?.status==='open'),null)+reason(),'스탬프 1개 승인')}</section>`+table(data?.items,[['시각',r=>time(r.created_at)],['참여자','name'],['부스',r=>catalog.find(b=>b.key===r.booth_key)?.name || r.booth_key],['방식','method'],['사유','reason']])+paging();
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>`${r.name} (#${r.user_id})`],['변경','delta'],['사유','reason']])+paging();
@@ -287,7 +317,12 @@ const festivalOpsUI = (() => {
     }
     if(action==='participation_reset') body.identities=form.elements.identities.checked;
     if(action==='claim_guard_save') body.enabled=form.elements.enabled.checked;
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save'].includes(action) && !confirm(action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`모든 참여자의 방문·스탬프, 바우처, 리뷰·별점, 포인트와 부스 평점 순위를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 운영자 권한과 부스·바우처 설정은 유지돼요. 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장입니다.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장입니다. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
+    if(action==='notice_save') { body.important=form.elements.important.checked; body.published=form.elements.published.checked; }
+    if(action==='booth_status_bulk') {
+      body.booths=[...form.querySelectorAll('[name=booths]:checked')].map(x=>x.value);
+      if(!body.booths.length) { note.textContent='상태를 바꿀 부스를 선택해 주세요.'; return; }
+    }
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save','booth_status_bulk'].includes(action) && !confirm(action==='booth_status_bulk'?`선택한 부스 ${body.booths.length}개를 '${statusName(body.status)}'(으)로 바꿀까요?${body.status==='open'?'':' 이 부스들은 NFC 방문 인증이 중지돼요.'}`:action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`모든 참여자의 방문·스탬프, 바우처, 리뷰·별점, 포인트와 부스 평점 순위를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 운영자 권한과 부스·바우처 설정은 유지돼요. 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장입니다.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장입니다. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; note.textContent='처리 중...';
     try {
       const response=await api().write(action,body);
@@ -307,7 +342,8 @@ const festivalOpsUI = (() => {
         // Local caches mirror the deleted server records until the next profile load.
         serverReviews.clear(); serverMyReviews=null; serverCompletedBooths=[]; form.reset();
       }
-      notice=action==='participation_reset'?`참여 기록을 초기화했어요. 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건, 부스 평점 ${response.data.ratings}건을 삭제했어요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
+      if(action==='notice_save') selectedNotice='';
+      notice=action==='notice_save'?(body.id?'공지를 수정했어요.':body.published?'공지를 등록했어요. 학생 홈에 바로 보여요.':'공지를 숨김 상태로 저장했어요.'):action==='booth_status_bulk'?`부스 ${response.data.selected}개를 '${statusName(response.data.status)}'(으)로 맞췄어요. 바뀐 부스 ${response.data.changed}개.`:action==='participation_reset'?`참여 기록을 초기화했어요. 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건, 부스 평점 ${response.data.ratings}건을 삭제했어요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
       selectedBooth=response.data.booth || selectedBooth; selectedRule=response.data.id && action==='rule_save'?response.data.id:selectedRule;
       await refresh();
     } finally { busy=false; if(form.isConnected) form.querySelector('button[type=submit]').disabled=false; }
@@ -637,6 +673,8 @@ const festivalOpsUI = (() => {
   function bind() {
     if(!active()) { if(owner) reset(); return; }
     const changed=lastRoute!==state.route; lastRoute=state.route;
+    // Settings is drawn at once but still reads the rate limit that sits on it.
+    if(state.route==='admin' && tab==='settings' && !guardData && !loading && owner===state.user.id) queueMicrotask(()=>refresh());
     if(owner!==state.user.id || !loaded || (changed && ['admin','map','vouchers','stamps','reviews','home','identity'].includes(state.route))) queueMicrotask(()=>refresh());
     document.querySelector('#opsTab')?.addEventListener('change',e=>selectTab(e.target.value));
     document.querySelectorAll('[data-ops-tab]').forEach(b=>b.onclick=()=>selectTab(b.dataset.opsTab));
@@ -648,6 +686,29 @@ const festivalOpsUI = (() => {
       if(!box.checked) input.focus();
     });
     document.querySelector('[data-pick-participant]')?.addEventListener('click',pickVisitParticipant);
+    document.querySelector('#opsNoticeSelect')?.addEventListener('change',e=>{selectedNotice=e.target.value;render();});
+    document.querySelectorAll('[data-notice-edit]').forEach(b=>b.onclick=()=>{selectedNotice=b.dataset.noticeEdit;render();document.querySelector('.ops-notice-form')?.scrollIntoView({block:'start'});});
+    document.querySelector('[data-notice-delete]')?.addEventListener('click',async e=>{
+      const b=e.currentTarget, n=data?.items?.find(x=>x.id===b.dataset.noticeDelete);
+      if(!n || busy || !confirm(`'${n.title}' 공지를 삭제할까요? 학생 홈에서도 바로 사라지고 되돌릴 수 없어요.`)) return;
+      busy=true; b.disabled=true;
+      try {
+        const r=await api().write('notice_delete',{id:n.id,version:n.version});
+        if(!r.ok) { failure=r.message; render(); return; }
+        selectedNotice=''; notice='공지를 삭제했어요.'; await refresh();
+      } finally { busy=false; }
+    });
+    const bulkForm=document.querySelector('[data-ops-form="booth_status_bulk"]');
+    if(bulkForm) {
+      const boxes=[...bulkForm.querySelectorAll('[name=booths]')];
+      const count=()=>{ bulkForm.querySelector('[data-bulk-count]').textContent=`${boxes.filter(b=>b.checked).length}개 선택`; bulkForm.querySelector('.ops-form-status').textContent=''; };
+      bulkForm.addEventListener('change',count);
+      bulkForm.querySelectorAll('[data-bulk-pick]').forEach(b=>b.onclick=()=>{
+        const pick=b.dataset.bulkPick;
+        for(const box of boxes) box.checked=pick==='all' || (pick.startsWith('floor-') && box.dataset.floor===pick.slice(6)) || (pick.startsWith('status-') && box.dataset.status===pick.slice(7));
+        count();
+      });
+    }
     const guardForm=document.querySelector('[data-ops-form="claim_guard_save"]');
     guardForm?.addEventListener('input',()=>{ guardForm.querySelector('[data-guard-summary]').textContent=guardSummary(Number(guardForm.elements.windowMinutes.value),Number(guardForm.elements.maxClaims.value)); });
     document.querySelector('#opsBoothSelect')?.addEventListener('change',e=>{selectedBooth=e.target.value;render();});
@@ -672,7 +733,7 @@ const festivalOpsUI = (() => {
     if(owner!==state.user?.id) reset();
     visitSyncGeneration++; visitSyncPending=true;
   }
-  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward,markVisitPending,identityView,identityRow,
+  return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward,markVisitPending,identityView,identityRow,notices:()=>notices,
     identity:()=>owner===state.user?.id?identity:null,
     visitSyncPending:()=>owner===state.user?.id && visitSyncPending,
     eventId:()=>owner===state.user?.id?event?.id ?? null:null};
