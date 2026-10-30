@@ -141,7 +141,7 @@ const festivalOpsUI = (() => {
   }
   function navigation() {
     const group=tab==='dashboard'?'dashboard':tab==='audit'?'audit':'tools';
-    return `<nav class="festival-ops-tabs" aria-label="운영자 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>${!['dashboard','tools','audit'].includes(tab) ? '<button type="button" class="text-link festival-tool-back" data-ops-tab="tools">'+icon('back')+' 관리 도구 목록</button>' : ''}`;
+    return `<nav class="festival-ops-tabs" aria-label="관리 마법사 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>${!['dashboard','tools','audit'].includes(tab) ? '<button type="button" class="text-link festival-tool-back" data-ops-tab="tools">'+icon('back')+' 관리 도구 목록</button>' : ''}`;
   }
   function toolsMenu() {
     const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
@@ -296,8 +296,8 @@ const festivalOpsUI = (() => {
   }
   function admin() {
     if(tab==='nfc') return serverAdminView();
-    if(tab==='stamp-simulator') return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>운영자 도구</strong></div></header>${navigation()}${typeof festivalStampSimulator==='undefined'?'':festivalStampSimulator.view()}${bottomNav('admin')}</main>`;
-    return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>운영자 도구</strong></div></header>${navigation()}<div class="ops-body" aria-busy="${!loaded}"><h1>${labels[tab]}</h1>${notice?`<p class="ops-form-status" data-tone="success" role="status">${h(notice)}</p>`:''}${failure?`<p class="ops-alert" role="alert">${h(failure)}</p>`:''}${!loaded?'<p role="status">불러오는 중...</p>':failure?'':content()}</div>${bottomNav('admin')}</main>`;
+    if(tab==='stamp-simulator') return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>관리 마법사</strong></div></header>${navigation()}${typeof festivalStampSimulator==='undefined'?'':festivalStampSimulator.view()}${bottomNav('admin')}</main>`;
+    return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>관리 마법사</strong></div></header>${navigation()}<div class="ops-body" aria-busy="${!loaded}"><h1>${labels[tab]}</h1>${notice?`<p class="ops-form-status" data-tone="success" role="status">${h(notice)}</p>`:''}${failure?`<p class="ops-alert" role="alert">${h(failure)}</p>`:''}${!loaded?'<p role="status">불러오는 중...</p>':failure?'':content()}</div>${bottomNav('admin')}</main>`;
   }
   async function save(e) {
     e.preventDefault(); if(busy) return;

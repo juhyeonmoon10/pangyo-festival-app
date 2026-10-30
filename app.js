@@ -1719,7 +1719,7 @@ function profileView() {
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">
         ${[["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
       </nav>
-      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "운영자 도구 열기" : "관리자 도구 열기"}</button>` : ""}
+      ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "관리 마법사 열기" : "관리 마법사 열기"}</button>` : ""}
       <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(festivalWeb.visitRow).join('') : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
@@ -2305,7 +2305,7 @@ function serverAdminView() {
     <main class="screen admin-screen server-admin">
       <header class="top-bar">
         <button class="icon-btn" data-route="home" aria-label="홈으로 돌아가기">${icon("back")}</button>
-        <div class="top-title"><strong>운영자 도구</strong><span>NFC 태그 발급·관리</span></div>
+        <div class="top-title"><strong>관리 마법사</strong><span>NFC 태그 발급·관리</span></div>
         <span class="icon-btn" aria-hidden="true"></span>
       </header>
       ${festivalOpsUI.navigation()}

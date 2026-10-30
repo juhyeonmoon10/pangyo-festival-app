@@ -246,7 +246,7 @@ const festivalWeb = (() => {
     if (document.querySelector(".web-menu-dialog")) return;
     const dialog = document.createElement("dialog");
     const items = [["map", "map", "부스 지도"], ["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"], ["profile", "user", "내 정보"]];
-    if (isAdminUser()) items.push(["admin", "admin", "운영자 도구"]);
+    if (isAdminUser()) items.push(["admin", "admin", "관리 마법사"]);
     dialog.className = "web-menu-dialog";
     dialog.setAttribute("aria-labelledby", "festivalMenuTitle");
     dialog.innerHTML = `<header><h2 id="festivalMenuTitle">전체 메뉴</h2><button type="button" class="icon-btn" data-menu-close aria-label="닫기">${icon("close")}</button></header><nav aria-label="전체 메뉴">${items.map(([route, symbol, label]) => `<button type="button" data-menu-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}</nav>`;
