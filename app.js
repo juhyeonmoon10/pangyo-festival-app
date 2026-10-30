@@ -69,6 +69,7 @@ const state = {
   reviewDraft: "",
   reviewBusy: false,
   reviewPickerOpen: false,
+  boothReviewFilter: "all",
   stampTrailExpanded: false,
   authStep: "google",
   pendingGoogle: null,
@@ -149,6 +150,7 @@ function initializeNavigation() {
     }
     closeMenus();
     render();
+    if (state.route === "boothReviews" && state.selectedBoothId) loadBoothReviews(state.selectedBoothId);
     if (state.searchOpen) focusSearchInput();
   });
 }
@@ -1253,7 +1255,14 @@ function pendingReviewText() {
 }
 
 function updateReviewSection(boothId) {
+  if (state.route === "boothReviews" && state.selectedBoothId === boothId) {
+    const body = document.querySelector("#boothReviewsBody");
+    if (body) body.innerHTML = boothReviewsBody(boothId);
+    return;
+  }
   if (state.route !== "detail" || state.selectedBoothId !== boothId) return;
+  const linkCount = document.querySelector("[data-review-count-link]");
+  if (linkCount) linkCount.textContent = reviewCountText(ratingInfo(boothId));
   const info = ratingInfo(boothId);
   const list = document.querySelector("#boothReviewSection .review-list");
   if (list) list.innerHTML = reviewListMarkup(info);
@@ -1395,6 +1404,7 @@ function render() {
     if (state.route === "vouchers") app.innerHTML = isServerMode() ? festivalOpsUI.vouchers() : festivalWeb.vouchers();
     if (state.route === "reviews") app.innerHTML = festivalWeb.reviews();
     if (state.route === "identity") app.innerHTML = festivalOpsUI.identityView();
+    if (state.route === "boothReviews") app.innerHTML = boothReviewsView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
     if (state.reviewPickerOpen && state.user) app.insertAdjacentHTML("beforeend", reviewPickerView());
@@ -2043,6 +2053,7 @@ function detailView() {
           <span><small>${isServerMode() ? "리뷰" : "평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
           <span><small>내 방문</small><strong>${stamped ? "방문 완료" : "방문 전"}</strong></span>
         </div>
+        <button type="button" class="ghost-btn full-action detail-review-link" data-open-booth-reviews="${escapeHtml(booth.id)}">${icon("message")}<span>리뷰 보기</span><b data-review-count-link>${escapeHtml(reviewCountText(rating))}</b>${icon("arrow")}</button>
         <button type="button" class="text-link festival-locate" data-locate-booth="${escapeHtml(booth.id)}">${icon('map')} 지도에서 위치 보기</button>
       </section>
       <p class="detail-data-note">${isServerMode() ? "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주세요." : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
@@ -2103,6 +2114,64 @@ function reviewView(review) {
   // New reviews carry a verified-name snapshot. Old anonymous reviews stay anonymous.
   const author = review.author || review.authorName || "참여자";
   return `<article class="review${review.mine ? " mine" : ""}"><div class="review-meta"><strong>${icon("star")} ${Number(review.rating).toFixed(1)}</strong><span>방문 인증 · ${escapeHtml(author)}${review.mine ? " (나)" : ""} · ${formatReviewDate(review.createdAt)}</span></div>${review.content ? `<p>${escapeHtml(review.content)}</p>` : ""}</article>`;
+}
+
+function openBoothReviews(boothId) {
+  state.selectedBoothId = boothId;
+  state.boothReviewFilter = "all";
+  navigateTo("boothReviews");
+  // Always refresh: other participants may have rated since the detail screen loaded.
+  loadBoothReviews(boothId, { force: true });
+}
+
+function reviewStars(value) {
+  const filled = Math.round(Number(value) || 0);
+  return [1, 2, 3, 4, 5].map(n => `<span class="star ${n <= filled ? "on" : ""}">${icon("star")}</span>`).join("");
+}
+
+function boothReviewsView() {
+  const booth = state.db.booths.find(item => item.id === state.selectedBoothId) || state.db.booths[0];
+  return `
+    <main class="screen booth-reviews-screen">
+      <header class="top-bar">
+        <button class="icon-btn" data-history-back="detail" aria-label="부스 상세로 돌아가기">${icon("back")}</button>
+        <div class="top-title"><strong>${escapeHtml(catalogBooth(booth)?.name || booth.name)} 리뷰</strong><span>${escapeHtml(booth.location)}</span></div>
+        <button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button>
+      </header>
+      <div id="boothReviewsBody" aria-live="polite">${boothReviewsBody(booth.id)}</div>
+      ${bottomNav("boothReviews")}
+    </main>
+  `;
+}
+
+function boothReviewsBody(boothId) {
+  const info = ratingInfo(boothId);
+  if (info.status === "error") return `<div class="review-empty"><strong>리뷰를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p><button type="button" class="ghost-btn" data-reload-booth-reviews>${icon("refresh")} 다시 불러오기</button></div>`;
+  if (info.status !== "ready" && !info.reviews.length) return `<div class="review-empty"><strong>리뷰를 불러오는 중이에요</strong></div>`;
+  const reviews = info.reviews;
+  const written = reviews.filter(review => review.content.trim());
+  const list = state.boothReviewFilter === "written" ? written : reviews;
+  // The server returns the latest 50 reviews; a distribution is only exact when all are loaded.
+  const complete = reviews.length >= info.count;
+  const distribution = complete && reviews.length ? `<dl class="booth-review-bars">${[5, 4, 3, 2, 1].map(score => {
+    const n = reviews.filter(review => Math.round(review.rating) === score).length;
+    return `<div><dt>${score}점</dt><dd><span style="width:${Math.round(n / reviews.length * 100)}%"></span></dd><dd class="booth-review-bar-count">${n}</dd></div>`;
+  }).join("")}</dl>` : "";
+  return `
+    <section class="booth-review-summary" aria-label="평균 별점">
+      <div class="booth-review-score">
+        <strong>${info.average || "–"}</strong>
+        <span class="booth-review-stars" aria-hidden="true">${reviewStars(info.average)}</span>
+        <small>리뷰 ${info.count}개</small>
+      </div>
+      ${distribution}
+    </section>
+    <nav class="festival-view-tabs" aria-label="리뷰 분류">${[["all", "전체", reviews.length], ["written", "글 후기", written.length]].map(([id, label, count]) => `<button type="button" data-booth-review-filter="${id}" aria-pressed="${state.boothReviewFilter === id}">${label} <span>${count}</span></button>`).join("")}</nav>
+    <section class="booth-review-list">
+      ${list.length ? list.map(reviewView).join("") : `<div class="review-empty"><strong>${state.boothReviewFilter === "written" ? "아직 글 후기가 없어요" : "아직 등록된 리뷰가 없어요"}</strong><p>방문한 참여자가 별점을 남기면 여기에 표시돼요.</p></div>`}
+      ${complete ? "" : `<p class="booth-review-note">최근 리뷰 ${reviews.length}개를 보여 주고 있어요.</p>`}
+    </section>
+  `;
 }
 
 function stampView() {
@@ -2362,7 +2431,7 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
-  const current = ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity"].includes(active) ? "profile" : active;
+  const current = active === "boothReviews" ? "map" : ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity"].includes(active) ? "profile" : active;
   return `
     <nav class="bottom-nav" aria-label="주요 메뉴">
       ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}
@@ -2448,6 +2517,16 @@ function bindEvents() {
       }
       navigateTo(button.dataset.route);
     });
+  });
+  document.querySelectorAll("[data-open-booth-reviews]").forEach(button => button.addEventListener("click", () => openBoothReviews(button.dataset.openBoothReviews)));
+  document.querySelector("#boothReviewsBody")?.addEventListener("click", event => {
+    const filter = event.target.closest("[data-booth-review-filter]");
+    if (filter) {
+      state.boothReviewFilter = filter.dataset.boothReviewFilter;
+      event.currentTarget.innerHTML = boothReviewsBody(state.selectedBoothId);
+      return;
+    }
+    if (event.target.closest("[data-reload-booth-reviews]")) loadBoothReviews(state.selectedBoothId, { force: true });
   });
   document.querySelectorAll("[data-history-back]").forEach((button) => {
     button.addEventListener("click", () => {
