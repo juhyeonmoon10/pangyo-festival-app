@@ -365,3 +365,22 @@ body.design-web {
 @media (max-height: 650px) {
   .design-web .map-screen { --map-sheet-peek: 148px; }
 }
+.festival-identity-prompt { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 18px; padding: 14px 16px; border: 1px solid #f0d58a; border-radius: 8px; background: var(--reward-fill, #fff7dc); color: var(--text); text-align: left; font: inherit; }
+.festival-identity-prompt > span { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.festival-identity-prompt strong { font-size: 15px; }
+.festival-identity-prompt small { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.festival-identity-prompt .ui-icon { width: 22px; height: 22px; flex: none; color: #9a6a00; }
+.festival-identity-card { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.festival-identity-card dl { display: grid; gap: 10px; margin: 0; }
+.festival-identity-card dl div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
+.festival-identity-card dt { color: var(--muted); font-size: 13px; }
+.festival-identity-card dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+.festival-identity-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-weight: 700; }
+.festival-identity-badge .ui-icon { width: 18px; height: 18px; }
+.festival-identity-help { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.festival-identity-card .festival-identity-help:first-child { margin: 0; }
+.festival-identity input[readonly] { background: var(--surface-2); color: var(--muted); }
+.profile-identity-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.profile-identity-row strong { flex: 1; text-align: right; overflow-wrap: anywhere; }
+.profile-identity-row .ui-icon { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.ops-identity-counts { color: var(--muted); font-size: 13px; }

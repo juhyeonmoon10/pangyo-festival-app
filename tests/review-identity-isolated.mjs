@@ -39,6 +39,8 @@ for(const booth of [own,away,second]) await write(admin,'booth_save',{booth,vers
 for(const a of [student,unknown,other]) for(const booth of [own,away,second]) await write(admin,'visit_approve',{userId:a.uid,booth,reason:'Synthetic verified visit'});
 await write(other,'review_save',{booth:away,rating:4,content:''});
 await db.exec(read('operations-server/review-identity.draft.sql'));
+// Installed together on the shared project: self-confirmation and the operator list/relink rules.
+await db.exec(read('operations-server/review-identity-self.sql'));
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
 const studentNumber=a=>String(11000+a.uid);
 const record=(a,keys=[own],status='ready')=>({studentNumber:studentNumber(a),realName:'테스트실명',clubs:['합성동아리'],boothKeys:keys,status,
@@ -131,8 +133,15 @@ await test('review identity revocation takes effect on next request',async()=>{
   assert.equal((await get(student,'reviews',{booth:away})).reviewPolicy.allowed,false);
   await assert.rejects(write(student,'review_save',{booth:second,rating:5}),/REVIEW_IDENTITY_REQUIRED/);
 });
-await test('one roster cannot be shared by multiple accounts, even after revocation',async()=>{
-  await assert.rejects(roster(admin,'save',{...payload(unknown,[],1),studentNumber:studentNumber(student),rosterVersion:1}),/ROSTER_ALREADY_LINKED/);
+await test('a verified link blocks the roster; an operator-revoked link frees it',async()=>{
+  const revoked=await roster(admin,'get',{eventId:event.id,userId:student.uid});
+  assert.equal(revoked.verified,false);
+  const unknownVersion=(await roster(admin,'get',{eventId:event.id,userId:unknown.uid})).version;
+  const taken=await roster(admin,'save',{...payload(unknown,[],unknownVersion),studentNumber:studentNumber(student),rosterVersion:1});
+  assert.equal(taken.verified,true);
+  assert.equal(Number((await one('select count(*) n from festival_ops.review_identities where user_id=$1',[student.uid])).n),0);
+  await assert.rejects(roster(admin,'save',{...payload(student,[],0),rosterVersion:1}),/ROSTER_ALREADY_LINKED/);
+  await roster(admin,'revoke',{eventId:event.id,userId:unknown.uid,version:taken.version,reason:'Synthetic correction'});
 });
 await test('lookup is exact, audited, and not a student list endpoint',async()=>{
   const r=await roster(admin,'lookup',{eventId:event.id,userId:student.uid,studentNumber:studentNumber(student)});
@@ -141,7 +150,8 @@ await test('lookup is exact, audited, and not a student list endpoint',async()=>
   assert.equal((await roster(admin,'lookup',{eventId:event.id,userId:student.uid,studentNumber:'19999'})).roster,null);
 });
 await test('client-supplied name or affiliations cannot change the official identity',async()=>{
-  const r=await roster(admin,'save',{...payload(student,[],2),realName:'Forged name',boothKeys:[],verified:false});
+  const version=(await roster(admin,'get',{eventId:event.id,userId:student.uid})).version;
+  const r=await roster(admin,'save',{...payload(student,[],version),realName:'Forged name',boothKeys:[],verified:false});
   assert.equal(r.realName,'테스트실명');assert.equal(r.verified,true);
   assert.ok(r.boothKeys.includes(own));assert.ok(r.boothKeys.includes(second));
 });
