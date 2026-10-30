@@ -16,6 +16,7 @@
     NFC_DISABLED: "방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
     NFC_TAG_EXPIRED: "사용이 중지되었거나 교체·만료된 태그입니다.",
     NOT_FOUND: "대상을 찾을 수 없어요. 목록을 새로고침해 주세요.",
+    CLAIM_RATE_LIMITED: "짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.",
     VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있어요.",
     ALREADY_REVIEWED: "이 부스에는 이미 별점을 남겼어요.",
     RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",

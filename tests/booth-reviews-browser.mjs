@@ -116,7 +116,8 @@ try {
     const items=v.page.locator('.booth-review-item');
     assert.equal(await items.count(),4,'first four reviews before expanding');
     assert.equal(await v.page.locator('.booth-review-avatar').first().innerText(),'마루');
-    assert.match(await items.first().innerText(),/\d{4}년 \d{1,2}월 \d{1,2}일/);
+    assert.match(await items.first().innerText(),/오[전후] \d{2}시 \d{2}분/);
+    assert.doesNotMatch(await items.first().innerText(),/\d{4}년/);
     assert.equal(await v.page.locator('.booth-review-item.mine').count(),0,'own review is the oldest, not yet shown');
     await screenshot(v.page,width,'booth-reviews');
     await v.page.locator('[data-booth-reviews-more]').click();
