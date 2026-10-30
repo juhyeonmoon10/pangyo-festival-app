@@ -3977,7 +3977,7 @@ function applyServerProfile(profile) {
   } else {
     // The operator flag comes from the caller's own users row. Every privileged call is
     // re-checked on the server, so this only decides which screens are offered.
-    state.user = { id: profile.authUserId, serverUserId: profile.id, name: profile.name, studentNumber: profile.studentNumber,
+    state.user = { id: profile.authUserId, name: profile.name, studentNumber: profile.studentNumber,
       googleEmail: profile.email, role: profile.isAdmin ? "admin" : "user", source: "server" };
     state.authStep = "google";
     state.loginError = "";
@@ -4041,7 +4041,37 @@ document.addEventListener("keydown", event => {
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
 });
+// A page left open keeps running the scripts it loaded. When another release is deployed, offer a
+// reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
+const APP_RELEASE = "1.23";
+function watchDeployment() {
+  if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
+    || typeof fetch !== "function" || typeof setInterval !== "function") return;
+  let notified = false;
+  const check = async () => {
+    if (notified || document.visibilityState === "hidden") return;
+    try {
+      const response = await fetch("/deployment-info.json", { cache: "no-store" });
+      if (!response.ok) return;
+      const { version } = await response.json();
+      if (typeof version !== "string" || version === APP_RELEASE || notified) return;
+      notified = true;
+      const banner = document.createElement("div");
+      banner.className = "app-update-banner";
+      banner.setAttribute("role", "status");
+      banner.innerHTML = `<span>새 버전(${escapeHtml(version)})이 배포됐어요. 새로고침하면 바로 적용돼요.</span><button type="button" class="primary-btn">새로고침</button>`;
+      banner.querySelector("button").onclick = () => location.reload();
+      document.body.append(banner);
+    } catch { /* Offline or blocked: the next check retries. */ }
+  };
+  check();
+  document.addEventListener("visibilitychange", check);
+  window.addEventListener("focus", check);
+  setInterval(check, 5 * 60 * 1000);
+}
+
 render();
+watchDeployment();
 initializeAccount();
 publicCatalog.subscribe(updateCatalogDom);
 publicCatalog.refresh();
