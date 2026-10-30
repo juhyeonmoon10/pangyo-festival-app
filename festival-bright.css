@@ -455,3 +455,10 @@ body.design-web {
 .ops-stamp-bar { display: block; height: 6px; border-radius: 3px; background: #eef2ef; overflow: hidden; }
 .ops-stamp-bar i { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
 .ops-stamp-list small { color: var(--muted); font-size: 12px; }
+/* A voucher redeemed while its code is open replaces the code at once. */
+.ops-voucher-done { display: grid; justify-items: center; gap: 8px; padding: 28px 8px 20px; text-align: center; }
+.ops-voucher-done .ui-icon { width: 44px; height: 44px; padding: 10px; border-radius: 50%; background: #fdf1e6; color: #a8641b; }
+.ops-voucher-done.used .ui-icon { background: var(--festival-mint, #e8f8f0); color: var(--primary); }
+.ops-voucher-done strong { font-size: 19px; }
+.ops-voucher-done p { margin: 0; color: var(--muted); font-size: 14px; }
+.ops-voucher-done + .primary-btn { width: 100%; }

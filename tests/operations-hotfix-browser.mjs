@@ -290,6 +290,25 @@ try {
     await a.page.waitForFunction(()=>document.querySelector('#opsRedeem [name=token]')?.value==='');
     assert.equal((await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}])).vouchers[0].state,'used');
     await screenshot(a.page,width,'redeemed');
+    // The student's open voucher dialog notices the redemption within one 5-second check.
+    await s.page.locator('.ops-voucher-done.used').getByText('사용이 완료되었어요').waitFor({timeout:9000});
+    assert.equal(await s.page.locator('.ops-qr, .ops-voucher-code, [data-copy-code]').count(),0);
+    await screenshot(s.page,width,'voucher-used-live');
+    await s.page.locator('[data-voucher-done]').click();
+    assert.equal(await s.page.locator('.ops-dialog').count(),0);
+    await s.page.waitForFunction(()=>!document.querySelector('[data-ops-qr]'));
+    // The wallet list alone (no dialog open) also turns a voucher redeemed elsewhere into history.
+    // One voucher per rule and participant, so the second voucher needs its own rule.
+    const ruleId=(await write(admin,'rule_save',{id:null,version:0,title:`실시간 확인 ${width}`,target:1,stock:10,enabled:true,expiresAt:'2099-12-31T00:00:00Z'})).id;
+    await write(admin,'voucher_issue',{userId:student.uid,ruleId,reason:'격리 실시간 확인'});
+    assert.equal((await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}])).vouchers.filter(v=>v.state==='available').length,1);
+    await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);state.route='vouchers';render();});
+    await s.page.locator('[data-ops-qr]').waitFor();
+    const second=(await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}])).vouchers.find(v=>v.state==='available');
+    const liveCode=(await rpc(student,'select public.festival_voucher_code($1) value',[second.id])).code;
+    await rpc(admin,"select public.festival_voucher_redeem('redeem',$1,$2) value",[{code:liveCode},randomUUID()]);
+    await s.page.waitForFunction(()=>!document.querySelector('[data-ops-qr]'),null,{timeout:9000});
+    assert.match(await s.page.locator('[data-voucher-filter="history"]').innerText(),/2/);
 
     await tab(a.page,'ledger','[data-ops-form=points_adjust]');
     const adjustment=a.page.locator('[data-ops-form=points_adjust]');
