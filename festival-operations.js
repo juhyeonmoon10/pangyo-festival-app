@@ -24,6 +24,7 @@
     VOUCHER_USED: '이미 사용한 바우처예요.', VOUCHER_EXPIRED: '만료된 바우처예요.', VOUCHER_VOID: '취소된 바우처예요.',
     VOUCHER_INVALID: '유효한 바우처 QR이 아니에요.', SELF_REDEMPTION: '본인 바우처는 다른 운영자에게 확인받아 주세요.',
     OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
+    CLAIM_RATE_LIMITED: '짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.',
     NFC_TAG_INVALID: '유효한 NFC 태그가 아니에요.', NFC_TAG_EXPIRED: '교체되었거나 만료된 태그예요.', NFC_DISABLED: '방문 인증이 중지되었어요.',
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
@@ -32,12 +33,15 @@
   readKinds.add('voucher_code');
   readKinds.add('voucher_code_check');
   readKinds.add('booth_stamps');
+  readKinds.add('claim_guard');
+  writeKinds.add('claim_guard_save');
   writeKinds.add('voucher_code_redeem');
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
   writeKinds.add('participation_reset');
   // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
   function call(action, body, request) {
+    if (action === 'claim_guard_save') return ['festival_claim_guard', { p_action: 'save', p_payload: body }];
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
     if (action === 'voucher_code_redeem') return ['festival_voucher_redeem', { p_action: 'redeem', p_payload: body, p_request_id: request }];
     return [action.startsWith('reward_') ? 'festival_reward_write' : 'festival_ops_write', { p_action: action, p_payload: body, p_request_id: request }];
@@ -74,6 +78,7 @@
       try {
         const result = kind === 'reward_status' ? await rpc('festival_reward_read', {})
           : kind === 'voucher_code' ? await rpc('festival_voucher_code', { p_voucher: query.id })
+          : kind === 'claim_guard' ? await rpc('festival_claim_guard', { p_action: 'read', p_payload: {} })
           : kind === 'booth_stamps' ? await rpc('festival_booth_stamp_counts', {})
           : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })
           : await rpc('festival_ops_read', { p_kind: kind, p_query: query });

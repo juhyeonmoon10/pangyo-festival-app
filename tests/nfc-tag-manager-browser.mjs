@@ -41,7 +41,7 @@ async function account(studentNumber,admin=false) {
 const admin=await account('29999',true);
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'Synthetic NFC event',state:'open',reviewPoints:10,version:0});
-for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql','operations-server/nfc-tag-registry.sql','operations-server/booth-stamp-counts.sql']) await sql(file);
+for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql','operations-server/nfc-tag-registry.sql','operations-server/booth-stamp-counts.sql','operations-server/claim-guard.sql']) await sql(file);
 const booth='매커니즘';
 await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 // A card written before the registry: it is listed after its first scan.
@@ -72,6 +72,7 @@ async function pageFor(a,width) {
       else if(url.pathname==='/rest/v1/rpc/festival_reward_read') value=await call('festival_reward_read',[]);
       else if(url.pathname==='/rest/v1/rpc/festival_review_identity_self') value=await call('festival_review_identity_self',[p.p_action,p.p_payload]);
       else if(url.pathname==='/rest/v1/rpc/festival_review_identity_admin') value=await call('festival_review_identity_admin',[p.p_action,p.p_payload]);
+      else if(url.pathname==='/rest/v1/rpc/festival_claim_guard') value=await call('festival_claim_guard',[p.p_action,p.p_payload]);
       else if(url.pathname==='/rest/v1/rpc/festival_booth_stamp_counts') value=await call('festival_booth_stamp_counts',[]);
       else if(url.pathname==='/rest/v1/rpc/festival_nfc_tag_admin') value=await call('festival_nfc_tag_admin',[p.p_action,p.p_payload]);
       else if(url.pathname==='/rest/v1/rpc/festival_ops_read') value=await call('festival_ops_read',[p.p_kind,p.p_query]);
@@ -161,6 +162,48 @@ try {
     assert.deepEqual(errors,[]);
     await context.close();
     reports.push({width,passed:true,flows:['legacy card listed after first scan','issue with memo','result address','list refresh with scan count','stop blocks claims','status filter','restore','same address again','rename','no stored tokens']});
+  }
+  // Rate limit: the operator sets "N in M minutes"; a student over it sees why, and is listed.
+  {
+    const width=390;
+    const {page,context,errors}=await pageFor(admin,width);
+    await page.evaluate(()=>navigateTo('admin'));
+    await page.locator('[data-ops-tab="tools"]').first().click();
+    await page.locator('.festival-ops-tools [data-ops-tab="claim_guard"]').click();
+    const form=page.locator('[data-ops-form="claim_guard_save"]'); await form.waitFor();
+    assert.equal(await form.locator('[name=windowMinutes]').inputValue(),'10');
+    assert.equal(await form.locator('[name=maxClaims]').inputValue(),'5');
+    assert.equal(await form.locator('[name=enabled]').isChecked(),true);
+    await form.locator('[name=windowMinutes]').fill('30');
+    await form.locator('[name=maxClaims]').fill('2');
+    assert.equal(await page.locator('[data-guard-summary]').innerText(),'30분 안에 새 부스 2개까지 적립할 수 있어요. 3번째부터 막아요.');
+    await form.locator('button[type=submit]').click();
+    await page.getByText('저장했어요.',{exact:true}).waitFor();
+    assert.equal(await page.locator('[data-ops-form="claim_guard_save"] [name=maxClaims]').inputValue(),'2');
+    await screenshot(page,width,'guard-settings');
+
+    // A student who stamps two new booths quickly is refused on the third and told why.
+    const keys=(await db.query("select key from festival_ops.booths where key<>$1 order by key collate \"C\" limit 3",[booth])).rows.map(r=>r.key);
+    for(const key of keys) await write(admin,'booth_save',{booth:key,name:key,floor:1,status:'open',version:1});
+    const fast=await account('11500');
+    const tags=[];
+    for(const key of keys) tags.push((await db.query('select festival_nfc_private.issue_tag($1::public.booth_enum,null) t',[key])).rows[0].t);
+    for(const t of tags.slice(0,2)) assert.equal((await write(fast,'claim',{token:t})).result,'EARNED');
+    const s=await pageFor(fast,width);
+    await s.page.evaluate(t=>nfcAdapter.scan(createNfcClaim(t,'web-nfc')),tags[2]);
+    await s.page.locator('#nfcFeedback').getByText('짧은 시간에 너무 많은 부스를 적립해',{exact:false}).waitFor();
+    assert.equal((await db.query('select count(*)::int n from festival_ops.visits where user_id=$1',[fast.uid])).rows[0].n,2);
+    await screenshot(s.page,width,'guard-student-blocked');
+    assert.deepEqual(s.errors,[]);
+    await s.context.close();
+
+    await page.locator('[data-ops-refresh]').first().click();
+    const row=page.locator('.ops-guard-list tr',{hasText:`#${fast.uid}`}); await row.waitFor();
+    assert.match(await row.innerText(),/2개/);
+    await screenshot(page,width,'guard-list');
+    assert.deepEqual(errors,[]);
+    await context.close();
+    reports.push({width,passed:true,flows:['guard defaults','live rule summary','save rule','student refused with reason','listed participant']});
   }
 } finally { await browser.close(); await db.close(); }
 fs.writeFileSync(path.join(output,'report.json'),JSON.stringify({ranAt:new Date().toISOString(),reports},null,2));

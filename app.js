@@ -2153,8 +2153,13 @@ function reviewStars(value) {
   return [1, 2, 3, 4, 5].map(n => `<span class="booth-star${n <= filled ? " on" : ""}">${icon("star")}</span>`).join("");
 }
 
-function formatFullDate(value) {
-  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(value));
+// Registration time on the single festival day, e.g. "오전 09시 23분".
+function formatReviewTime(value) {
+  // 24-hour parts keep the 오전/오후 label independent of the device's locale data.
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Seoul" })
+    .formatToParts(new Date(value)).map(part => [part.type, Number(part.value)]));
+  const hour = parts.hour % 12 || 12;
+  return `${parts.hour < 12 ? "오전" : "오후"} ${String(hour).padStart(2, "0")}시 ${String(parts.minute).padStart(2, "0")}분`;
 }
 
 // Two-character initials and a stable colour per author, like a profile avatar.
@@ -2172,7 +2177,7 @@ function boothReviewItem(review) {
     ${reviewAvatar(author)}
     <div class="booth-review-item-body">
       <strong class="booth-review-author">${escapeHtml(author)}${review.mine ? '<span class="booth-review-mine">내 리뷰</span>' : ""}</strong>
-      <p class="booth-review-item-meta"><span class="booth-review-item-stars" role="img" aria-label="별점 ${Number(review.rating)}점">${reviewStars(review.rating)}</span><span>${formatFullDate(review.createdAt)}</span></p>
+      <p class="booth-review-item-meta"><span class="booth-review-item-stars" role="img" aria-label="별점 ${Number(review.rating)}점">${reviewStars(review.rating)}</span><time datetime="${escapeHtml(review.createdAt)}">${formatReviewTime(review.createdAt)}</time></p>
       ${review.content?.trim() ? `<p class="booth-review-text">${escapeHtml(review.content)}</p>` : ""}
     </div>
   </article>`;
