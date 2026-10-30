@@ -43,6 +43,7 @@ const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k
 await write(admin,'event_save',{name:'Synthetic NFC event',state:'open',reviewPoints:10,version:0});
 for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql','operations-server/voucher-short-code.sql','operations-server/review-distribution-self-redeem.sql','operations-server/nfc-tag-registry.sql','operations-server/booth-stamp-counts.sql','operations-server/claim-guard.sql','operations-server/booth-bulk-and-tag-register.sql','operations-server/notices.sql']) await sql(file);
 const booth='매커니즘';
+await sql('operations-server/operator-identity-and-scoped-reset.sql');
 await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 // A card written before the registry: it is listed after its first scan.
 const legacyToken=(await db.query(`select festival_nfc_private.issue_tag('${booth}',null) t`)).rows[0].t;

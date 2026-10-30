@@ -86,6 +86,8 @@ const state = {
 const HISTORY_KEY = "pangyo-festival-navigation-v1";
 const actionLocks = new Set();
 let navigationIndex = 0;
+let navigationReady = false;
+let pendingNavigation = null;
 
 function navigationSnapshot() {
   return {
@@ -104,53 +106,106 @@ function navigationSnapshot() {
 function writeNavigationHistory(mode = "push") {
   try {
     if (mode === "push") navigationIndex += 1;
-    history[mode === "replace" ? "replaceState" : "pushState"](navigationSnapshot(), "");
+    const snapshot = navigationSnapshot();
+    const url = window.FestivalRouter?.href(snapshot, location.href, pendingNavigation);
+    history[mode === "replace" ? "replaceState" : "pushState"](snapshot, "", url);
   } catch {
     // Local file previews can restrict History API writes in some browsers.
   }
 }
 
 function navigateTo(route, { replace = false } = {}) {
-  const changed = state.route !== route;
+  const changed = state.route !== route || (window.FestivalRouter?.isWeb(location)
+    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId}) !== location.pathname);
+  if (window.FestivalRouter && !state.user && route !== "login") {
+    pendingNavigation = { ...navigationSnapshot(), route };
+    route = "login";
+  }
   state.route = route;
-  render();
   writeNavigationHistory(replace || !changed ? "replace" : "push");
-  if (route === "reviews") festivalWeb.loadReviewContents();
+  render();
+  loadNavigationContent();
+}
+
+function applyNavigationSnapshot(snapshot) {
+  state.route = snapshot.route || "home";
+  state.floor = Number(snapshot.floor) || 1;
+  if (!FLOORS.some(item => item.floor === state.floor)) state.floor = 1;
+  state.selectedBoothId = snapshot.selectedBoothId || null;
+  state.sheetLevel = snapshot.sheetLevel || "peek";
+  state.sheetOpen = state.sheetLevel !== "peek";
+  state.searchOpen = Boolean(snapshot.searchOpen);
+  state.adminTab = snapshot.adminTab || "dashboard";
+  state.reviewPickerOpen = Boolean(snapshot.reviewPickerOpen);
+  if (state.user && state.route === "detail" && state.selectedBoothId) {
+    const draft = festivalWeb.draft(state.selectedBoothId);
+    state.reviewDraft = draft.content;
+    state.reviewRating = festivalWeb.ownReview(state.selectedBoothId)?.rating || draft.rating;
+  }
+  if (!state.user && state.route !== "login") {
+    pendingNavigation = snapshot;
+    state.route = "login";
+    state.searchOpen = false;
+    state.reviewPickerOpen = false;
+  }
+}
+
+function loadNavigationContent() {
+  if (!state.user) return;
+  if (state.route === "reviews") festivalWeb.loadReviewContents();
+  if (["detail", "boothReviews"].includes(state.route) && state.selectedBoothId) {
+    loadBoothReviews(state.selectedBoothId, {force: state.route === "boothReviews"});
+  }
+}
+
+function resumeRequestedNavigation() {
+  const target = pendingNavigation || { route: "home" };
+  pendingNavigation = null;
+  applyNavigationSnapshot(target);
+}
+
+function syncNavigationAddress() {
+  const router = window.FestivalRouter;
+  if (!navigationReady || !router?.isWeb(location)) return;
+  if (!state.user && state.route !== "login") {
+    pendingNavigation = navigationSnapshot();
+    state.route = "login";
+  }
+  if (router.href(navigationSnapshot(), location.href, pendingNavigation) !== location.href) writeNavigationHistory("replace");
 }
 
 function initializeNavigation() {
   const current = history.state;
+  const router = window.FestivalRouter;
   if (current?.key === HISTORY_KEY) navigationIndex = Number(current.index) || 0;
+  if (router?.isWeb(location)) {
+    const url = new URL(location.href);
+    const target = router.parse(url.pathname) || { route: "home" };
+    pendingNavigation = target.route === "login" ? router.safeReturn(url.searchParams.get("next")) : target;
+    if (target.route !== "login" && current?.key === HISTORY_KEY && current.route === target.route
+      && (!target.selectedBoothId || current.selectedBoothId === target.selectedBoothId)) {
+      pendingNavigation = { ...current, ...target };
+    }
+    if (url.searchParams.has("code")) {
+      try { pendingNavigation = router.takeRemembered(sessionStorage) || pendingNavigation; } catch { /* Use the URL target. */ }
+    }
+  }
+  navigationReady = true;
   writeNavigationHistory("replace");
   window.addEventListener("popstate", (event) => {
     dismissNfcFeedback();
-    const snapshot = event.state;
-    if (!snapshot || snapshot.key !== HISTORY_KEY) return;
-    navigationIndex = Number(snapshot.index) || 0;
-    if (!state.user && snapshot.route !== "login") {
-      state.route = "login";
-      state.searchOpen = false;
-      state.selectedBoothId = null;
-      writeNavigationHistory("replace");
-      render();
-      return;
-    }
-    state.route = snapshot.route || "home";
-    state.floor = Number(snapshot.floor) || 1;
-    state.selectedBoothId = snapshot.selectedBoothId || null;
-    state.sheetLevel = snapshot.sheetLevel || "peek";
-    state.sheetOpen = state.sheetLevel !== "peek";
-    state.searchOpen = Boolean(snapshot.searchOpen);
-    state.adminTab = snapshot.adminTab || "dashboard";
-    state.reviewPickerOpen = Boolean(snapshot.reviewPickerOpen);
-    if (state.route === "detail" && state.selectedBoothId) {
-      const draft = festivalWeb.draft(state.selectedBoothId);
-      state.reviewDraft = draft.content;
-      state.reviewRating = festivalWeb.ownReview(state.selectedBoothId)?.rating || draft.rating;
-    }
+    const urlTarget = router?.isWeb(location) ? router.parse(location.pathname) : null;
+    const saved = event.state?.key === HISTORY_KEY ? event.state : null;
+    const snapshot = urlTarget ? { ...(saved || {}), ...urlTarget } : saved;
+    if (!snapshot) return;
+    navigationIndex = Number(saved?.index) || 0;
+    if (snapshot.route === "login" && state.user) snapshot.route = "home";
+    if (snapshot.route === "login" && router) pendingNavigation = router.safeReturn(new URL(location.href).searchParams.get("next"));
+    applyNavigationSnapshot(snapshot);
     closeMenus();
+    writeNavigationHistory("replace");
     render();
-    if (state.route === "boothReviews" && state.selectedBoothId) loadBoothReviews(state.selectedBoothId);
+    loadNavigationContent();
     if (state.searchOpen) focusSearchInput();
   });
 }
@@ -1225,10 +1280,11 @@ async function loadBoothReviews(boothId, { force = false } = {}) {
   if (!key) return null;
   const cached = serverReviews.get(key);
   if (!force && cached && ["ready", "loading"].includes(cached.status)) return cached;
-  serverReviews.set(key, { ...(cached || { count: 0, average: null, myRating: null, reviews: [] }), status: "loading" });
+  const request = { ...(cached || { count: 0, average: null, myRating: null, reviews: [] }), status: "loading" };
+  serverReviews.set(key, request);
   updateReviewSection(boothId);
   const response = await festivalAccount.reviews(key);
-  if (state.user?.id !== actingUser) return null;
+  if (state.user?.id !== actingUser || serverReviews.get(key) !== request) return null;
   if (!response.ok) {
     serverReviews.set(key, { ...(serverReviews.get(key) || {}), status: "error", message: response.message });
   } else {
@@ -1273,7 +1329,7 @@ function updateReviewSection(boothId) {
     return;
   }
   if (state.route !== "detail" || state.selectedBoothId !== boothId) return;
-  if (isOwnClubBooth(boothId) && !document.querySelector("#boothReviewSection.own-club-review")) { render(); return; }
+  if (isOwnClubBooth(boothId) !== Boolean(document.querySelector("#boothReviewSection.own-club-review"))) { render(); return; }
   const linkCount = document.querySelector("[data-review-count-link]");
   if (linkCount) linkCount.textContent = reviewCountText(ratingInfo(boothId));
   const info = ratingInfo(boothId);
@@ -1399,6 +1455,7 @@ let renderInProgress = false;
 
 function render() {
   if (renderInProgress) return;
+  syncNavigationAddress();
   renderInProgress = true;
   const app = document.querySelector("#app");
   try {
@@ -2036,7 +2093,8 @@ function mapPreviewCard(booth) {
 }
 
 function detailView() {
-  const booth = state.db.booths.find((item) => item.id === state.selectedBoothId) || state.db.booths[0];
+  const booth = state.db.booths.find((item) => item.id === state.selectedBoothId);
+  if (!booth) return missingBoothView();
   const stamped = repo.hasStamp(state.user.id, booth.id);
   const rating = ratingInfo(booth.id);
   const reviewed = repo.hasReview(state.user.id, booth.id);
@@ -2144,8 +2202,6 @@ function openBoothReviews(boothId) {
   state.selectedBoothId = boothId;
   state.boothReviewsExpanded = false;
   navigateTo("boothReviews");
-  // Always refresh: other participants may have rated since the detail screen loaded.
-  loadBoothReviews(boothId, { force: true });
 }
 
 function reviewStars(value) {
@@ -2184,7 +2240,8 @@ function boothReviewItem(review) {
 }
 
 function boothReviewsView() {
-  const booth = state.db.booths.find(item => item.id === state.selectedBoothId) || state.db.booths[0];
+  const booth = state.db.booths.find(item => item.id === state.selectedBoothId);
+  if (!booth) return missingBoothView();
   return `
     <main class="screen booth-reviews-screen">
       <header class="top-bar">
@@ -2196,6 +2253,10 @@ function boothReviewsView() {
       ${bottomNav("boothReviews")}
     </main>
   `;
+}
+
+function missingBoothView() {
+  return `<main class="screen web-page">${festivalWeb.header("부스를 찾을 수 없어요")}<p class="web-muted">주소를 확인하거나 지도에서 부스를 다시 선택해 주세요.</p><button class="primary-btn" data-route="map">${icon("map")} 부스 지도</button>${bottomNav("map")}</main>`;
 }
 
 function boothReviewsBody(boothId) {
@@ -2346,7 +2407,9 @@ function extractTagToken(text) {
 }
 
 let serverTagReader = null;
+let serverTagGeneration = 0;
 async function registerServerTag(text, label = "") {
+  if (!isServerMode() || !state.user || !isAdminUser()) return false;
   const token = extractTagToken(text);
   if (!token) {
     Object.assign(serverAdmin, { registerNote: "카드 주소를 확인해 주세요. 주소 끝에 #t=nf1.로 시작하는 부분이 있어야 해요.", registerTone: "error" });
@@ -2354,10 +2417,16 @@ async function registerServerTag(text, label = "") {
     return false;
   }
   const actingUser = state.user.id;
+  const generation = serverTagGeneration;
   Object.assign(serverAdmin, { registerNote: "확인하는 중이에요...", registerTone: "" });
   renderTagRegisterStatus();
-  const response = await festivalAccount.nfcTags("register", label ? { token, label } : { token });
-  if (state.user?.id !== actingUser || !isAdminUser()) return false;
+  let response;
+  try {
+    response = await festivalAccount.nfcTags("register", label ? { token, label } : { token });
+  } catch {
+    response = { ok: false, message: "카드를 등록하지 못했어요. 연결을 확인하고 다시 시도해 주세요." };
+  }
+  if (state.user?.id !== actingUser || !isAdminUser() || generation !== serverTagGeneration) return false;
   Object.assign(serverAdmin, response.ok
     ? { registerNote: `${tagBoothName(response.boothKey)} 카드를 ${response.added ? "목록에 추가했어요" : "확인했어요. 이미 목록에 있어요"}.`, registerTone: "success" }
     : { registerNote: response.message, registerTone: "error" });
@@ -2374,6 +2443,7 @@ function renderTagRegisterStatus() {
 }
 
 function stopServerTagReading() {
+  serverTagGeneration++;
   serverTagReader?.abort();
   serverTagReader = null;
   serverAdmin.tagReading = false;
@@ -2381,7 +2451,7 @@ function stopServerTagReading() {
 
 async function toggleServerTagReading() {
   if (serverAdmin.tagReading) { stopServerTagReading(); render(); return; }
-  if (!window.isSecureContext || !("NDEFReader" in window)) return;
+  if (!isServerMode() || !state.user || !isAdminUser() || !window.isSecureContext || !("NDEFReader" in window)) return;
   const controller = new AbortController();
   serverTagReader = controller;
   serverAdmin.tagReading = true;
@@ -2400,6 +2470,7 @@ async function toggleServerTagReading() {
       renderTagRegisterStatus();
     };
     reader.onreadingerror = () => {
+      if (controller.signal.aborted) return;
       Object.assign(serverAdmin, { registerNote: "카드를 읽지 못했어요. 다시 가까이 대 주세요.", registerTone: "error" });
       renderTagRegisterStatus();
     };
@@ -2949,7 +3020,7 @@ function bindEvents() {
     });
   });
   // Leaving the NFC screen stops reading so cards tapped elsewhere behave normally.
-  if (serverAdmin.tagReading && !document.querySelector("[data-server-tag-read]")) stopServerTagReading();
+  if (serverTagReader && (!isAdminUser() || !document.querySelector("[data-server-tag-read]"))) stopServerTagReading();
   document.querySelectorAll("[data-admin-tab]").forEach((button) => button.addEventListener("click", () => {
     closeMenus();
     state.adminTab = button.dataset.adminTab;
@@ -3242,6 +3313,7 @@ function bindMapDrag() {
 
 async function resetLogin() {
   if (nfcManagement.hasDrafts() && !window.confirm("저장하지 않은 NFC 설정이 있습니다. 변경을 버리고 로그아웃할까요?")) return false;
+  stopServerTagReading();
   if (isServerMode()) {
     if (state.loginBusy) return false;
     state.loginBusy = true;
@@ -3262,6 +3334,7 @@ async function resetLogin() {
     state.pendingNfcClaim = null;
   }
   state.user = null;
+  if (window.FestivalRouter) pendingNavigation = null;
   state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
   nfcManagement.clear();
   state.reviewPickerOpen = false;
@@ -3306,6 +3379,7 @@ async function startGoogleLogin(intent = "student") {
   try {
     if (isServerMode()) {
       if (!festivalAccount) throw new Error("로그인 모듈을 불러오지 못했습니다. 새로고침해 주세요.");
+      try { window.FestivalRouter?.remember(sessionStorage, pendingNavigation || { route: "home" }); } catch { /* Login still works without storage. */ }
       await festivalAccount.signIn();
       signInStartedAt = Date.now();
       state.loginBusy = false;
@@ -3337,7 +3411,8 @@ async function startGoogleLogin(intent = "student") {
     state.loginBusy = false;
     state.loginError = "";
     state.openMenu = null;
-    navigateTo("home", { replace: true });
+    if (window.FestivalRouter) resumeRequestedNavigation();
+    navigateTo(window.FestivalRouter ? state.route : "home", { replace: true });
     consumePendingNfc();
   } catch (error) {
     state.loginBusy = false;
@@ -3459,7 +3534,8 @@ async function completeProfile() {
   saveDb();
   state.user = user;
   state.loginError = "";
-  navigateTo("home", { replace: true });
+  if (window.FestivalRouter) resumeRequestedNavigation();
+  navigateTo(window.FestivalRouter ? state.route : "home", { replace: true });
   consumePendingNfc();
 }
 
@@ -3879,6 +3955,7 @@ function showStampPop() {
 }
 
 function applyServerProfile(profile) {
+  if (!profile || profile.needsProfile || !profile.isAdmin || state.user?.id !== profile.authUserId) stopServerTagReading();
   if (!profile || state.user?.id !== profile.authUserId) {
     state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
   }
@@ -3903,12 +3980,16 @@ function applyServerProfile(profile) {
       googleEmail: profile.email, role: profile.isAdmin ? "admin" : "user", source: "server" };
     state.authStep = "google";
     state.loginError = "";
-    if (state.route === "login") state.route = "home";
+    if (state.route === "login") {
+      state.route = "home";
+      if (window.FestivalRouter) resumeRequestedNavigation();
+    }
   }
   render();
   if (state.user) {
     consumePendingNfc();
     loadMyReviews();
+    if (window.FestivalRouter) loadNavigationContent();
   }
 }
 

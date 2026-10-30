@@ -73,7 +73,7 @@
     if (!value || value.version !== 1 || typeof value.eventId !== "string" || !IDENTITY_RESULTS.includes(value.result)
       || typeof value.verified !== "boolean" || typeof value.locked !== "boolean" || typeof value.eligible !== "boolean"
       || typeof value.selfRegistered !== "boolean" || !strings(value.clubs) || !strings(value.boothKeys)
-      || (value.verified && (typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
+      || (value.verified && (value.selfRegistered || typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
       || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))) {
       throw new Error("REVIEW_POLICY_REQUIRED");
     }
@@ -223,7 +223,7 @@
     async function signIn() {
       if (location.protocol === "file:") throw new Error("파일 미리보기에서는 로그인할 수 없습니다. 설치형 앱 또는 웹 주소에서 열어 주세요.");
       const native = location.origin === "https://appassets.androidplatform.net";
-      const redirectTo = native ? "pangyofestival://auth/callback" : `${location.origin}${location.pathname}`;
+      const redirectTo = native ? "pangyofestival://auth/callback" : `${location.origin}/`;
       const { data, error } = await client.auth.signInWithOAuth({ provider: "google", options: {
         redirectTo, skipBrowserRedirect: true, queryParams: { prompt: "select_account" },
       } });

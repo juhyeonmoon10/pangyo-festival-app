@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>판교고 축제</title>
+    <script>
+      if (['http:', 'https:'].includes(location.protocol) && location.origin !== 'https://appassets.androidplatform.net') {
+        const base = document.createElement('base');
+        base.href = '/';
+        document.head.appendChild(base);
+      }
+    </script>
     <link rel="stylesheet" href="./styles.css?v=20260930-2" />
     <link rel="stylesheet" href="./ui-ver2.css?v=20260930-3" />
     <link rel="stylesheet" href="./web-redesign.css?v=20261028-stamp-simulator" />
@@ -15,14 +22,15 @@
     <script src="./supabase-catalog.js?v=20260909-catalog-readonly-1"></script>
     <script src="./assets/vendor/supabase-2.116.0.js"></script>
     <script src="./festival-operations.js?v=20261030-1.18"></script>
-    <script src="./festival-account.js?v=20261030-1.18"></script>
+    <script src="./festival-account.js?v=20261030-routes-1"></script>
     <script src="./assets/vendor/ui-icons.js?v=20261021-1.4"></script>
     <script src="./nfc-manager.js?v=20260930-1"></script>
     <script src="./assets/vendor/qrcode-1.4.4.js"></script>
     <script src="./programs.js?v=20260929-1"></script>
-    <script src="./web-experience.js?v=20261030-1.18"></script>
+    <script src="./web-experience.js?v=20261030-routes-1"></script>
     <script src="./stamp-simulator.js?v=20261030-1.9"></script>
-    <script src="./operations-ui.js?v=20261030-1.18"></script>
-    <script src="./app.js?v=20261030-1.18"></script>
+    <script src="./operations-ui.js?v=20261030-routes-1"></script>
+    <script src="./festival-router.js?v=20261030-routes-1"></script>
+    <script src="./app.js?v=20261030-routes-1"></script>
   </body>
 </html>

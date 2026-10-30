@@ -1,4 +1,4 @@
-// Student club self-confirmation and the operator list in a real browser. Every Supabase request is
+// Operator-confirmed club identity and the operator list in a real browser. Every Supabase request is
 // answered by local PGlite with synthetic accounts and a synthetic roster.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,6 +43,7 @@ const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k
 await write(admin,'event_save',{name:'Stored legacy name',state:'open',reviewPoints:10,version:0});
 for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/review-identity-self.sql']) await sql(file);
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
+await sql('operations-server/operator-identity-and-scoped-reset.sql');
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
@@ -92,23 +93,33 @@ try {
     const s=await pageFor(student,width);
     await routeTo(s.page,'home');
     const prompt=s.page.locator('.festival-identity-prompt'); await prompt.waitFor();
-    assert.match(await prompt.innerText(),/본인 소속 확인을 먼저 해 주세요/);
+    assert.match(await prompt.innerText(),/운영자에게 소속을 확인받아 주세요/);
     await screenshot(s.page,width,'home-prompt');
 
     // An unconfirmed account sees why it cannot rate, with a way to confirm.
     await s.page.evaluate(key=>goDetail(state.db.booths.find(b=>boothKeyFor(b)===key).id),away);
     await s.page.locator('.review-identity-link').waitFor({state:'visible'});
-    assert.match(await s.page.locator('.review-guidance').innerText(),/본인 소속을 먼저 확인/);
+    assert.equal(await s.page.locator('.review-guidance').isVisible(),true);
     await s.page.locator('.review-identity-link').click();
 
-    const form=s.page.locator('[data-identity-confirm]'); await form.waitFor();
-    assert.equal(await form.locator('input[readonly]').inputValue(),number(width));
-    await form.locator('[name=realName]').fill('다른 학생');
-    await form.locator('button[type=submit]').click();
-    await s.page.getByText('동아리 명단의 이름과 달라요',{exact:false}).waitFor();
-    await screenshot(s.page,width,'identity-mismatch');
-    await s.page.locator('[data-identity-confirm] [name=realName]').fill('가상학생');
-    await s.page.locator('[data-identity-confirm] button[type=submit]').click();
+    await s.page.getByText('운영자 확인 대기',{exact:true}).waitFor();
+    assert.equal(await s.page.locator('[data-identity-confirm]').count(),0);
+    await screenshot(s.page,width,'identity-pending');
+    const a=await pageFor(admin,width);
+    await routeTo(a.page,'admin'); await a.page.locator('.festival-op-status').waitFor();
+    await openOperatorTool(a.page,'participants');
+    await a.page.locator('#reviewRosterLookup select').selectOption(String(student.uid));
+    await a.page.locator('#reviewRosterLookup button[type=submit]').click();
+    const enroll=a.page.locator('#reviewRosterForm'); await enroll.waitFor();
+    await enroll.locator('[name=studentNumber]').fill(number(width));
+    await enroll.locator('[data-roster-find]').click();
+    await enroll.getByText('명단 대조 완료',{exact:true}).waitFor();
+    await enroll.locator('[name=confirmed]').check();
+    await enroll.locator('[name=reason]').fill('Synthetic independent identity check');
+    await enroll.locator('button[type=submit]').click();
+    await enroll.getByText('명단과 계정을 연결했어요.').waitFor();
+    await a.page.keyboard.press('Escape');
+    await s.page.locator('[data-ops-refresh]').click();
     const card=s.page.locator('.festival-identity-card'); await card.getByText('소속 확인 완료').waitFor();
     assert.match(await card.innerText(),/가상 학생/); assert.match(await card.innerText(),/인벨릭스/);
     await screenshot(s.page,width,'identity-confirmed');
@@ -122,16 +133,13 @@ try {
     await s.page.locator('.review-identity').getByText('가상 학생 이름으로 공개돼요.').waitFor();
     assert.equal(await s.page.locator('.review-identity-link').isHidden(),true);
 
-    // Operators see the self registration and can revoke it.
-    const a=await pageFor(admin,width);
-    await routeTo(a.page,'admin'); await a.page.locator('.festival-op-status').waitFor();
-    await openOperatorTool(a.page,'participants');
+    // Operators can revoke a previously verified link.
     const row=a.page.locator(`[data-identity-user="${student.uid}"]`); await row.waitFor();
-    assert.match(await row.innerText(),/본인 등록/);
+    assert.match(await row.innerText(),/운영자 확인/);
     await screenshot(a.page,width,'operator-identity-list');
     await row.click();
     const dialog=a.page.locator('#reviewRosterForm'); await dialog.waitFor();
-    assert.match(await dialog.innerText(),/본인 등록/);
+    assert.match(await dialog.innerText(),/운영자 확인/);
     await dialog.locator('[name=reason]').fill('Synthetic operator correction');
     await dialog.locator('[data-roster-revoke]').click();
     await dialog.getByText('확인을 취소했어요.').waitFor();
@@ -139,11 +147,11 @@ try {
     await a.page.locator(`[data-identity-user="${student.uid}"]`).getByText('운영자 취소').waitFor();
 
     await routeTo(s.page,'home');
-    await s.page.locator('.festival-identity-prompt').getByText('운영자 확인이 필요해요',{exact:false}).waitFor();
+    await s.page.locator('.festival-identity-prompt').getByText('운영자에게 소속을 확인받아 주세요',{exact:false}).waitFor();
     assert.deepEqual([...s.errors,...a.errors],[]);
-    reports.push({width,passed:true,flows:['home prompt','review link','mismatch','confirm','prompt hidden','profile row','author name','operator list','operator revoke','locked prompt']});
+    reports.push({width,passed:true,flows:['home prompt','review link','no self-enrollment','operator enrollment','prompt hidden','profile row','author name','operator list','operator revoke','locked prompt']});
     await s.context.close(); await a.context.close();
   }
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(reports,null,2));
   console.log(JSON.stringify(reports));
-} finally { await browser.close(); }
+} finally { await browser.close(); await db.close(); }
