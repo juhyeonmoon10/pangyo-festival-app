@@ -40,7 +40,7 @@ const admin=await account(true);
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'운영자 복구 격리 검증',state:'open',reviewPoints:10,version:0});
 // The production chain up to 학번-only operator writes.
-for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only'])
+for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions'])
   await db.exec(fs.readFileSync(path.join(root,`operations-server/${file}.sql`),'utf8'));
 const byStudent=(a,k,p)=>rpc(a,'select public.festival_ops_write_student($1,$2,$3) value',[k,p,randomUUID()]);
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
@@ -189,19 +189,26 @@ try {
     await approval.locator('[name=reason]').fill('현장 학생 본인 확인');
     const linked=studentNumber;
     const beforeApproval=a.calls.filter(c=>c.p_action==='visit_approve').length;
-    // A typed 학번 is not enough: the operator must confirm the student first.
-    await approval.locator('[name=studentNumber]').fill(linked);
+    // Students are listed without typing anything; nothing is sent until one is chosen.
+    await approval.locator(`[data-recipient-pick="${linked}"]`).waitFor();
+    assert.ok(await approval.locator('[data-recipient-pick]').count()>=2,'The list shows the students and the operator');
+    await screenshot(a.page,width,'manual-visit-list');
     await approval.locator('button[type=submit]').click();
-    await approval.getByText('학번을 입력하고 학생 확인을 눌러 주세요.',{exact:true}).waitFor();
+    await approval.getByText('처리할 학생을 목록에서 골라 주세요.',{exact:true}).waitFor();
     assert.equal(a.calls.filter(c=>c.p_action==='visit_approve').length,beforeApproval);
+    const search=async(form,query)=>{ await form.locator('[name=recipientQuery]').fill(query); await form.locator('[data-recipient-find]').click(); };
     const pick=async(form,sid)=>{
-      await form.locator('[name=studentNumber]').fill(sid); await form.locator('[data-find-recipient]').click();
+      await search(form,sid); await form.locator(`[data-recipient-pick="${sid}"]`).click();
       await form.locator('.ops-recipient-chosen').waitFor();
     };
-    await approval.locator('[name=studentNumber]').fill('29999'); await approval.locator('[data-find-recipient]').click();
-    assert.equal(await approval.locator('[data-recipient-choice]').isDisabled(),true,'Own account cannot be chosen');
-    await approval.locator('[name=studentNumber]').fill('19999'); await approval.locator('[data-find-recipient]').click();
-    await approval.getByText('이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.',{exact:true}).waitFor();
+    // The operator's own account can be chosen too.
+    await pick(approval,'29999');
+    assert.ok((await approval.locator('.ops-recipient-chosen').innerText()).includes('(29999) · 내 계정'));
+    await approval.locator('[data-recipient-change]').click();
+    await search(approval,'19999');
+    await approval.getByText('찾는 학생이 없어요. 이름이나 학번을 다시 확인해 주세요.',{exact:true}).waitFor();
+    await search(approval,'격리 학생');
+    await approval.locator(`[data-recipient-pick="${linked}"]`).waitFor();
     await pick(approval,linked);
     assert.match(await approval.locator('.ops-recipient-chosen').innerText(),new RegExp(`격리 학생 \\(${linked}\\) · 가상학생`));
     await screenshot(a.page,width,'manual-visit-participant');
@@ -271,9 +278,8 @@ try {
     const issue=a.page.locator('[data-ops-form=voucher_issue]');
     await issue.locator('[name=ruleId]').selectOption({label:`테스트 이용권 ${width}`});
     await issue.locator('[name=reason]').fill('격리 발급 검증');
-    await issue.locator('[name=studentNumber]').fill(signup);
     await issue.locator('button[type=submit]').click();
-    await issue.getByText('학번을 입력하고 학생 확인을 눌러 주세요.',{exact:true}).waitFor();
+    await issue.getByText('처리할 학생을 목록에서 골라 주세요.',{exact:true}).waitFor();
     assert.equal(await issue.locator('input[type=number]').count(),0);
     await pick(issue,signup);
     assert.equal(await issue.locator('[name=reason]').inputValue(),'격리 발급 검증');

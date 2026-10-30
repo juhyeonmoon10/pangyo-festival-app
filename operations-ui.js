@@ -31,8 +31,9 @@ const festivalOpsUI = (() => {
   const form=(action,body,submit='저장',symbol='save')=>`<form class="ops-form" data-ops-form="${action}">${body}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit">${icon(symbol)} ${submit}</button></form>`;
   const reason=()=>field('reason','처리 사유','','required minlength="3" maxlength="300"');
   // A participant is named only by 학번; the operator confirms the student before any write.
-  const recipientCard=r=>`<p class="ops-recipient-chosen" role="status">${icon('check')} <strong>${h(person(r.name,r.studentNumber))}</strong>${r.realName?` · ${h(r.realName)}`:''}${r.clubs?.length?` · ${r.clubs.map(h).join(', ')}`:''}</p>`;
-  const participant=(label='처리할 학생')=>`<div class="ops-recipient"><label>${h(label)} 학번<input class="input" name="studentNumber" inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" required autocomplete="off" placeholder="학번 5자리" value="${h(visitRecipient?.studentNumber || '')}"></label><input type="hidden" name="email" value="${h(visitRecipient?.email || '')}"><button type="button" class="ghost-btn" data-find-recipient>${icon('search')} 학생 확인</button><div class="ops-participant-list" data-recipient-result>${visitRecipient?recipientCard(visitRecipient):''}</div></div>`;
+  const recipientCard=r=>`<p class="ops-recipient-chosen" role="status">${icon('check')} <strong>${h(person(r.name,r.studentNumber))}</strong>${r.self?' · 내 계정':''}${r.realName?` · ${h(r.realName)}`:''}${r.clubs?.length?` · ${r.clubs.map(h).join(', ')}`:''}</p>`;
+  // The student list is searched by name or 학번; the chosen student is sent by 학번 only.
+  const participant=(label='처리할 학생')=>`<div class="ops-recipient" data-recipient><span class="ops-recipient-label">${h(label)}</span><input type="hidden" name="studentNumber" value="${h(visitRecipient?.studentNumber || '')}"><input type="hidden" name="email" value="${h(visitRecipient?.email || '')}"><div data-recipient-result>${visitRecipient?recipientCard(visitRecipient)+'<button type="button" class="text-link" data-recipient-change>다른 학생 고르기</button>':''}</div><div class="ops-search" data-recipient-search ${visitRecipient?'hidden':''}><input class="input" name="recipientQuery" maxlength="60" placeholder="이름 또는 학번" aria-label="학생 찾기 (이름 또는 학번)" autocomplete="off"><button type="button" class="icon-btn" data-recipient-find aria-label="학생 찾기">${icon('search')}</button></div><div class="ops-participant-list" data-recipient-list ${visitRecipient?'hidden':''}></div></div>`;
   const visitParticipant=()=>participant('스탬프를 받을 학생');
   const options=()=>catalog.map(b=>[b.key,b.name]);
   const person=(name,sid)=>`${name || '참여자'} (${sid || '학번 없음'})`;
@@ -309,8 +310,9 @@ const festivalOpsUI = (() => {
     }
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
     if(['visit_approve','points_adjust','voucher_issue'].includes(action)) {
+      delete body.recipientQuery;
       if(!visitRecipient || body.studentNumber!==visitRecipient.studentNumber) {
-        note.textContent='학번을 입력하고 학생 확인을 눌러 주세요.'; return;
+        note.textContent='처리할 학생을 목록에서 골라 주세요.'; return;
       }
       if(!body.email) delete body.email;
       if(action==='visit_approve' && !catalog.some(b=>b.key===body.booth && b.status==='open')) {
@@ -338,12 +340,12 @@ const festivalOpsUI = (() => {
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!response.ok) {
         if(['visit_approve','points_adjust','voucher_issue'].includes(action) && ['NOT_FOUND','STUDENT_NOT_FOUND','STUDENT_AMBIGUOUS'].includes(response.code)) {
-          visitRecipient=null; form.elements.email.value=''; form.querySelector('[data-recipient-result]').innerHTML='';
+          resetRecipient(form);
           note.textContent=response.code==='NOT_FOUND'?'처리 대상을 찾지 못했어요. 새로고침 후 학생을 다시 확인해 주세요.':response.message;
           return;
         }
         note.textContent=action==='voucher_issue' && response.code==='INVALID_INPUT'
-          ? '학번과 처리 사유를 확인해 주세요. 본인 계정에는 발급할 수 없어요.' : response.message;
+          ? '학생과 처리 사유를 확인해 주세요.' : response.message;
         return;
       }
       if(action==='participation_reset') {
@@ -357,27 +359,50 @@ const festivalOpsUI = (() => {
     } finally { busy=false; if(form.isConnected) form.querySelector('button[type=submit]').disabled=false; }
   }
 
-  // 학번으로 처리할 학생을 확인한다. 같은 학번의 계정이 여럿이면 운영자가 학생 본인의 계정을 고른다.
-  async function findRecipient(click) {
-    const target=click.currentTarget.closest('[data-ops-form]');
-    if(!target || !isAdminUser() || busy || !currentEventReady()) return;
-    const input=target.elements.studentNumber, result=target.querySelector('[data-recipient-result]'), note=target.querySelector('.ops-form-status');
-    if(!input.reportValidity()) return;
-    const actor=state.user?.id, requestedView=viewKey(), sid=input.value.trim();
-    visitRecipient=null; target.elements.email.value=''; note.textContent=''; result.innerHTML='<p role="status">학생 확인 중...</p>';
+  // 처리할 학생 목록: 이름 또는 학번으로 찾고, 고른 학생은 학번으로 확인한다. 같은 학번의 계정이
+  // 여럿이면 운영자가 학생 본인의 계정을 고른다. 운영자 본인 계정도 고를 수 있다.
+  let recipientSequence=0;
+  function resetRecipient(form) {
+    visitRecipient=null; form.elements.studentNumber.value=''; form.elements.email.value='';
+    form.querySelector('[data-recipient-result]').innerHTML='';
+    form.querySelector('[data-recipient-search]').hidden=false; form.querySelector('[data-recipient-list]').hidden=false;
+    loadRecipients(form);
+  }
+  async function loadRecipients(form) {
+    const list=form.querySelector('[data-recipient-list]'), query=form.elements.recipientQuery.value.trim();
+    if(!list || !isAdminUser() || !currentEventReady()) return;
+    const actor=state.user?.id, requestedView=viewKey(), seq=++recipientSequence;
+    list.innerHTML='<p role="status">학생 목록을 불러오는 중...</p>';
+    const response=await api().read('participants',{search:query,offset:0});
+    if(state.user?.id!==actor || requestedView!==viewKey() || !list.isConnected || seq!==recipientSequence) return;
+    if(!response.ok) { list.innerHTML=`<p role="status">${h(response.message)}</p><button type="button" class="ghost-btn" data-recipient-retry>다시 불러오기</button>`; list.querySelector('[data-recipient-retry]').onclick=()=>loadRecipients(form); return; }
+    // Accounts that never finished sign-up have no 학번 and cannot take part.
+    const people=(response.data.items || []).filter(p=>p && typeof p.name==='string' && /^[1-3][0-9]{4}$/.test(p.student_number || ''));
+    list.innerHTML=people.length?people.map(p=>`<button type="button" class="ops-participant-row" data-recipient-pick="${h(p.student_number)}">${icon('user')}<span><strong>${h(person(p.name,p.student_number))}</strong><small>방문 ${Number(p.visits)||0}개 · 포인트 ${Number(p.points)||0}</small></span>${icon('arrow')}</button>`).join('')
+      :`<p role="status">${query?'찾는 학생이 없어요. 이름이나 학번을 다시 확인해 주세요.':'아직 가입한 학생이 없어요.'}</p>`;
+    list.querySelectorAll('[data-recipient-pick]').forEach(b=>b.onclick=()=>pickRecipient(form,b.dataset.recipientPick));
+  }
+  async function pickRecipient(form,sid) {
+    if(!isAdminUser() || busy) return;
+    const list=form.querySelector('[data-recipient-list]'), note=form.querySelector('.ops-form-status');
+    const actor=state.user?.id, requestedView=viewKey(), seq=++recipientSequence;
+    note.textContent=''; list.innerHTML='<p role="status">학생 확인 중...</p>';
     const response=await api().read('student_lookup',{studentNumber:sid});
-    if(state.user?.id!==actor || requestedView!==viewKey() || !target.isConnected || input.value.trim()!==sid) return;
-    if(!response.ok) { result.innerHTML=`<p role="status">${h(response.message)}</p>`; return; }
+    if(state.user?.id!==actor || requestedView!==viewKey() || !list.isConnected || seq!==recipientSequence) return;
+    if(!response.ok) { list.innerHTML=`<p role="status">${h(response.message)}</p>`; return; }
     const accounts=(response.data.accounts || []).filter(a=>a && typeof a.email==='string' && typeof a.name==='string');
-    if(!accounts.length) { result.innerHTML='<p role="status">이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.</p>'; return; }
+    if(!accounts.length) { list.innerHTML='<p role="status">이 학번으로 가입한 계정이 없어요. 다시 찾아 주세요.</p>'; return; }
     const choose=a=>{
-      visitRecipient={studentNumber:sid,email:accounts.length>1?a.email:'',name:a.name,realName:a.verified?a.realName:null,clubs:a.verified?a.clubs:[]};
-      target.elements.email.value=visitRecipient.email; result.innerHTML=recipientCard(visitRecipient);
+      visitRecipient={studentNumber:sid,email:accounts.length>1?a.email:'',name:a.name,realName:a.verified?a.realName:null,clubs:a.verified?a.clubs:[],self:a.self};
+      form.elements.studentNumber.value=sid; form.elements.email.value=visitRecipient.email;
+      form.querySelector('[data-recipient-result]').innerHTML=recipientCard(visitRecipient)+'<button type="button" class="text-link" data-recipient-change>다른 학생 고르기</button>';
+      form.querySelector('[data-recipient-change]').onclick=()=>resetRecipient(form);
+      form.querySelector('[data-recipient-search]').hidden=true; list.hidden=true; list.replaceChildren();
     };
     const selected=accounts.find(a=>a.selected);
-    if(selected && !selected.self) { choose(selected); return; }
-    result.innerHTML=`<p role="status">${accounts.length>1?'같은 학번으로 가입한 계정이 여러 개예요. 학생 본인의 계정을 골라 주세요.':''}</p>`+accounts.map((a,i)=>`<button type="button" class="ops-participant-row" data-recipient-choice="${i}" ${a.self?'disabled':''}>${icon('user')}<span><strong>${h(person(a.name,sid))}</strong><small>${a.self?'내 계정 · 처리 불가':`${accounts.length>1?`${h(a.email)} · `:''}방문 ${Number(a.visits)||0}개${a.verified?' · 소속 확인됨':''}`}</small></span>${icon('arrow')}</button>`).join('');
-    result.querySelectorAll('[data-recipient-choice]').forEach(b=>b.onclick=()=>choose(accounts[Number(b.dataset.recipientChoice)]));
+    if(selected) { choose(selected); return; }
+    list.innerHTML=`<p role="status">같은 학번으로 가입한 계정이 여러 개예요. 학생 본인의 계정을 골라 주세요.</p>`+accounts.map((a,i)=>`<button type="button" class="ops-participant-row" data-recipient-choice="${i}">${icon('user')}<span><strong>${h(person(a.name,sid))}</strong><small>${a.self?'내 계정 · ':''}${h(a.email)} · 방문 ${Number(a.visits)||0}개${a.verified?' · 소속 확인됨':''}</small></span>${icon('arrow')}</button>`).join('');
+    list.querySelectorAll('[data-recipient-choice]').forEach(b=>b.onclick=()=>choose(accounts[Number(b.dataset.recipientChoice)]));
   }
 
   // Students confirm their membership: the sign-up student number must be on the roster and the typed
@@ -492,7 +517,6 @@ const festivalOpsUI = (() => {
     if(!response.ok) { status.textContent=response.message; return; }
     const row=response.data, d=dialog('리뷰 실명·소속 확인'), body=d.querySelector('.ops-dialog-content');
     account=row.account;
-    const own=()=>Boolean(state.user?.googleEmail) && account.email===state.user.googleEmail;
     body.innerHTML=`<form class="ops-form" id="reviewRosterForm"><p>${h(person(row.accountName,account.studentNumber))}${row.verified?` · ${row.selfRegistered?'본인 확인':'운영자 확인'}`:''}</p>${field('studentNumber','명단 학번',row.roster?.studentNumber || account.studentNumber || '', 'required inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" autocomplete="off"')}<button class="ghost-btn" type="button" data-roster-find>명단 조회</button><div data-roster-result></div><label class="ops-checkbox"><input name="confirmed" type="checkbox" required>로그인한 학생 본인과 명단이 일치함을 확인했음</label>${reason()}<p class="ops-form-status" role="status"></p><button class="primary-btn" type="submit" disabled>계정에 연결</button>${row.verified?'<button class="ghost-btn" type="button" data-roster-revoke>연결 확인 취소</button>':''}</form>`;
     const f=body.querySelector('form'), button=f.querySelector('button[type=submit]'), note=f.querySelector('[role=status]');
     const find=f.querySelector('[data-roster-find]'), result=f.querySelector('[data-roster-result]');
@@ -500,7 +524,7 @@ const festivalOpsUI = (() => {
     const valid=()=>state.user?.id===actor && requestedView===viewKey() && d.isConnected && isAdminUser();
     const show=value=>{
       candidate=value; f.elements.confirmed.checked=false;
-      button.disabled=!value?.ready || value.linkedElsewhere || own();
+      button.disabled=!value?.ready || value.linkedElsewhere;
       result.innerHTML=value?`<dl class="ops-roster-summary"><dt>명단 이름</dt><dd>${h(value.realName || '확인 필요')}</dd><dt>동아리</dt><dd>${value.clubs.map(h).join(', ')}</dd><dt>스탬프·리뷰 제외 부스</dt><dd>${value.boothKeys.length?value.boothKeys.map(h).join(', '):'해당 없음'}</dd></dl><p>${value.linkedElsewhere?'다른 계정에 연결된 명단이에요.':!value.ready?'명단 불일치 또는 부스 연결 확인이 필요해요.':'명단 대조 완료'}</p>`:'';
     };
     show(row.roster);
@@ -535,7 +559,7 @@ const festivalOpsUI = (() => {
         if(action==='revoke') f.querySelector('[data-roster-revoke]')?.remove();
       } finally {
         saving=false;
-        if(f.isConnected) {find.disabled=false;f.elements.studentNumber.disabled=false;button.disabled=!candidate?.ready || candidate.linkedElsewhere || own();}
+        if(f.isConnected) {find.disabled=false;f.elements.studentNumber.disabled=false;button.disabled=!candidate?.ready || candidate.linkedElsewhere;}
       }
     };
     f.onsubmit=ev=>{ev.preventDefault();save('save');};
@@ -696,11 +720,13 @@ const festivalOpsUI = (() => {
       input.disabled=box.checked; input.required=!box.checked;
       if(!box.checked) input.focus();
     });
-    document.querySelectorAll('[data-find-recipient]').forEach(b=>{
-      b.onclick=findRecipient;
-      const f=b.closest('[data-ops-form]');
-      f.elements.studentNumber.addEventListener('input',()=>{ visitRecipient=null; f.elements.email.value=''; f.querySelector('[data-recipient-result]').innerHTML=''; });
-      f.elements.studentNumber.addEventListener('keydown',ev=>{ if(ev.key==='Enter') { ev.preventDefault(); b.click(); } });
+    document.querySelectorAll('[data-recipient]').forEach(box=>{
+      const f=box.closest('[data-ops-form]');
+      box.querySelector('[data-recipient-find]').onclick=()=>loadRecipients(f);
+      // Enter searches instead of submitting; an IME still composing Korean keeps its Enter.
+      f.elements.recipientQuery.addEventListener('keydown',ev=>{ if(ev.key==='Enter' && !ev.isComposing) { ev.preventDefault(); loadRecipients(f); } });
+      box.querySelector('[data-recipient-change]')?.addEventListener('click',()=>resetRecipient(f));
+      if(!visitRecipient) loadRecipients(f);
     });
     document.querySelector('#opsNoticeSelect')?.addEventListener('change',e=>{selectedNotice=e.target.value;render();});
     document.querySelectorAll('[data-notice-edit]').forEach(b=>b.onclick=()=>{selectedNotice=b.dataset.noticeEdit;render();document.querySelector('.ops-notice-form')?.scrollIntoView({block:'start'});});
