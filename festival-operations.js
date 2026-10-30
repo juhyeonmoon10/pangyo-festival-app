@@ -29,12 +29,16 @@
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
   const writeKinds = new Set(['event_save', 'booth_save', 'claim', 'visit_approve', 'review_save', 'points_adjust', 'rule_save', 'voucher_issue', 'voucher_claim', 'voucher_qr', 'voucher_redeem', 'voucher_void']);
   readKinds.add('reward_status');
+  readKinds.add('voucher_code');
+  readKinds.add('voucher_code_check');
+  writeKinds.add('voucher_code_redeem');
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
   writeKinds.add('participation_reset');
   // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
   function call(action, body, request) {
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
+    if (action === 'voucher_code_redeem') return ['festival_voucher_redeem', { p_action: 'redeem', p_payload: body, p_request_id: request }];
     return [action.startsWith('reward_') ? 'festival_reward_write' : 'festival_ops_write', { p_action: action, p_payload: body, p_request_id: request }];
   }
   function error(value) {
@@ -67,7 +71,10 @@
       const id = actor();
       if (!id) return error(Error('AUTH_REQUIRED'));
       try {
-        const result = kind === 'reward_status' ? await rpc('festival_reward_read', {}) : await rpc('festival_ops_read', { p_kind: kind, p_query: query });
+        const result = kind === 'reward_status' ? await rpc('festival_reward_read', {})
+          : kind === 'voucher_code' ? await rpc('festival_voucher_code', { p_voucher: query.id })
+          : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })
+          : await rpc('festival_ops_read', { p_kind: kind, p_query: query });
         if (actor() !== id) return error(Error('AUTH_REQUIRED'));
         if (result.error) return error(result.error);
         return { ok: true, data: validate(result.data) };
