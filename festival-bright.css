@@ -507,3 +507,5 @@ body.design-web {
 .web-news-list strong { display: block; overflow-wrap: anywhere; }
 .web-news-list p { margin: 4px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
 .web-news-list small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.ops-identity-conflict { display: grid; gap: 4px; }
+.ops-identity-conflict .text-link { justify-self: end; font-size: 13px; }

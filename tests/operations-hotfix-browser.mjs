@@ -132,7 +132,7 @@ try {
     }
     await a.page.locator('.festival-ops-tabs [data-ops-tab=tools]').click();
     await a.page.locator('.festival-ops-tools').waitFor();
-    assert.equal(await a.page.locator('.festival-ops-tools button').count(),11);
+    assert.equal(await a.page.locator('.festival-ops-tools button').count(),12);
     await screenshot(a.page,width,'tool-menu');
     await a.page.locator('.festival-ops-tools [data-ops-tab=ledger]').click();
     await a.page.locator('[data-ops-form=points_adjust]').waitFor();

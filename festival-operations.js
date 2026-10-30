@@ -12,7 +12,8 @@
     BOOTH_CLOSED: '부스가 일시 중지되었거나 마감돼 방문을 인증할 수 없어요. 부스 운영자에게 확인해 주세요.', VISIT_REQUIRED: '방문 인증 후 평가할 수 있어요.',
     ALREADY_REVIEWED: '이미 등록한 별점은 변경할 수 없어요.',
     OWN_CLUB_REVIEW: '본인 동아리에는 별점과 후기를 남길 수 없어요.',
-    REVIEW_IDENTITY_REQUIRED: '운영 부스에서 본인과 동아리 소속을 확인받아 주세요.',
+    REVIEW_IDENTITY_REQUIRED: '내 정보에서 본인 소속을 먼저 확인해 주세요.',
+    OWN_CLUB_STAMP: '본인 동아리 부스는 스탬프를 적립할 수 없어요.',
     REVIEW_POLICY_REQUIRED: '리뷰 작성 가능 여부를 확인하지 못했어요. 다시 시도해 주세요.',
     REWARD_CHOICE_LOCKED: '이미 선택한 바우처는 바꿀 수 없어요.',
     REWARD_NOT_READY: '바우처 발급 준비 중이에요.',
@@ -39,6 +40,7 @@
   writeKinds.add('booth_status_bulk');
   readKinds.add('notices');
   readKinds.add('notice_admin');
+  readKinds.add('identity_overview');
   writeKinds.add('notice_save');
   writeKinds.add('notice_delete');
   writeKinds.add('voucher_code_redeem');
@@ -88,6 +90,7 @@
           : kind === 'voucher_code' ? await rpc('festival_voucher_code', { p_voucher: query.id })
           : kind === 'notices' ? await rpc('festival_notices', {})
           : kind === 'notice_admin' ? await rpc('festival_notice_admin', { p_action: 'list', p_payload: {} })
+          : kind === 'identity_overview' ? await rpc('festival_identity_overview', {})
           : kind === 'claim_guard' ? await rpc('festival_claim_guard', { p_action: 'read', p_payload: {} })
           : kind === 'booth_stamps' ? await rpc('festival_booth_stamp_counts', {})
           : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })
