@@ -384,3 +384,26 @@ body.design-web {
 .profile-identity-row strong { flex: 1; text-align: right; overflow-wrap: anywhere; }
 .profile-identity-row .ui-icon { width: 16px; height: 16px; flex: none; color: var(--muted); }
 .ops-identity-counts { color: var(--muted); font-size: 13px; }
+.detail-review-link { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.detail-review-link > span { flex: 1; text-align: left; }
+.detail-review-link b { color: var(--primary); font-variant-numeric: tabular-nums; }
+.detail-review-link .ui-icon { width: 20px; height: 20px; flex: none; }
+.design-web .booth-reviews-screen { padding-inline: 24px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+.booth-review-summary { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 22px; padding: 20px 0; }
+.booth-review-score { display: grid; justify-items: center; gap: 6px; min-width: 104px; }
+.booth-review-score strong { font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+.booth-review-score small { color: var(--muted); font-size: 13px; }
+.booth-review-stars { display: flex; gap: 2px; }
+.booth-review-stars .star .ui-icon { width: 16px; height: 16px; fill: none; stroke: #c9d3cf; }
+.booth-review-stars .star.on .ui-icon { fill: #f2b01e; stroke: #f2b01e; }
+.booth-review-bars { display: grid; gap: 6px; margin: 0; }
+.booth-review-bars div { display: grid; grid-template-columns: 32px minmax(0, 1fr) 28px; align-items: center; gap: 8px; }
+.booth-review-bars dt { color: var(--muted); font-size: 12px; }
+.booth-review-bars dd { margin: 0; height: 8px; border-radius: 4px; background: var(--surface-2, #f1f5f3); overflow: hidden; }
+.booth-review-bars dd span { display: block; height: 100%; background: #f2b01e; }
+.booth-review-bars .booth-review-bar-count { height: auto; background: none; color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.booth-review-list { padding-top: 6px; }
+.booth-review-list .review.mine { margin-inline: -12px; padding-inline: 12px; border-radius: 8px; background: var(--festival-mint, #e8f8f0); }
+.booth-review-note { margin: 12px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+@media (max-width: 359px) { .booth-review-summary { grid-template-columns: 1fr; } }
+.design-web .booth-review-stars .star { display: inline-flex; width: auto; height: auto; padding: 0; border-radius: 0; background: none; }
