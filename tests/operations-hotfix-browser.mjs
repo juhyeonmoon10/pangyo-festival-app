@@ -185,7 +185,7 @@ try {
     assert.equal(await picker.locator(`[data-participant-id="${admin.uid}"]`).isDisabled(),true);
     const searchBox=picker.getByRole('textbox',{name:'참여자 이름'});
     await searchBox.fill('없는이름'); await picker.getByRole('button',{name:'참여자 검색',exact:true}).click();
-    await picker.getByText('검색 결과가 없어요. 이름을 다시 확인해 주세요.',{exact:true}).waitFor();
+    await picker.getByText('검색 결과가 없어요. 이름이나 학번을 다시 확인해 주세요.',{exact:true}).waitFor();
     await searchBox.fill('격리 학생');
     await searchBox.dispatchEvent('keydown',{key:'Enter',isComposing:true});
     assert.equal(await searchBox.inputValue(),'격리 학생');
