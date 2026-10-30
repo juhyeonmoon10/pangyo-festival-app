@@ -35,12 +35,19 @@
   readKinds.add('booth_stamps');
   readKinds.add('claim_guard');
   writeKinds.add('claim_guard_save');
+  writeKinds.add('booth_status_bulk');
+  readKinds.add('notices');
+  readKinds.add('notice_admin');
+  writeKinds.add('notice_save');
+  writeKinds.add('notice_delete');
   writeKinds.add('voucher_code_redeem');
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
   writeKinds.add('participation_reset');
   // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
   function call(action, body, request) {
+    if (action === 'notice_save' || action === 'notice_delete') return ['festival_notice_admin', { p_action: action.slice(7), p_payload: body }];
+    if (action === 'booth_status_bulk') return ['festival_booth_status_bulk', { p_payload: body, p_request_id: request }];
     if (action === 'claim_guard_save') return ['festival_claim_guard', { p_action: 'save', p_payload: body }];
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
     if (action === 'voucher_code_redeem') return ['festival_voucher_redeem', { p_action: 'redeem', p_payload: body, p_request_id: request }];
@@ -78,6 +85,8 @@
       try {
         const result = kind === 'reward_status' ? await rpc('festival_reward_read', {})
           : kind === 'voucher_code' ? await rpc('festival_voucher_code', { p_voucher: query.id })
+          : kind === 'notices' ? await rpc('festival_notices', {})
+          : kind === 'notice_admin' ? await rpc('festival_notice_admin', { p_action: 'list', p_payload: {} })
           : kind === 'claim_guard' ? await rpc('festival_claim_guard', { p_action: 'read', p_payload: {} })
           : kind === 'booth_stamps' ? await rpc('festival_booth_stamp_counts', {})
           : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })

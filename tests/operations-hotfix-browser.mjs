@@ -125,14 +125,14 @@ try {
     await openOperatorTool(a.page,'catalog');
     await a.page.getByRole('heading',{name:'부스 수정',exact:true}).waitFor();
     assert.notEqual(await a.page.locator('#opsBoothSelect').inputValue(),'');
-    const menus={dashboard:'.ops-stats',settings:'[data-ops-form=event_save]',catalog:'[data-ops-form=booth_save]',participants:'#reviewRosterLookup',visits:'[data-ops-form=visit_approve]',ledger:'[data-ops-form=points_adjust]',rules:'[data-ops-form=rule_save]',vouchers:'#opsRedeem',audit:'.ops-paging',nfc:'.nfc-manager-heading',claim_guard:'.ops-alert'};
+    const menus={dashboard:'.ops-stats',settings:'[data-ops-form=event_save]',catalog:'[data-ops-form=booth_save]',participants:'#reviewRosterLookup',visits:'[data-ops-form=visit_approve]',ledger:'[data-ops-form=points_adjust]',rules:'[data-ops-form=rule_save]',vouchers:'#opsRedeem',audit:'.ops-paging',nfc:'.nfc-manager-heading',claim_guard:'.ops-alert',notice_admin:'.ops-alert'};
     for(const [name,selector] of Object.entries(menus)) {
       await tab(a.page,name,selector);
       await screenshot(a.page,width,`tool-${name}`);
     }
     await a.page.locator('.festival-ops-tabs [data-ops-tab=tools]').click();
     await a.page.locator('.festival-ops-tools').waitFor();
-    assert.equal(await a.page.locator('.festival-ops-tools button').count(),10);
+    assert.equal(await a.page.locator('.festival-ops-tools button').count(),11);
     await screenshot(a.page,width,'tool-menu');
     await a.page.locator('.festival-ops-tools [data-ops-tab=ledger]').click();
     await a.page.locator('[data-ops-form=points_adjust]').waitFor();

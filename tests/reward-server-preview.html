@@ -23,6 +23,8 @@ function issue(kind,target){if(![3,6].includes(target))throw Error('Invalid rewa
 const operations=FestivalOperations.create({storage:sessionStorage,actor:()=> 'fixture-user',rpc:async(name,args)=>{
   if(name==='festival_reward_read') return mode==='missing'?{error:{code:'PGRST202'}}:{data:status()};
   if(name==='festival_ops_read') return {data:{ready:true,event,items:sampleBooths,rules:[],vouchers:issued,reviews:sampleReviews,visits:sampleVisits,points:0}};
+  // Optional reads that every refresh may make; they are not reward calls.
+  if(name==='festival_notices' || name==='festival_booth_stamp_counts') return {data:{items:[]}};
   fixtureCalls.push({name,...args});await new Promise(r=>setTimeout(r,180));
   if(params.has('retry')&&!failed){failed=true;return {error:{message:'simulated timeout'}};}
   if(args.p_action==='reward_choose') {const first=args.p_payload.kind,target=args.p_payload.firstTarget;issue(first,target);if(count>=target+3)issue(first==='photo'?'food':'photo',target+3);}

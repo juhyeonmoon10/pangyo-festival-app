@@ -208,7 +208,9 @@ const festivalWeb = (() => {
     const visits = repo.stampsForUser(state.user.id);
     const count = completed().length;
     const pending = waiting().length;
-    const notice = isServerMode() ? null : state.db.announcements[0];
+    // Server notices come sorted with important ones first.
+    const news = isServerMode() ? (festivalOpsUI.notices?.() || []) : state.db.announcements;
+    const notice = isServerMode() ? news.find(n => n.important) || null : news[0];
     const reviewCount = state.db.booths.filter(b => repo.hasReview(state.user.id, b.id)).length;
     const pendingReviews = state.db.booths.filter(reviewPending);
     const toWrite = pendingReviews.length;
@@ -234,7 +236,7 @@ const festivalWeb = (() => {
       ${visits.length ? `<section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
         <div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>
       </section>` : ""}
-      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><h2>축제 소식</h2><strong>${notice ? escapeHtml(notice.title) : "등록된 공지가 없어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div></section>
+      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><h2>축제 소식</h2>${news.length ? `<ul class="web-news-list">${news.slice(0, 5).map(n => `<li class="${n.important ? 'important' : ''}"><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${escapeHtml(n.title)}</strong>${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}${n.publishedAt ? `<small>${new Date(n.publishedAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}</small>` : ''}</li>`).join('')}</ul>` : '<strong>등록된 공지가 없어요</strong>'}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
       ${bottomNav("home")}
     </main>`;

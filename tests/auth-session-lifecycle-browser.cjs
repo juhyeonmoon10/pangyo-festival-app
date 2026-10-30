@@ -59,6 +59,8 @@ const captureClient = `\n;(() => { const sdk = window.supabase; window.__authEve
           if (url.pathname==='/rest/v1/rpc/festival_my_reviews') data=[];
           if (url.pathname==='/rest/v1/rpc/festival_reward_read') data={version:2,ready:false};
           if (url.pathname==='/rest/v1/rpc/festival_booth_stamp_counts') data={items:[]};
+          if (url.pathname==='/rest/v1/rpc/festival_notices') data={items:[]};
+          if (url.pathname==='/rest/v1/rpc/festival_claim_guard') data={enabled:true,windowMinutes:10,maxClaims:5,version:0,items:[]};
           if (url.pathname==='/rest/v1/rpc/festival_review_identity_admin' && request.postDataJSON().p_action==='list') data={eventId:event.id,items:[],counts:{linked:0,self:0,revoked:0}};
           if (url.pathname==='/rest/v1/rpc/festival_review_identity_self') data={version:1,eventId:event.id,result:null,studentNumber:'21001',eligible:true,verified:false,locked:false,selfRegistered:false,realName:null,clubs:[],boothKeys:[]};
           if (url.pathname==='/rest/v1/rpc/festival_ops_read') {
