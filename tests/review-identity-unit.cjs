@@ -112,15 +112,21 @@ function rosterClient(data) {
   return createAccount({sdk:{createClient:()=>({rpc:async()=>({data}),auth:{onAuthStateChange(){}}})},
     config:{},storage:{getItem(){},setItem(){},removeItem(){}},location:new URL('https://fixture.invalid')});
 }
-const rosterResponse={eventId:'event',userId:2,accountName:'가상계정',realName:null,boothKeys:[],verified:false,version:0,
+// Accounts are named by 학번 and email; an account number in the response fails closed.
+const rosterResponse={eventId:'event',account:{studentNumber:'21001',email:'student@example.invalid'},accountName:'가상계정',realName:null,boothKeys:[],verified:false,version:0,
   roster:{studentNumber:'11001',realName:'가상학생',clubs:['동아리'],boothKeys:['club'],version:1,ready:true,linkedElsewhere:false}};
-const lookup={eventId:'event',userId:2,studentNumber:'11001'};
+const lookup={eventId:'event',account:{studentNumber:'21001'},studentNumber:'11001'};
 test('official roster response validates exact number, version and readiness types',async()=>{
   assert.equal((await rosterClient(rosterResponse).reviewIdentity('lookup',lookup)).ok,true);
   for(const roster of [{...rosterResponse.roster,studentNumber:'11002'},{...rosterResponse.roster,version:0},
     {...rosterResponse.roster,ready:'true'},{...rosterResponse.roster,realName:null},{...rosterResponse.roster,clubs:[]}]) {
     assert.equal((await rosterClient({...rosterResponse,roster}).reviewIdentity('lookup',lookup)).ok,false);
   }
+});
+test('a response carrying an account number or no account fails closed',async()=>{
+  assert.equal((await rosterClient({...rosterResponse,userId:2}).reviewIdentity('lookup',lookup)).ok,false);
+  const none={...rosterResponse};delete none.account;
+  assert.equal((await rosterClient(none).reviewIdentity('lookup',lookup)).ok,false);
 });
 test('missing old roster contract fails closed; explicit missing student is valid',async()=>{
   const old={...rosterResponse};delete old.roster;
