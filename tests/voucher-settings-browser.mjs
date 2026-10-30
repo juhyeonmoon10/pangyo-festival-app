@@ -41,7 +41,7 @@ async function account(admin=false) {
 const admin=await account(true);
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'Stored legacy name',state:'open',reviewPoints:10,version:0});
-for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql']) await sql(file);
+for(const file of ['operations-server/review-identity.draft.sql','operations-server/reward-visits.sql','operations-server/reward-fixed-milestones.sql','operations-server/voucher-unlimited-and-reset.sql','operations-server/voucher-short-code.sql']) await sql(file);
 const booths=(await db.query('select key from festival_ops.booths order by key collate "C" limit 6')).rows.map(r=>r.key);
 for(const booth of booths) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const count=async t=>Number((await db.query(`select count(*) n from ${t}`)).rows[0].n);
@@ -51,7 +51,7 @@ const reports=[];
 async function pageFor(a,width) {
   const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true});
   await context.addInitScript(a=>localStorage.setItem('pangyo-google-session-v1',JSON.stringify({access_token:a.jwt,refresh_token:'fixture',token_type:'bearer',expires_at:4102444800,expires_in:3600,user:{id:a.id}})),a);
-  const page=await context.newPage(), errors=[];
+  const page=await context.newPage(), errors=[], codeReads=[];
   page.on('pageerror',e=>errors.push(e.message)); page.on('dialog',d=>d.accept());
   await page.route('**/*',async route=>{
     const req=route.request(),url=new URL(req.url());
@@ -63,6 +63,7 @@ async function pageFor(a,width) {
       else if(url.pathname==='/rest/v1/rpc/festival_nfc_profile') value=await rpc(a,'select public.festival_nfc_profile() value');
       else if(url.pathname==='/rest/v1/rpc/festival_reward_read') value=await rpc(a,'select public.festival_reward_read() value');
       else if(url.pathname==='/rest/v1/rpc/festival_reward_write') value=await rpc(a,'select public.festival_reward_write($1,$2,$3) value',[p.p_action,p.p_payload,p.p_request_id]);
+      else if(url.pathname==='/rest/v1/rpc/festival_voucher_code') { value=await rpc(a,'select public.festival_voucher_code($1) value',[p.p_voucher]); codeReads.push(value.code); }
       else if(url.pathname==='/rest/v1/rpc/festival_ops_reset') value=await rpc(a,'select public.festival_ops_reset($1,$2) value',[p.p_payload,p.p_request_id]);
       else if(url.pathname==='/rest/v1/rpc/festival_ops_read') value=await rpc(a,'select public.festival_ops_read($1,$2) value',[p.p_kind,p.p_query]);
       else if(url.pathname==='/rest/v1/rpc/festival_ops_write') value=await rpc(a,'select public.festival_ops_write($1,$2,$3) value',[p.p_action,p.p_payload,p.p_request_id]);
@@ -73,7 +74,7 @@ async function pageFor(a,width) {
   });
   await page.goto(pathToFileURL(path.join(root,'index.html')).href);
   await page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready);
-  return {page,context,errors};
+  return {page,context,errors,codeReads};
 }
 const routeTo=(page,route)=>page.evaluate(r=>{state.route=r;render();},route);
 async function screenshot(page,width,name) {
@@ -114,6 +115,18 @@ try {
     assert.match(await s.page.locator('.festival-ticket').first().innerText(),/사용 기한 없음/);
     assert.equal(await s.page.getByText('Invalid Date').count(),0);
     await screenshot(s.page,width,'student-voucher-no-deadline');
+    // The key refreshes itself when its 30-second step ends.
+    await s.page.locator('.festival-ticket [data-ops-qr]').first().click();
+    await s.page.locator('.ops-voucher-code').waitFor();
+    assert.equal(s.codeReads.length,1);
+    await s.page.evaluate(()=>{const real=Date.now.bind(Date);Date.now=()=>real()+31000;});
+    for(let i=0;i<40 && s.codeReads.length<2;i++) await s.page.waitForTimeout(100);
+    assert.ok(s.codeReads.length>=2,'expired key requests a new one');
+    await s.page.waitForFunction(()=>document.querySelector('.ops-code-timer')?.textContent.includes('초 후'));
+    await s.page.waitForTimeout(1200);
+    assert.ok(s.codeReads.length<=3,'a refreshed key does not loop');
+    assert.match(await s.page.locator('.ops-voucher-code').innerText(),/^[2-9A-HJ-NP-Z]{4} [2-9A-HJ-NP-Z]{4}$/);
+    await s.page.keyboard.press('Escape');
 
     // A finite stock shows remaining count and cannot go below the issued amount.
     await a.page.locator('[data-ops-refresh]').first().click();

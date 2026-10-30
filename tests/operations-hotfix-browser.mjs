@@ -40,6 +40,7 @@ const admin=await account(true);
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'운영자 복구 격리 검증',state:'open',reviewPoints:10,version:0});
 await db.exec(fs.readFileSync(path.join(root,'operations-server/review-identity.draft.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(root,'operations-server/voucher-short-code.sql'),'utf8'));
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
 const output=path.join(root,'artifacts/operations-hotfix'); fs.mkdirSync(output,{recursive:true});
@@ -72,6 +73,12 @@ async function pageFor(a,width) {
       else if(url.pathname==='/rest/v1/rpc/festival_ops_write') {
         calls.push(p); value=await rpc(a,'select public.festival_ops_write($1,$2,$3) value',[p.p_action,p.p_payload,p.p_request_id]);
         if(p.p_action==='voucher_qr') control.qrToken=value.token;
+      }
+      else if(url.pathname==='/rest/v1/rpc/festival_voucher_code') {
+        value=await rpc(a,'select public.festival_voucher_code($1) value',[p.p_voucher]); control.qrToken=value.code;
+      }
+      else if(url.pathname==='/rest/v1/rpc/festival_voucher_redeem') {
+        calls.push(p); value=await rpc(a,'select public.festival_voucher_redeem($1,$2,$3) value',[p.p_action,p.p_payload,p.p_request_id ?? null]);
       }
       else if(url.pathname==='/rest/v1/rpc/festival_review_identity_admin') {
         calls.push(p); value=await rpc(a,'select public.festival_review_identity_admin($1,$2) value',[p.p_action,p.p_payload]);
@@ -267,8 +274,18 @@ try {
     await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);state.route='vouchers';render();});
     await s.page.locator('[data-voucher-filter="available"]').click();
     await s.page.locator('[data-ops-qr]').click(); await s.page.locator('.ops-qr svg').waitFor();
-    assert.match(s.control.qrToken,/^fv1\.[0-9a-f]{64}$/);
-    await a.page.locator('#opsRedeem [name=token]').fill(s.control.qrToken);
+    assert.match(s.control.qrToken,/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);
+    assert.equal((await s.page.locator('.ops-voucher-code').innerText()).replace(/\s/g,''),s.control.qrToken);
+    assert.match(await s.page.locator('.ops-code-timer').innerText(),/초 후 새 인증키로 바뀌어요/);
+    // The async clipboard is commonly blocked in in-app browsers; the selection fallback must still copy.
+    await s.page.evaluate(()=>{window.__copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>Promise.reject(new Error('blocked'))}});
+      document.addEventListener('copy',e=>window.__copied.push(document.getSelection().toString() || e.target?.value || document.activeElement?.value));});
+    await s.page.locator('[data-copy-code]').click();
+    await s.page.locator('.ops-copy-status').getByText('인증키를 복사했어요.').waitFor();
+    assert.deepEqual(await s.page.evaluate(()=>window.__copied),[s.control.qrToken]);
+    await screenshot(s.page,width,'voucher-code');
+    // Manual entry tolerates lowercase and a separating space.
+    await a.page.locator('#opsRedeem [name=token]').fill(`${s.control.qrToken.slice(0,4).toLowerCase()} ${s.control.qrToken.slice(4)}`);
     await a.page.locator('#opsRedeem button[type=submit]').click();
     await a.page.waitForFunction(()=>document.querySelector('#opsRedeem [name=token]')?.value==='');
     assert.equal((await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}])).vouchers[0].state,'used');

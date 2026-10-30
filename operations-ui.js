@@ -12,6 +12,7 @@ const festivalOpsUI = (() => {
   const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',nfc:'NFC 발급','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
   const localTabs=new Set(['tools','nfc','stamp-simulator','settings']);
   const h=value=>escapeHtml(String(value ?? ''));
+  const VOUCHER_CODE=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
   const api=()=>festivalAccount?.operations;
   const active=()=>isServerMode() && !!state.user;
   const snapshot=()=>owner===state.user?.id ? mine : null;
@@ -223,7 +224,7 @@ const festivalOpsUI = (() => {
       ? '<p class="ops-empty">3개·6개 지급은 아직 준비 중이에요. 기존 발급 기준은 관리할 수 있어요.</p>'+ruleForm()
       : '<p class="ops-alert" role="alert">바우처 지급 설정을 확인하지 못했어요. 새로고침 후 다시 확인해 주세요.</p>')
       +table(data?.items,[['이름','title'],['기준',r=>r.reward_kind?'3개·6개 지급':r.target],['발급','issued'],['한도',r=>stockText(r.stock)],['마감',r=>time(r.expires_at)],['활성',r=>r.enabled?'예':'아니오']]);
-    if(tab==='vouchers') return `<section class="ops-section"><h2>바우처 사용</h2><form id="opsRedeem" class="ops-form"><label>QR 인증 코드<input class="input" name="token" autocomplete="off" spellcheck="false" required pattern="fv1\\.[0-9a-f]{64}"></label><p class="ops-form-status" role="status"></p><div class="ops-actions"><button class="icon-btn" type="button" data-ops-camera title="QR 스캔" aria-label="QR 스캔">${icon('scan')}</button><button class="primary-btn" type="submit">바우처 확인</button></div></form></section><section class="ops-section"><h2>수동 발급</h2>${manualVoucherForm()}</section><section class="ops-section"><h2>발급 취소</h2>${form('voucher_void',select('id','취소할 바우처',(data?.items || []).filter(v=>v.state==='available').map(v=>[v.id,`${v.name} · ${v.title}`]),null)+reason(),'취소 확정')}</section>`+searchForm()+table(data?.items,[['참여자','user_id'],['이름','name'],['바우처','title'],['상태',r=>statusName(r.state)],['마감',r=>time(r.expires_at)]])+paging();
+    if(tab==='vouchers') return `<section class="ops-section"><h2>바우처 사용</h2><form id="opsRedeem" class="ops-form"><label>인증키 (8자리)<input class="input ops-code-input" name="token" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="11" placeholder="QR 스캔 또는 직접 입력"></label><p class="ops-form-status" role="status"></p><div class="ops-actions"><button class="icon-btn" type="button" data-ops-camera title="QR 스캔" aria-label="QR 스캔">${icon('scan')}</button><button class="primary-btn" type="submit">바우처 확인</button></div></form></section><section class="ops-section"><h2>수동 발급</h2>${manualVoucherForm()}</section><section class="ops-section"><h2>발급 취소</h2>${form('voucher_void',select('id','취소할 바우처',(data?.items || []).filter(v=>v.state==='available').map(v=>[v.id,`${v.name} · ${v.title}`]),null)+reason(),'취소 확정')}</section>`+searchForm()+table(data?.items,[['참여자','user_id'],['이름','name'],['바우처','title'],['상태',r=>statusName(r.state)],['마감',r=>time(r.expires_at)]])+paging();
     return table(data?.items,[['시각',r=>time(r.created_at)],['처리자','actor_id'],['작업','action'],['대상','target'],['사유','reason']])+paging();
   }
   function admin() {
@@ -471,12 +472,15 @@ const festivalOpsUI = (() => {
     const button=form.querySelector('button[type=submit]');
     busy=true; button.disabled=true;
     try {
-      const preview=await api().read('voucher_check',{token});
+      const code=token.toUpperCase().replace(/[\s-]/g,'');
+      if(!VOUCHER_CODE.test(code)) { note.textContent='인증키 8자리를 확인해 주세요.'; return; }
+      const preview=await api().read('voucher_code_check',{code});
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
-      if(!preview.ok) { note.textContent=preview.message; return; }
-      if(!preview.data.valid) { note.textContent='사용할 수 없거나 만료된 QR이에요.'; return; }
-      if(!confirm(`${preview.data.title}\n${preview.data.participant}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
-      const r=await api().write('voucher_redeem',{token});
+      if(!preview.ok) { note.textContent=preview.code==='VOUCHER_INVALID'?'맞지 않거나 시간이 지난 인증키예요. 참여자 화면의 새 인증키를 확인해 주세요.':preview.message; return; }
+      const p=preview.data;
+      if(!p.valid) { note.textContent=p.own?'본인 바우처는 다른 운영자에게 확인받아 주세요.':p.state==='used'?'이미 사용한 바우처예요.':p.state==='void'?'취소된 바우처예요.':p.state==='expired'?'만료된 바우처예요.':!p.eventOpen?'축제가 운영 중이 아니어서 사용할 수 없어요.':'사용할 수 없는 바우처예요.'; return; }
+      if(!confirm(`${p.title}\n${p.participant}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
+      const r=await api().write('voucher_code_redeem',{code});
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!r.ok) { note.textContent=r.message; return; }
       notice='바우처를 사용 처리했어요.';
@@ -485,7 +489,7 @@ const festivalOpsUI = (() => {
   }
   function closeDialog() {
     stream?.getTracks().forEach(t=>t.stop()); stream=null;
-    clearTimeout(cameraTimer); clearInterval(qrTimer); cameraTimer=null; qrTimer=null;
+    clearTimeout(cameraTimer); clearTimeout(qrTimer); cameraTimer=null; qrTimer=null;
     document.querySelector('.ops-dialog')?.remove();
   }
   function dialog(title) {
@@ -497,7 +501,7 @@ const festivalOpsUI = (() => {
   }
   async function camera() {
     const note=document.querySelector('#opsRedeem .ops-form-status');
-    if(!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) { note.textContent='이 브라우저에서는 QR 스캔을 지원하지 않아요. 참여자의 인증 코드를 입력해 주세요.'; return; }
+    if(!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) { note.textContent='이 브라우저에서는 QR 스캔을 지원하지 않아요. 참여자 화면의 인증키 8자리를 입력해 주세요.'; return; }
     const d=dialog('바우처 QR 스캔'), body=d.querySelector('.ops-dialog-content');
     body.innerHTML='<video playsinline muted></video><p role="status">카메라 연결 중...</p>';
     try {
@@ -509,23 +513,53 @@ const festivalOpsUI = (() => {
       const tick=async()=>{
         if(!d.isConnected) return;
         try {
-          const list=await detector.detect(video); const found=list.find(x=>/^fv1\.[0-9a-f]{64}$/.test(x.rawValue));
+          const list=await detector.detect(video); const found=list.find(x=>VOUCHER_CODE.test(x.rawValue));
           if(found) { const f=document.querySelector('#opsRedeem'); if(f){f.elements.token.value=found.rawValue;closeDialog();f.requestSubmit();} return; }
         } catch { /* Try the next camera frame. */ }
         cameraTimer=setTimeout(tick,250);
       }; tick();
     } catch { if(d.isConnected) body.querySelector('p').textContent='카메라 권한을 확인해 주세요.'; }
   }
+  // Copies inside the open modal dialog: a selection outside the top layer cannot be copied.
+  async function copyText(text,container) {
+    try { if(window.isSecureContext && navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; } }
+    catch { /* In-app browsers often block the async clipboard; fall back to a selection copy. */ }
+    const area=document.createElement('textarea');
+    area.value=text; area.readOnly=true; area.setAttribute('aria-hidden','true');
+    area.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+    (container || document.body).append(area);
+    area.focus(); area.select(); area.setSelectionRange(0,text.length);
+    let copied=false;
+    try { copied=document.execCommand('copy'); } catch { copied=false; }
+    area.remove();
+    return copied;
+  }
   async function qr(id) {
-    const d=dialog('바우처 사용'), body=d.querySelector('.ops-dialog-content'); body.innerHTML='<p role="status">QR 준비 중...</p>';
-    const r=await api().write('voucher_qr',{id}); if(!d.isConnected) return;
-    if(!r.ok) { body.textContent=r.message; return; }
-    const code=qrcode(0,'M'); code.addData(r.data.token); code.make();
-    body.innerHTML=`<div class="ops-qr" role="img" aria-label="바우처 인증 QR">${code.createSvgTag({cellSize:5,margin:16,scalable:true})}</div><p role="status"></p><button class="ghost-btn" data-copy-code>${icon('copy')} 인증 코드 복사</button><button class="ghost-btn" data-new-qr>${icon('refresh')} QR 새로고침</button>`;
-    body.querySelector('[data-copy-code]').onclick=async()=>{try{await navigator.clipboard.writeText(r.data.token);}catch{body.querySelector('p').textContent='복사 권한을 확인해 주세요.';}};
-    body.querySelector('[data-new-qr]').onclick=()=>qr(id);
-    const update=()=>{const left=Math.max(0,Math.ceil((new Date(r.data.expiresAt)-Date.now())/1000)); body.querySelector('p').textContent=left?`${left}초 남음`:'QR이 만료됐어요.'; if(!left){clearInterval(qrTimer);body.querySelector('.ops-qr').replaceChildren();body.querySelector('[data-copy-code]').disabled=true;}};
-    update(); qrTimer=setInterval(update,1000);
+    const d=dialog('바우처 사용'), body=d.querySelector('.ops-dialog-content'); body.innerHTML='<p role="status">인증키 준비 중...</p>';
+    const show=async()=>{
+      clearTimeout(qrTimer);
+      const r=await api().read('voucher_code',{id}); if(!d.isConnected) return;
+      if(!r.ok) { body.innerHTML=`<p role="alert">${h(r.message)}</p>`; return; }
+      const current=r.data, offset=new Date(current.serverTime)-Date.now();
+      const code=qrcode(0,'M'); code.addData(current.code); code.make();
+      body.innerHTML=`<div class="ops-qr" role="img" aria-label="바우처 인증 QR">${code.createSvgTag({cellSize:5,margin:16,scalable:true})}</div><p class="ops-voucher-code" aria-label="인증키 ${h(current.code.split('').join(' '))}">${h(current.code.slice(0,4))} ${h(current.code.slice(4))}</p><p class="ops-code-timer" role="timer"></p><button type="button" class="ghost-btn" data-copy-code>${icon('copy')} 인증키 복사</button><p class="ops-copy-status" role="status" aria-live="polite"></p><p class="ops-code-help">카메라가 안 되면 운영자에게 인증키 8자리를 보여 주세요. 인증키는 30초마다 바뀌어요.</p>`;
+      body.querySelector('[data-copy-code]').onclick=async()=>{
+        const ok=await copyText(current.code,d);
+        if(d.isConnected) body.querySelector('.ops-copy-status').textContent=ok?'인증키를 복사했어요.':'복사하지 못했어요. 화면의 인증키를 직접 알려 주세요.';
+      };
+      const timer=body.querySelector('.ops-code-timer');
+      const tick=()=>{
+        if(!d.isConnected) return;
+        // validUntil is the server's step end; correct for this device's clock.
+        const left=Math.max(0,Math.ceil((new Date(current.validUntil)-offset-Date.now())/1000));
+        // A short pause avoids back-to-back requests when the new step has not started yet.
+        if(left<=0) { timer.textContent='새 인증키를 받는 중...'; qrTimer=setTimeout(show,1000); return; }
+        timer.textContent=`${left}초 후 새 인증키로 바뀌어요`;
+        qrTimer=setTimeout(tick,1000);
+      };
+      tick();
+    };
+    await show();
   }
   function vouchers() {
     return festivalWeb.vouchers({loading:!loaded, failure});
