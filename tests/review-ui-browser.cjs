@@ -19,7 +19,7 @@ fs.mkdirSync(out,{recursive:true});
       assert.equal(await page.locator('#submitReview').isDisabled(),mode!=='allowed');
       assert.equal(await page.locator('#reviewContent').isDisabled(),mode!=='allowed');
       if(mode==='own') assert.match(await section.innerText(),/본인 동아리/);
-      if(mode==='unknown') assert.match(await section.innerText(),/운영자가 이름과 동아리 소속/);
+      if(mode==='unknown') assert.match(await section.innerText(),/본인 소속을 먼저 확인/);
       if(mode==='allowed') {
         assert.match(await section.innerText(),/김하늘 이름으로 공개/);
         await page.locator('[data-rating="5"]').click();

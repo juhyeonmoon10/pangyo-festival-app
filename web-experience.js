@@ -196,6 +196,13 @@ const festivalWeb = (() => {
     </section>`;
   }
 
+  // Shown only to roster-eligible accounts whose club membership is not confirmed yet.
+  function identityPrompt() {
+    const identity = isServerMode() ? festivalOpsUI.identity() : null;
+    if (!identity || identity.verified || !identity.eligible) return "";
+    return `<button type="button" class="festival-identity-prompt" data-route="identity">${icon("user")}<span><strong>본인 소속 확인을 먼저 해 주세요</strong><small>${identity.locked ? "운영자 확인이 필요해요. 운영 부스에 문의해 주세요." : "소속 동아리를 확인해야 부스에 별점을 남길 수 있어요."}</small></span>${icon("arrow")}</button>`;
+  }
+
   function home() {
     syncRewards();
     const visits = repo.stampsForUser(state.user.id);
@@ -210,6 +217,7 @@ const festivalWeb = (() => {
       <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-home-notices aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
       ${notice ? `<button type="button" class="festival-notice-strip" data-home-notices>${icon('notice')}<span>${escapeHtml(notice.title)}</span>${icon('arrow')}</button>` : ''}
       <section class="web-welcome"><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 모아봐요.</h1></section>
+      ${identityPrompt()}
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       ${stampCard(count)}
       <button type="button" class="web-map-action" data-route="map">

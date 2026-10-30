@@ -300,7 +300,7 @@ function reviewEligibility(boothId) {
 
 function reviewEligibilityMessage(policy) {
   return ({ OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
-    REVIEW_IDENTITY_REQUIRED: "운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.",
+    REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주세요.",
     AUTH_REQUIRED: "로그인 후 작성할 수 있어요." })[policy.reason] || "리뷰 작성 가능 여부를 확인 중이에요.";
 }
 
@@ -1275,6 +1275,7 @@ function updateReviewSection(boothId) {
     const identity = compose.querySelector(".review-identity");
     identity.textContent = policy.allowed ? `${policy.authorName} 이름으로 공개돼요.` : "";
     identity.hidden = !policy.allowed;
+    compose.querySelector(".review-identity-link").hidden = !(isServerMode() && policy.reason === "REVIEW_IDENTITY_REQUIRED");
     compose.querySelector("#saveReviewDraft").hidden = !enabled;
   }
   if (own) {
@@ -1393,6 +1394,7 @@ function render() {
     if (state.route === "stamps") app.innerHTML = festivalWeb.stamps();
     if (state.route === "vouchers") app.innerHTML = isServerMode() ? festivalOpsUI.vouchers() : festivalWeb.vouchers();
     if (state.route === "reviews") app.innerHTML = festivalWeb.reviews();
+    if (state.route === "identity") app.innerHTML = festivalOpsUI.identityView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
     if (state.reviewPickerOpen && state.user) app.insertAdjacentHTML("beforeend", reviewPickerView());
@@ -1630,6 +1632,7 @@ function profileView() {
       </section>
       <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>바우처</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div><div><dt>방문 기록</dt><dd>${stampCount}<small>개</small></dd></div></dl>
       <section class="profile-list">
+        ${isServerMode() ? festivalOpsUI.identityRow() : ""}
         <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
       </section>
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">
@@ -2081,6 +2084,7 @@ function reviewForm({ enabled, message }) {
   return `
     <div class="review-compose ${enabled ? "" : "locked"}">
       <p class="review-guidance">${message}</p>
+      <button type="button" class="text-link review-identity-link" data-route="identity" ${isServerMode() && policy.reason === "REVIEW_IDENTITY_REQUIRED" ? "" : "hidden"}>${icon("user")} 본인 소속 확인하기</button>
       <p class="review-identity" ${policy.allowed ? "" : "hidden"}>${policy.allowed ? `${escapeHtml(policy.authorName)} 이름으로 공개돼요.` : ""}</p>
       <div class="star-picker" aria-label="별점 선택">
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star ${value >= n ? "on" : ""}" data-rating="${n}" aria-label="${n}점" aria-pressed="${value === n}" ${enabled && !own ? "" : "disabled"}>${icon("star")}</button>`).join("")}
@@ -2358,7 +2362,7 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
-  const current = ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews"].includes(active) ? "profile" : active;
+  const current = ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity"].includes(active) ? "profile" : active;
   return `
     <nav class="bottom-nav" aria-label="주요 메뉴">
       ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}

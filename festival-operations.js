@@ -12,7 +12,7 @@
     BOOTH_CLOSED: '부스가 일시 중지되었거나 마감돼 방문을 인증할 수 없어요. 부스 운영자에게 확인해 주세요.', VISIT_REQUIRED: '방문 인증 후 평가할 수 있어요.',
     ALREADY_REVIEWED: '이미 등록한 별점은 변경할 수 없어요.',
     OWN_CLUB_REVIEW: '본인 동아리에는 별점과 후기를 남길 수 없어요.',
-    REVIEW_IDENTITY_REQUIRED: '운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.',
+    REVIEW_IDENTITY_REQUIRED: '홈에서 본인 소속을 먼저 확인해 주세요.',
     REVIEW_POLICY_REQUIRED: '리뷰 작성 가능 여부를 확인하지 못했어요. 다시 시도해 주세요.',
     REWARD_CHOICE_LOCKED: '이미 선택한 바우처는 바꿀 수 없어요.',
     REWARD_NOT_READY: '바우처 발급 준비 중이에요.',

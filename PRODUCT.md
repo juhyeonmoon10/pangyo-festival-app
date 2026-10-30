@@ -17,7 +17,7 @@ Students use mobile browsers to find booths, confirm NFC visits, rate their visi
 - Operators can reset all participation records (visits, stamps, vouchers, reviews, points, booth rating ranking) before the festival with a typed confirmation. Operator flags, accounts, booth setup, voucher rules, NFC tags, the roster, and the audit history are kept.
 - This is a single-festival platform: no festival name is edited or shown.
 - The backend remains authoritative for reward eligibility, stocks, issuance, expiry, usage, identity, and operator authorization. The UI must not invent a successful operation.
-- Reviews use an operator-verified real name. Own-club reviews remain blocked by the existing validation.
+- Reviews use the real name from the official club roster. Grade 1–2 students confirm their own membership (sign-up student number plus the roster name) and are approved immediately; operators list, revoke, or relink these confirmations. Unconfirmed accounts see a Home prompt and cannot rate. Own-club reviews remain blocked. Grade 3 is out of scope.
 - NFC links continue through the existing login and claim flow. Signed tag issuance, non-expiring tags, duplicate prevention, and existing expiry validation are unchanged by this UI release.
 - No crowding feature, event creation, public roster, student-facing database diagnostics, or demo entry in the production login.
 - Existing map geometry, search/IME behavior, zoom, drag, and bottom-sheet placement are preserved. This release does not certify real booth locations or add a synthetic building filter.

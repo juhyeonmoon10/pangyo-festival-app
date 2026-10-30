@@ -20,7 +20,7 @@
     RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",
     REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
     OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
-    REVIEW_IDENTITY_REQUIRED: "운영자가 이름과 동아리 소속을 확인한 뒤 작성할 수 있어요.",
+    REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주세요.",
     REVIEW_POLICY_REQUIRED: "리뷰 작성 가능 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
     INVALID_INPUT: "입력한 내용을 확인해 주세요.",
     VERSION_CONFLICT: "명단이 변경됐어요. 창을 닫고 다시 조회해 주세요.",
@@ -63,6 +63,22 @@
       if (value.reason !== null || typeof name !== "string" || !name.trim() || name.length > 60) return denied;
     } else if (!["OWN_CLUB_REVIEW", "REVIEW_IDENTITY_REQUIRED"].includes(value.reason)) return denied;
     return { version: 1, allowed: value.allowed, reason: value.reason, authorName: value.allowed ? name : null };
+  }
+
+  const IDENTITY_RESULTS = [null, "CONFIRMED", "IDENTITY_MISMATCH", "ROSTER_NOT_FOUND", "ROSTER_ALREADY_LINKED", "OPERATOR_LOCKED", "TOO_MANY_ATTEMPTS"];
+  function validateIdentityState(value) {
+    const strings = list => Array.isArray(list) && list.length <= 100 && list.every(item => typeof item === "string" && item && item.length <= 300);
+    if (!value || value.version !== 1 || typeof value.eventId !== "string" || !IDENTITY_RESULTS.includes(value.result)
+      || typeof value.verified !== "boolean" || typeof value.locked !== "boolean" || typeof value.eligible !== "boolean"
+      || typeof value.selfRegistered !== "boolean" || !strings(value.clubs) || !strings(value.boothKeys)
+      || (value.verified && (typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
+      || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))) {
+      throw new Error("REVIEW_POLICY_REQUIRED");
+    }
+    return { eventId: value.eventId, result: value.result, verified: value.verified, locked: value.locked,
+      eligible: value.eligible, selfRegistered: value.selfRegistered, realName: value.realName,
+      clubs: [...value.clubs], boothKeys: [...value.boothKeys],
+      studentNumber: typeof value.studentNumber === "string" ? value.studentNumber : null };
   }
 
   function validateReviews(value) {
@@ -373,7 +389,26 @@
           return { ok: true, data };
         } catch (error) { return { ok: false, ...normalizeError(error) }; }
       },
+      // Student self-confirmation against the official roster. Outcomes are data, not errors.
+      reviewIdentitySelf: async (action, payload = {}) => {
+        try {
+          const { data, error } = await client.rpc('festival_review_identity_self', { p_action: action, p_payload: payload });
+          if (error) throw error;
+          return { ok: true, data: validateIdentityState(data) };
+        } catch (error) { return { ok: false, ...normalizeError(error) }; }
+      },
+      reviewIdentityList: async payload => {
+        try {
+          const { data, error } = await client.rpc('festival_review_identity_admin', { p_action: 'list', p_payload: payload });
+          if (error) throw error;
+          if (!data || data.eventId !== payload.eventId || !Array.isArray(data.items)
+            || data.items.some(item => !Number.isInteger(item?.userId) || typeof item.selfRegistered !== 'boolean' || !item.state)) {
+            throw new Error('REVIEW_POLICY_REQUIRED');
+          }
+          return { ok: true, data };
+        } catch (error) { return { ok: false, ...normalizeError(error) }; }
+      },
       signOut: () => client.auth.signOut({ scope: "local" }), normalizeError };
   }
-  return { createAccount, normalizeError, validateProfile, validateReviews, validateReviewPolicy, validateIssuedTag, TOKEN_PATTERN };
+  return { createAccount, normalizeError, validateProfile, validateReviews, validateReviewPolicy, validateIdentityState, validateIssuedTag, TOKEN_PATTERN };
 });
