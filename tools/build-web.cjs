@@ -1,11 +1,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const {pagePattern} = require('../festival-router.js');
 
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, '.vercel', 'output');
 const entries = [
-  'index.html', 'app.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css',
+  'index.html', 'app.js', 'festival-router.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css',
   'web-experience.js', 'stamp-simulator.js', 'programs.js', 'supabase-catalog.js',
   'festival-account.js', 'nfc-manager.js', 'festival-operations.js', 'operations-ui.js', 'operations.css',
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
@@ -43,7 +44,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.18',
+    version: '1.19',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,
@@ -53,9 +54,11 @@ function build() {
     version: 3,
     routes: [
       { src: '/(.*)', headers: { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'SAMEORIGIN' }, continue: true },
-      { src: '/(?:|index\\.html|nfc/?|deployment-info\\.json)', headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
+      { src: pagePattern, headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
+      { src: '/deployment-info\\.json', headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/nfc/?', dest: '/index.html' },
       { handle: 'filesystem' },
+      { src: pagePattern, dest: '/index.html' },
     ],
   }, null, 2) + '\n');
   console.log(`Web ${release.version}: ${Object.keys(hashes).length} public files; no functions or database changes.`);

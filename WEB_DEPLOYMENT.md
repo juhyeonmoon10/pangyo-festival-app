@@ -1,5 +1,16 @@
 # Personal Web Deployment 1.2
 
+## Current Workflow (2026-10-30)
+
+The user expects completed application changes to include verification, Korean commit
+messages, publication to personal `main` and ORBIT `feature/booth-map`, and production
+deployment verification. Preserve teammates' commits; never force-push or publish to
+ORBIT `main`. An explicit review-only, mockup-only, or no-deploy request overrides this
+default. Shared database changes still require their own scoped approval.
+Release 1.19 uses the existing personal-main Vercel integration; see `RELEASE_1_19.md`.
+
+The original 1.2 notes below are historical. Current screen paths are in `WEB_ROUTES.md`.
+
 - Personal repository: `juhyeonmoon10/pangyo-festival-app`.
 - Production site: https://pangyo-festival-app.vercel.app
 - UI-only demo: https://pangyo-festival-app.vercel.app/?demo=1

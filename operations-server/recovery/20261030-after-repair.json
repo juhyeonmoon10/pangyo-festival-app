@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-30",
+  "project": "vvvkzvxahviwbuyfbwir",
+  "migration": [
+    {
+      "version": "20261030070704",
+      "name": "festival_operator_identity_and_scoped_reset"
+    }
+  ],
+  "functions": [
+    {
+      "nspname": "festival_ops",
+      "proname": "identity_state",
+      "definition_hash": "73c8bf30e09eddf269a10091d554ce65",
+      "security_definer": false,
+      "proconfig": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "repair_present": true
+    },
+    {
+      "nspname": "festival_ops",
+      "proname": "review_policy",
+      "definition_hash": "e022c7422db1960fad5bc62fa2644b5c",
+      "security_definer": false,
+      "proconfig": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "repair_present": true
+    },
+    {
+      "nspname": "public",
+      "proname": "festival_ops_reset",
+      "definition_hash": "7fe4a10bf9c600c51657f2f0a20fbf54",
+      "security_definer": true,
+      "proconfig": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": true,
+      "repair_present": true
+    },
+    {
+      "nspname": "public",
+      "proname": "festival_review_identity_self",
+      "definition_hash": "7a0f23e993d234ba0bba32a7fe55ace1",
+      "security_definer": true,
+      "proconfig": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": true,
+      "repair_present": true
+    }
+  ],
+  "liveRecordResetExecuted": false
+}
