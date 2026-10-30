@@ -478,8 +478,8 @@ const festivalOpsUI = (() => {
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!preview.ok) { note.textContent=preview.code==='VOUCHER_INVALID'?'맞지 않거나 시간이 지난 인증키예요. 참여자 화면의 새 인증키를 확인해 주세요.':preview.message; return; }
       const p=preview.data;
-      if(!p.valid) { note.textContent=p.own?'본인 바우처는 다른 운영자에게 확인받아 주세요.':p.state==='used'?'이미 사용한 바우처예요.':p.state==='void'?'취소된 바우처예요.':p.state==='expired'?'만료된 바우처예요.':!p.eventOpen?'축제가 운영 중이 아니어서 사용할 수 없어요.':'사용할 수 없는 바우처예요.'; return; }
-      if(!confirm(`${p.title}\n${p.participant}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
+      if(!p.valid) { note.textContent=p.state==='used'?'이미 사용한 바우처예요.':p.state==='void'?'취소된 바우처예요.':p.state==='expired'?'만료된 바우처예요.':!p.eventOpen?'축제가 운영 중이 아니어서 사용할 수 없어요.':'사용할 수 없는 바우처예요.'; return; }
+      if(!confirm(`${p.title}\n${p.participant}${p.own?' (내 바우처)':''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
       const r=await api().write('voucher_code_redeem',{code});
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!r.ok) { note.textContent=r.message; return; }

@@ -69,7 +69,7 @@ const state = {
   reviewDraft: "",
   reviewBusy: false,
   reviewPickerOpen: false,
-  boothReviewFilter: "all",
+  boothReviewsExpanded: false,
   stampTrailExpanded: false,
   authStep: "google",
   pendingGoogle: null,
@@ -298,6 +298,16 @@ function reviewEligibility(boothId) {
   if (!identity || !identity.realName?.trim() || !Array.isArray(identity.boothIds)) return denied("REVIEW_IDENTITY_REQUIRED");
   if (identity.boothIds.includes(boothId)) return denied("OWN_CLUB_REVIEW");
   return { allowed: true, reason: null, authorName: identity.realName };
+}
+
+// Own-club booths are known from the confirmed identity before any per-booth review request,
+// so the rating form never appears for them, even after a stamp.
+function isOwnClubBooth(boothId) {
+  if (reviewEligibility(boothId).reason === "OWN_CLUB_REVIEW") return true;
+  if (!isServerMode()) return false;
+  const identity = festivalOpsUI.identity?.();
+  const key = boothKeyFor(state.db.booths.find(booth => booth.id === boothId));
+  return Boolean(identity?.verified && key && identity.boothKeys.includes(key));
 }
 
 function reviewEligibilityMessage(policy) {
@@ -1200,6 +1210,8 @@ function ratingInfo(boothId) {
     status: isServerMode() ? serverReviewState(boothId)?.status || "idle" : "ready",
     message: isServerMode() ? serverReviewState(boothId)?.message || "" : "",
     average: count && average ? Number(average).toFixed(1) : null,
+    distribution: isServerMode() ? serverReviewState(boothId)?.distribution || null
+      : Object.fromEntries([1, 2, 3, 4, 5].map(n => [n, reviews.filter(review => Math.round(review.rating) === n).length])),
   };
 }
 
@@ -1261,6 +1273,7 @@ function updateReviewSection(boothId) {
     return;
   }
   if (state.route !== "detail" || state.selectedBoothId !== boothId) return;
+  if (isOwnClubBooth(boothId) && !document.querySelector("#boothReviewSection.own-club-review")) { render(); return; }
   const linkCount = document.querySelector("[data-review-count-link]");
   if (linkCount) linkCount.textContent = reviewCountText(ratingInfo(boothId));
   const info = ratingInfo(boothId);
@@ -2069,6 +2082,19 @@ function detailView() {
           : `<p class="notice">부스의 NFC 태그를 인식해 방문을 인증하세요. 인식되지 않으면 운영자에게 수동 승인을 요청할 수 있습니다.</p>`}
         <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" ${mockNfcToken ? `data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-action"` : `data-route="${stamped ? "stamps" : "scan"}"`}>${mockNfcToken ? (stamped ? "인증 결과 다시 확인" : "NFC 모의 방문 인증") : stamped ? "내 스탬프 보기" : "NFC 방문 인증"}</button>
       </section>
+      ${reviewSectionMarkup(booth, { stamped, reviewed, rating })}
+      ${bottomNav("map")}
+    </main>
+  `;
+}
+
+function reviewSectionMarkup(booth, { stamped, reviewed, rating }) {
+  if (isOwnClubBooth(booth.id)) return `<section class="panel section review-section own-club-review" id="boothReviewSection">
+        <div class="review-heading"><h2>리뷰</h2></div>
+        <p class="review-guidance">본인 동아리 부스에는 별점을 남길 수 없어요.</p>
+        <div class="review-list">${reviewListMarkup(rating)}</div>
+      </section>`;
+  return `
       <section class="panel section review-section" id="boothReviewSection">
         <div class="review-heading">
           <h2>어떤 경험이었나요?</h2>
@@ -2081,8 +2107,6 @@ function detailView() {
           })}
         <div class="review-list">${reviewListMarkup(rating)}</div>
       </section>
-      ${bottomNav("map")}
-    </main>
   `;
 }
 
@@ -2118,7 +2142,7 @@ function reviewView(review) {
 
 function openBoothReviews(boothId) {
   state.selectedBoothId = boothId;
-  state.boothReviewFilter = "all";
+  state.boothReviewsExpanded = false;
   navigateTo("boothReviews");
   // Always refresh: other participants may have rated since the detail screen loaded.
   loadBoothReviews(boothId, { force: true });
@@ -2126,7 +2150,32 @@ function openBoothReviews(boothId) {
 
 function reviewStars(value) {
   const filled = Math.round(Number(value) || 0);
-  return [1, 2, 3, 4, 5].map(n => `<span class="star ${n <= filled ? "on" : ""}">${icon("star")}</span>`).join("");
+  return [1, 2, 3, 4, 5].map(n => `<span class="booth-star${n <= filled ? " on" : ""}">${icon("star")}</span>`).join("");
+}
+
+function formatFullDate(value) {
+  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(value));
+}
+
+// Two-character initials and a stable colour per author, like a profile avatar.
+function reviewAvatar(author) {
+  const name = String(author || "참여자").replace(/\s/g, "");
+  const initials = name.length > 2 ? name.slice(-2) : name;
+  const palette = ["#e07b39", "#7b3fa6", "#2f7d6d", "#3d6fb6", "#c2477a", "#8a6d1f"];
+  const hue = [...name].reduce((sum, char) => sum + char.codePointAt(0), 0) % palette.length;
+  return `<span class="booth-review-avatar" style="background:${palette[hue]}" aria-hidden="true">${escapeHtml(initials)}</span>`;
+}
+
+function boothReviewItem(review) {
+  const author = review.author || review.authorName || "참여자";
+  return `<article class="booth-review-item${review.mine ? " mine" : ""}">
+    ${reviewAvatar(author)}
+    <div class="booth-review-item-body">
+      <strong class="booth-review-author">${escapeHtml(author)}${review.mine ? '<span class="booth-review-mine">내 리뷰</span>' : ""}</strong>
+      <p class="booth-review-item-meta"><span class="booth-review-item-stars" role="img" aria-label="별점 ${Number(review.rating)}점">${reviewStars(review.rating)}</span><span>${formatFullDate(review.createdAt)}</span></p>
+      ${review.content?.trim() ? `<p class="booth-review-text">${escapeHtml(review.content)}</p>` : ""}
+    </div>
+  </article>`;
 }
 
 function boothReviewsView() {
@@ -2149,27 +2198,28 @@ function boothReviewsBody(boothId) {
   if (info.status === "error") return `<div class="review-empty"><strong>리뷰를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p><button type="button" class="ghost-btn" data-reload-booth-reviews>${icon("refresh")} 다시 불러오기</button></div>`;
   if (info.status !== "ready" && !info.reviews.length) return `<div class="review-empty"><strong>리뷰를 불러오는 중이에요</strong></div>`;
   const reviews = info.reviews;
-  const written = reviews.filter(review => review.content.trim());
-  const list = state.boothReviewFilter === "written" ? written : reviews;
-  // The server returns the latest 50 reviews; a distribution is only exact when all are loaded.
-  const complete = reviews.length >= info.count;
-  const distribution = complete && reviews.length ? `<dl class="booth-review-bars">${[5, 4, 3, 2, 1].map(score => {
-    const n = reviews.filter(review => Math.round(review.rating) === score).length;
-    return `<div><dt>${score}점</dt><dd><span style="width:${Math.round(n / reviews.length * 100)}%"></span></dd><dd class="booth-review-bar-count">${n}</dd></div>`;
-  }).join("")}</dl>` : "";
+  const total = info.count;
+  // Exact counts from the server; a list-only fallback is used only when it holds every review.
+  const fallback = reviews.length >= total ? Object.fromEntries([1, 2, 3, 4, 5].map(n => [n, reviews.filter(r => Math.round(r.rating) === n).length])) : null;
+  const distribution = info.distribution || fallback;
+  const PREVIEW = 4;
+  const shown = state.boothReviewsExpanded ? reviews : reviews.slice(0, PREVIEW);
   return `
-    <section class="booth-review-summary" aria-label="평균 별점">
+    <section class="booth-review-summary" aria-label="평균 별점과 분포">
       <div class="booth-review-score">
-        <strong>${info.average || "–"}</strong>
-        <span class="booth-review-stars" aria-hidden="true">${reviewStars(info.average)}</span>
-        <small>리뷰 ${info.count}개</small>
+        <strong>${info.average || "0.0"}</strong>
+        <span class="booth-review-stars" role="img" aria-label="평균 ${info.average || 0}점">${reviewStars(info.average)}</span>
+        <small>총 ${icon("user")}${total.toLocaleString("ko-KR")}건</small>
       </div>
-      ${distribution}
+      ${distribution ? `<ol class="booth-review-bars" aria-label="별점 분포">${[5, 4, 3, 2, 1].map(score => {
+        const n = distribution[score] || 0;
+        return `<li class="score-${score}"><span>${score}</span><span class="booth-review-bar" role="img" aria-label="${score}점 ${n}개"><i style="width:${total ? Math.round(n / total * 100) : 0}%"></i></span></li>`;
+      }).join("")}</ol>` : ""}
     </section>
-    <nav class="festival-view-tabs" aria-label="리뷰 분류">${[["all", "전체", reviews.length], ["written", "글 후기", written.length]].map(([id, label, count]) => `<button type="button" data-booth-review-filter="${id}" aria-pressed="${state.boothReviewFilter === id}">${label} <span>${count}</span></button>`).join("")}</nav>
-    <section class="booth-review-list">
-      ${list.length ? list.map(reviewView).join("") : `<div class="review-empty"><strong>${state.boothReviewFilter === "written" ? "아직 글 후기가 없어요" : "아직 등록된 리뷰가 없어요"}</strong><p>방문한 참여자가 별점을 남기면 여기에 표시돼요.</p></div>`}
-      ${complete ? "" : `<p class="booth-review-note">최근 리뷰 ${reviews.length}개를 보여 주고 있어요.</p>`}
+    <section class="booth-review-list" aria-label="리뷰 목록">
+      ${shown.length ? shown.map(boothReviewItem).join("") : `<div class="review-empty"><strong>아직 등록된 리뷰가 없어요</strong><p>방문한 참여자가 별점을 남기면 여기에 표시돼요.</p></div>`}
+      ${!state.boothReviewsExpanded && reviews.length > PREVIEW ? '<button type="button" class="booth-review-more" data-booth-reviews-more>리뷰 모두 보기</button>' : ""}
+      ${state.boothReviewsExpanded && reviews.length < total ? `<p class="booth-review-note">최근 리뷰 ${reviews.length}개를 보여 주고 있어요.</p>` : ""}
     </section>
   `;
 }
@@ -2520,9 +2570,8 @@ function bindEvents() {
   });
   document.querySelectorAll("[data-open-booth-reviews]").forEach(button => button.addEventListener("click", () => openBoothReviews(button.dataset.openBoothReviews)));
   document.querySelector("#boothReviewsBody")?.addEventListener("click", event => {
-    const filter = event.target.closest("[data-booth-review-filter]");
-    if (filter) {
-      state.boothReviewFilter = filter.dataset.boothReviewFilter;
+    if (event.target.closest("[data-booth-reviews-more]")) {
+      state.boothReviewsExpanded = true;
       event.currentTarget.innerHTML = boothReviewsBody(state.selectedBoothId);
       return;
     }

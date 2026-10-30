@@ -98,6 +98,9 @@
       boothKey: value.boothKey, count: value.count,
       average: value.average === null ? null : Number(value.average),
       myRating: value.myRating ?? null,
+      // Exact 1-5 star counts over every review; older servers omit it.
+      distribution: value.distribution && [1, 2, 3, 4, 5].every(n => Number.isInteger(value.distribution[n]) && value.distribution[n] >= 0)
+        ? Object.fromEntries([1, 2, 3, 4, 5].map(n => [n, value.distribution[n]])) : null,
       reviewPolicy: validateReviewPolicy(value.reviewPolicy),
       reviews: value.reviews.map(review => ({
         rating: review.rating, content: review.content ?? null,

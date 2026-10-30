@@ -43,7 +43,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.13',
+    version: '1.14',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,
