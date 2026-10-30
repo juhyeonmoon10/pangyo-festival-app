@@ -22,6 +22,7 @@
     RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",
     REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
     OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
+    OWN_CLUB_STAMP: "본인 동아리 부스는 스탬프를 적립할 수 없어요.",
     REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주세요.",
     REVIEW_POLICY_REQUIRED: "리뷰 작성 가능 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
     INVALID_INPUT: "입력한 내용을 확인해 주세요.",
@@ -73,7 +74,7 @@
     if (!value || value.version !== 1 || typeof value.eventId !== "string" || !IDENTITY_RESULTS.includes(value.result)
       || typeof value.verified !== "boolean" || typeof value.locked !== "boolean" || typeof value.eligible !== "boolean"
       || typeof value.selfRegistered !== "boolean" || !strings(value.clubs) || !strings(value.boothKeys)
-      || (value.verified && (value.selfRegistered || typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
+      || (value.verified && (typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
       || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))) {
       throw new Error("REVIEW_POLICY_REQUIRED");
     }

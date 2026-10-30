@@ -1018,6 +1018,7 @@ const NFC_ERROR_TITLES = {
   EVENT_CLOSED: "축제가 운영 중이 아니에요",
   OPS_NOT_READY: "축제 운영 정보를 확인할 수 없어요",
   NFC_DISABLED: "방문 인증이 잠시 중지됐어요",
+  OWN_CLUB_STAMP: "본인 동아리 부스예요",
   EMERGENCY_MODE: "방문 적립이 잠시 중지됐어요",
   IDEMPOTENCY_KEY_REUSED: "요청을 다시 확인해 주세요",
   NETWORK_ERROR: "네트워크 연결이 불안정해요",

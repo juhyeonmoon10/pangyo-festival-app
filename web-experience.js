@@ -200,7 +200,7 @@ const festivalWeb = (() => {
   function identityPrompt() {
     const identity = isServerMode() ? festivalOpsUI.identity() : null;
     if (!identity || identity.verified || !identity.eligible) return "";
-    return `<button type="button" class="festival-identity-prompt" data-route="identity">${icon("user")}<span><strong>운영자에게 소속을 확인받아 주세요</strong><small>방문 스탬프는 적립돼요. 리뷰는 확인 후 남길 수 있어요.</small></span>${icon("arrow")}</button>`;
+    return `<button type="button" class="festival-identity-prompt" data-route="identity">${icon("user")}<span><strong>본인 소속 확인을 먼저 해 주세요</strong><small>${identity.locked ? "운영자 확인이 필요해요. 운영 부스에 문의해 주세요." : "소속 동아리를 확인해야 부스에 별점을 남길 수 있어요."}</small></span>${icon("arrow")}</button>`;
   }
 
   function home() {
@@ -503,7 +503,8 @@ const festivalWeb = (() => {
   function webTagUrl(token) {
     const url = new URL(location.href);
     if (url.protocol !== "https:" || url.hostname === "appassets.androidplatform.net") return null;
-    url.search = ""; url.hash = new URLSearchParams({ t: token }).toString();
+    // Cards always open the site root, whichever admin screen issued them.
+    url.pathname = "/"; url.search = ""; url.hash = new URLSearchParams({ t: token }).toString();
     return url.href;
   }
 
