@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, '.vercel', 'output');
 const entries = [
   'index.html', 'app.js', 'festival-router.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css',
-  'web-experience.js', 'stamp-simulator.js', 'programs.js', 'supabase-catalog.js',
+  'web-experience.js', 'stamp-simulator.js', 'sun-nfc.js', 'sun-cards.js', 'programs.js', 'supabase-catalog.js',
   'festival-account.js', 'nfc-manager.js', 'festival-operations.js', 'operations-ui.js', 'operations.css',
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
   'assets/vendor/ui-icons.js', 'assets/vendor/LUCIDE-LICENSE.txt',
@@ -44,7 +44,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.24',
+    version: '1.25',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,

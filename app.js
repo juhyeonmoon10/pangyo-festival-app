@@ -14,6 +14,7 @@ let serverMyReviews = null;
 const serverReviews = new Map();
 const serverAdmin = { busy: false, boothId: null, result: null, label: "", tags: null, tagsEnabled: true, tagsLoading: false, tagsError: "", tagBooth: "all", tagStatus: "all", tagBusy: null, editingTag: null, registerNote: "", registerTone: "", tagReading: false };
 const MOCK_NFC_TOKEN_PREFIX = "mock-v1.";
+const SUN_LAST_READ_KEY = "festival-sun-last-read";
 const ADMIN_ONLY_NFC_SOURCES = new Set(["mock-panel", "detail-shortcut", "detail-action"]);
 const CLUB_CATALOG_VERSION = 1;
 const EVENT = {
@@ -402,7 +403,23 @@ function readInitialNfcClaim() {
   );
 }
 
-state.pendingNfcClaim = readInitialNfcClaim();
+// NTAG 424 DNA secure cards write a one-time link (picc_data, cmac). The link is removed from the
+// address bar like a signed tag, and the last read is kept for this tab so an operator can register
+// a new card from 관리 마법사.
+function readInitialSunClaim() {
+  const read = window.FestivalSun?.parse(window.location.href);
+  if (!read) return null;
+  try {
+    history.replaceState(history.state, "", window.FestivalSun.strip(window.location.href));
+  } catch {
+    // Local file previews can restrict History API writes.
+  }
+  const token = window.FestivalSun.toToken(read);
+  try { sessionStorage.setItem(SUN_LAST_READ_KEY, token); } catch { /* Optional for registration only. */ }
+  return createNfcClaim(token, "sun-url");
+}
+
+state.pendingNfcClaim = readInitialNfcClaim() || readInitialSunClaim();
 
 // Public club profiles imported from Chatdong. Classroom assignments are temporary
 // until the festival operator provides the final placement sheet.
@@ -1022,6 +1039,11 @@ const NFC_ERROR_TITLES = {
   EMERGENCY_MODE: "방문 적립이 잠시 중지됐어요",
   IDEMPOTENCY_KEY_REUSED: "요청을 다시 확인해 주세요",
   NETWORK_ERROR: "네트워크 연결이 불안정해요",
+  SUN_DISABLED: "보안 카드 적립이 잠시 중지됐어요",
+  SUN_CARD_INVALID: "확인되지 않은 카드예요",
+  SUN_CARD_UNKNOWN: "등록되지 않은 보안 카드예요",
+  SUN_CARD_STOPPED: "사용 중지된 보안 카드예요",
+  SUN_CARD_REPLAYED: "이미 사용한 카드 주소예요",
 };
 
 let nfcQueue = Promise.resolve();
@@ -1106,7 +1128,7 @@ const nfcAdapter = {
       };
     } else {
       state.pendingNfcClaim = result.retryable ? request : null;
-      const blocked = ["BOOTH_NOT_OPEN", "BOOTH_CLOSED", "EVENT_NOT_ACTIVE", "EVENT_CLOSED", "OPS_NOT_READY", "NFC_DISABLED", "EMERGENCY_MODE"].includes(result.code);
+      const blocked = ["BOOTH_NOT_OPEN", "BOOTH_CLOSED", "EVENT_NOT_ACTIVE", "EVENT_CLOSED", "OPS_NOT_READY", "NFC_DISABLED", "SUN_DISABLED", "EMERGENCY_MODE"].includes(result.code);
       state.scanResult = {
         type: blocked ? "blocked" : "error",
         boothId: result.boothId,
@@ -3039,6 +3061,7 @@ function bindEvents() {
   festivalWeb.bind();
   festivalOpsUI.bind();
   if (typeof festivalStampSimulator !== "undefined") festivalStampSimulator.bind();
+  if (typeof festivalSunCards !== "undefined") festivalSunCards.bind();
 }
 
 function closeMenus() {
@@ -4043,7 +4066,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.24";
+const APP_RELEASE = "1.25";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

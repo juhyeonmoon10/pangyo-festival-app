@@ -30,6 +30,11 @@
     OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
     CLAIM_RATE_LIMITED: '짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.',
     NFC_TAG_INVALID: '유효한 NFC 태그가 아니에요.', NFC_TAG_EXPIRED: '교체되었거나 만료된 태그예요.', NFC_DISABLED: '방문 인증이 중지되었어요.',
+    SUN_DISABLED: '보안 카드 적립이 잠시 중지됐어요.', SUN_CARD_INVALID: '확인되지 않은 보안 카드예요. 카드를 휴대폰에 다시 대 주세요.',
+    SUN_CARD_UNKNOWN: '아직 등록되지 않은 보안 카드예요. 부스 운영자에게 알려 주세요.', SUN_CARD_STOPPED: '사용이 중지된 보안 카드예요.',
+    SUN_CARD_REPLAYED: '이미 사용한 카드 주소예요. 카드를 휴대폰에 다시 대 주세요.', SUN_CARD_EXISTS: '이미 등록된 카드예요. 목록에서 부스를 바꿔 주세요.',
+    SUN_KEY_INVALID: '키는 32자리 16진수이고, 두 키가 서로 달라야 해요.', SUN_KEYS_CONFIRM_REQUIRED: '확인 문구로 "키 교체"를 정확히 입력해 주세요.',
+    SUN_NOT_READY: '보안 카드 키를 먼저 만들어 주세요.',
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
   const writeKinds = new Set(['event_save', 'booth_save', 'claim', 'visit_approve', 'review_save', 'points_adjust', 'rule_save', 'voucher_issue', 'voucher_claim', 'voucher_qr', 'voucher_redeem', 'voucher_void']);
@@ -50,12 +55,14 @@
   writeKinds.add('reward_choose');
   writeKinds.add('reward_config');
   writeKinds.add('participation_reset');
+  writeKinds.add('sun_claim');
   // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
   function call(action, body, request) {
     if (action === 'notice_save' || action === 'notice_delete') return ['festival_notice_admin', { p_action: action.slice(7), p_payload: body }];
     if (action === 'booth_status_bulk') return ['festival_booth_status_bulk', { p_payload: body, p_request_id: request }];
     if (action === 'claim_guard_save') return ['festival_claim_guard', { p_action: 'save', p_payload: body }];
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
+    if (action === 'sun_claim') return ['festival_sun_claim', { p_payload: body, p_request_id: request }];
     // Participants are named by 학번; the server resolves the account.
     if (['visit_approve', 'points_adjust', 'voucher_issue'].includes(action)) return ['festival_ops_write_student', { p_action: action, p_payload: body, p_request_id: request }];
     if (action === 'voucher_code_redeem') return ['festival_voucher_redeem', { p_action: 'redeem', p_payload: body, p_request_id: request }];
@@ -139,7 +146,18 @@
       inFlight.set(flight, operation);
       return operation;
     }
-    return Object.freeze({ read, write });
+    // Secure-card (NTAG 424 DNA) management. Not idempotent requests: each call is one operator action.
+    async function sun(action, payload = {}) {
+      const id = actor();
+      if (!id) return error(Error('AUTH_REQUIRED'));
+      try {
+        const result = await rpc('festival_sun_admin', { p_action: action, p_payload: payload });
+        if (actor() !== id) return error(Error('AUTH_REQUIRED'));
+        if (result.error) return error(result.error);
+        return { ok: true, data: validate(result.data) };
+      } catch (e) { return error(e); }
+    }
+    return Object.freeze({ read, write, sun });
   }
   return { create, error };
 });

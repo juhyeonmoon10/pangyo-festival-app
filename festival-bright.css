@@ -515,3 +515,29 @@ body.design-web {
 .ops-recipient [hidden] { display: none !important; }
 .ops-recipient-label { font-size: 14px; font-weight: 700; }
 .ops-recipient [data-recipient-list] { max-height: 320px; overflow-y: auto; overscroll-behavior: contain; }
+.sun-intro { margin: 6px 0 0; color: var(--muted); line-height: 1.6; }
+.sun-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; word-break: break-all; }
+.sun-status { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 12px; line-height: 1.6; }
+.sun-status .ui-icon { flex: none; margin-top: 2px; }
+.sun-status.is-off { color: #a14449; }
+.sun-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.sun-actions .ghost-btn, .sun-actions .primary-btn { width: auto; }
+.sun-keys { display: grid; gap: 10px; margin: 12px 0; }
+.sun-keys label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; }
+.sun-key { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.sun-key code { flex: 1; min-width: 0; font-weight: 400; }
+.sun-details { margin-top: 12px; }
+.sun-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--primary); font-weight: 700; }
+.sun-layout { display: grid; gap: 10px; margin: 12px 0; }
+.sun-layout div { display: grid; gap: 2px; }
+.sun-layout dt { color: var(--muted); font-size: 13px; }
+.sun-layout dd { margin: 0; }
+.sun-hint { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.sun-inspect { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.sun-inspect > strong { display: flex; align-items: center; gap: 6px; }
+.sun-inspect p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.sun-inspect.is-error { border-color: #e2b7ba; color: #a14449; }
+.sun-card-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.sun-card-list li { padding: 12px 0; border-top: 1px solid var(--line); }
+.sun-card-list li.is-off { color: var(--muted); }
+.sun-card-list small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
