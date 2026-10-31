@@ -263,10 +263,17 @@ const festivalWeb = (() => {
     dialog.showModal();
   }
 
-  function visitRow(visit) {
+  function visitRow(visit, toRate = false) {
     const booth = state.db.booths.find(b => b.id === visit.boothId);
     if (!booth) return "";
-    return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span><em class="done">적립 완료</em>${icon("arrow")}</button>`;
+    return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span>${toRate ? '<em class="pending">평가하기</em>' : '<em class="done">적립 완료</em>'}${icon("arrow")}</button>`;
+  }
+  // Stamps not rated yet, rateable or not, in one 방문 기록 list.
+  function waitingRow(stamp) {
+    const b = state.db.booths.find(x => x.id === stamp.boothId);
+    if (!b) return "";
+    if (reviewEligibility(stamp.boothId).allowed) return visitRow(stamp, true);
+    return `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(stamp.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>`;
   }
 
   function stamps() {
@@ -284,8 +291,7 @@ const festivalWeb = (() => {
         <div class="stamp-progress-copy"><b>${rewards.ready && rewards.secondIssued?'바우처 2장 지급 완료':claimable?'바우처 받기 가능':!rewards.ready && earned.length>=3?'바우처 발급 상태 확인 대기':`다음 바우처까지 ${Math.max(0,goal-earned.length)}개`}</b><span>3개·6개 혜택</span></div>
         <progress class="stamp-path-progress" max="6" value="${cycleProgress}" aria-label="3개·6개 바우처 진행">${cycleProgress} / 6</progress>
       </section>
-      ${pending.length ? `<section class="stamp-rating-pending"><div class="section-heading"><h2>${icon("star")} 방문한 부스 평가 <span>${pending.length}</span></h2></div>${pending.map(visitRow).join("")}</section>` : ""}
-      ${restricted.length ? `<section class="web-section"><h2>방문 기록</h2>${restricted.map(s => { const b = state.db.booths.find(x => x.id === s.boothId); return b ? `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(s.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>` : ""; }).join("")}</section>` : ""}
+      ${pending.length + restricted.length ? `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${pending.length + restricted.length}</span></h2></div>${[...pending, ...restricted].map(waitingRow).join("")}</section>` : ""}
       ${stampPath(earned, pending, rewards)}
       <details class="stamp-visit-history"><summary><span>완료한 방문</span><span>${earned.length}개 ${icon("arrow")}</span></summary><div class="stamp-history-body"><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</div></details>
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}

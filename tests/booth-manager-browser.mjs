@@ -40,7 +40,7 @@ async function account(admin,studentNumber,name='격리 학생') {
 const admin=await account(true,'29999','격리 운영자');
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'부스 담당자 격리 검증',state:'open',reviewPoints:10,version:0});
-for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions','sun-nfc','booth-managers','notice-images','booth-profile'])
+for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions','sun-nfc','booth-managers','notice-images','booth-profile','manual-voucher-issue'])
   await db.exec(fs.readFileSync(path.join(root,`operations-server/${file}.sql`),'utf8'));
 for(const {key} of (await db.query('select key from festival_ops.booths')).rows) await write(admin,'booth_save',{booth:key,name:key,status:'open',floor:1,version:1});
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
@@ -147,7 +147,9 @@ try {
   await form.waitFor();
   await form.locator('[name=description]').fill('코딩 동아리 인벨릭스의 부스예요.');
   await form.locator('[name="program.title"]').fill('미니 해커톤 체험');
-  await form.locator('[name="program.hours"]').fill('10:00-15:00');
+  // Operating hours with the clock picker.
+  await form.locator('[data-hour-row] [name=hourFrom]').fill('10:00');
+  await form.locator('[data-hour-row] [name=hourTo]').fill('15:00');
   // Profile photo, floor and map room; the room list follows the floor.
   await form.locator('[data-manager-photo-file]').setInputFiles({name:'booth.png',mimeType:'image/png',buffer:PNG});
   await form.locator('[data-manager-photo] img[src^="blob:"]').waitFor();
@@ -160,7 +162,7 @@ try {
   const booth=(await db.query('select description,program,floor,room,location,image from festival_ops.booths where key=$1',[CLUB])).rows[0];
   assert.equal(booth.description,'코딩 동아리 인벨릭스의 부스예요.'); assert.equal(booth.program.title,'미니 해커톤 체험');
   assert.equal(booth.floor,3); assert.equal(booth.room,'다목적강당'); assert.equal(booth.location,'3층 다목적강당');
-  assert.deepEqual(boothUploads,[booth.image]); assert.equal(booth.program.hours,'10:00-15:00');
+  assert.deepEqual(boothUploads,[booth.image]); assert.equal(booth.program.hours,'10:00–15:00');
   assert.match(await m.page.locator('[data-manager-photo] img').getAttribute('src'),/festival-booths\/booths\//);
   flows.push('manager photo and location');
   await m.page.locator('[data-manager-lookup] [name=studentNumber]').fill('21001');
@@ -197,7 +199,7 @@ try {
   await v.page.getByText('미니 해커톤 체험',{exact:true}).waitFor();
   // The manager's photo, hours and place on the booth page.
   assert.match(await v.page.locator('.detail-hero .club-visual img').getAttribute('src'),/festival-booths\/booths\/[0-9a-f]{32}\.jpg$/);
-  assert.match(await v.page.locator('.detail-status-row').innerText(),/10:00-15:00/);
+  assert.match(await v.page.locator('.detail-status-row').innerText(),/10:00–15:00/);
   assert.match(await v.page.locator('.detail-club-heading .meta').innerText(),/3층 · 다목적강당/);
   assert.doesNotMatch(await v.page.locator('.detail-club-heading .meta').innerText(),/임시 배치/);
   await check(v.page,'booth-detail');

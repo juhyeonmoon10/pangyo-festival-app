@@ -27,7 +27,7 @@
     POINTS_INSUFFICIENT: '포인트 잔액이 부족해요.', SELF_ADJUSTMENT: '본인 계정에는 직접 지급하거나 조정할 수 없어요.',
     VOUCHER_USED: '이미 사용한 바우처예요.', VOUCHER_EXPIRED: '만료된 바우처예요.', VOUCHER_VOID: '취소된 바우처예요.',
     VOUCHER_INVALID: '유효한 바우처 QR이 아니에요.', SELF_REDEMPTION: '본인 바우처는 다른 운영자에게 확인받아 주세요.',
-    OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
+    OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VOUCHER_ALREADY_ISSUED: '이 학생에게는 이미 같은 바우처를 수동 발급했어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
     CLAIM_RATE_LIMITED: '짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.',
     NFC_TAG_INVALID: '유효한 NFC 태그가 아니에요.', NFC_TAG_EXPIRED: '교체되었거나 만료된 태그예요.', NFC_DISABLED: '방문 인증이 중지되었어요.',
     SUN_DISABLED: '보안 카드 적립이 잠시 중지됐어요.', SUN_CARD_INVALID: '확인되지 않은 보안 카드예요. 카드를 휴대폰에 다시 대 주세요.',
