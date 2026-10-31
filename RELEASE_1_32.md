@@ -19,12 +19,20 @@
    - 담당자는 바우처 사용 승인 말고는 할 수 없다. 운영자 화면, 발급, 취소, 목록은 그대로 운영자만 쓴다.
    - 처리 기록에 `voucher_manager_redeem`과 바우처 종류가 남는다. 지정과 해제는 `voucher_manager_grant`와 `voucher_manager_revoke`로 남는다.
    - 운영자는 지금처럼 모든 바우처를 승인한다.
-3. **DB 변경 (적용 전)**: `operations-server/voucher-managers.sql`
+3. **DB 변경 (2026-10-31 적용, 마이그레이션 `festival_voucher_managers`)**: `operations-server/voucher-managers.sql`
    - 새 테이블 `festival_ops.voucher_managers`
    - `festival_voucher_redeem`에 `status` 동작과 종류 검사 추가
    - 새 함수 `festival_voucher_manager_admin`
    - 되돌리기는 `voucher-managers-rollback.sql`이다.
-   - DB에 적용하기 전에는 다음처럼 동작한다.
+   - 적용 후 확인한 것
+     - 새 테이블은 RLS가 켜져 있고 브라우저에서 직접 읽을 수 없다.
+     - 두 함수 모두 로그인하지 않은 사용자는 실행할 수 없다.
+     - 세션 없이 부르면 `AUTH_REQUIRED`로 거부된다.
+     - 지정된 담당자는 0명이다.
+     - Supabase 보안 경고
+       - 로그인 없이 실행되는 함수: 0건 그대로
+       - 로그인 사용자가 실행하는 함수: 42건 → 43건. 새로 생긴 운영자용 함수 하나가 늘었고, 함수 안에서 운영자인지 확인한다.
+   - DB에 적용하기 전 사이트 동작(서버가 옛 버전일 때 대비)
      - 학생 화면은 '권한 없음'으로 보인다.
      - 권한 관리의 바우처 담당자 칸에는 '서버 업데이트 후 지정할 수 있어요'가 나온다.
 
