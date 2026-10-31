@@ -22,6 +22,37 @@ function publicFiles() {
   return [...entries, ...logos].sort();
 }
 
+// Scripts and connections stay on this site and the festival Supabase project; the one inline
+// script in index.html (the <base> tag) is allowed by its hash. Styles stay inline-capable
+// because the map places rooms with style attributes.
+function securityHeaders() {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+    .map(match => `'sha256-${crypto.createHash('sha256').update(match[1]).digest('base64')}'`);
+  const supabase = new URL(require('../supabase-catalog.js').PROJECT_URL);
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' ${inline.join(' ')}`.trim(),
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data: blob: ${supabase.origin}`,
+    `connect-src 'self' ${supabase.origin} wss://${supabase.host}`,
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+  ].join('; ');
+  return {
+    'Content-Security-Policy': csp,
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    // Camera is the operator QR scanner; everything else the page never asks for.
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()',
+  };
+}
+
 function build() {
   // Build Output API deploys only these static files, never the legacy api/ or SQL.
   for (const dir of [path.dirname(output), output]) {
@@ -44,7 +75,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.29',
+    version: '1.30',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,
@@ -53,7 +84,7 @@ function build() {
   fs.writeFileSync(path.join(output, 'config.json'), JSON.stringify({
     version: 3,
     routes: [
-      { src: '/(.*)', headers: { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'SAMEORIGIN' }, continue: true },
+      { src: '/(.*)', headers: securityHeaders(), continue: true },
       { src: pagePattern, headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/deployment-info\\.json', headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/nfc/?', dest: '/index.html' },

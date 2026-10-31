@@ -375,7 +375,7 @@ const festivalWeb = (() => {
     closeVoucher();
     const dialog = document.createElement("dialog");
     dialog.className = "web-qr-dialog";
-    dialog.innerHTML = `<header><div><small>DEMO VOUCHER</small><h2>${c.title}</h2></div><button class="icon-btn" data-qr-close aria-label="닫기">${icon("close")}</button></header><p class="web-demo-note">실제 교환 불가 · 시연용 QR</p><div class="web-qr-code" role="img" aria-label="${c.title} 시연용 QR"></div><p class="web-qr-time" role="status"></p><button class="ghost-btn full-action" data-qr-refresh>QR 새로고침 ${icon("refresh")}</button>${isAdminUser() ? `<button class="primary-btn full-action" data-demo-redeem>관리자 모의 사용 처리</button>` : ""}<p class="web-muted">${escapeHtml(c.id.slice(0, 8).toUpperCase())} · 쿠폰별 고유 번호</p>`;
+    dialog.innerHTML = `<header><div><small>DEMO VOUCHER</small><h2>${escapeHtml(c.title)}</h2></div><button class="icon-btn" data-qr-close aria-label="닫기">${icon("close")}</button></header><p class="web-demo-note">실제 교환 불가 · 시연용 QR</p><div class="web-qr-code" role="img" aria-label="${escapeHtml(c.title)} 시연용 QR"></div><p class="web-qr-time" role="status"></p><button class="ghost-btn full-action" data-qr-refresh>QR 새로고침 ${icon("refresh")}</button>${isAdminUser() ? `<button class="primary-btn full-action" data-demo-redeem>관리자 모의 사용 처리</button>` : ""}<p class="web-muted">${escapeHtml(c.id.slice(0, 8).toUpperCase())} · 쿠폰별 고유 번호</p>`;
     document.body.append(dialog);
     dialog.querySelector("[data-qr-close]").onclick = () => closeVoucher(opener);
     dialog.addEventListener("cancel", event => { event.preventDefault(); closeVoucher(opener); });
