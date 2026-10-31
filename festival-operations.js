@@ -39,6 +39,8 @@
     BOOTH_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있어요.',
     VOUCHER_MANAGER_REQUIRED: '바우처 담당자나 운영자만 바우처를 사용 처리할 수 있어요.',
     VOUCHER_KIND_NOT_ALLOWED: '담당한 종류의 바우처가 아니에요. 이 바우처는 승인할 수 없어요.',
+    ACCOUNT_DELETE_CONFIRM_REQUIRED: '확인 문구로 "삭제"를 정확히 입력해 주세요.', ACCOUNT_DELETE_SELF: '본인 계정은 삭제할 수 없어요.',
+    ACCOUNT_DELETE_OPERATOR: '운영자 계정은 삭제할 수 없어요.',
     VOUCHER_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만 바우처 담당자를 맡길 수 있어요.',
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
@@ -66,12 +68,14 @@
   writeKinds.add('booth_manager_save');
   writeKinds.add('booth_manager_visit');
   readKinds.add('voucher_manager');
+  writeKinds.add('account_delete');
   // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
   function call(action, body, request) {
     if (action === 'notice_save' || action === 'notice_delete') return ['festival_notice_admin', { p_action: action.slice(7), p_payload: body }];
     if (action === 'booth_status_bulk') return ['festival_booth_status_bulk', { p_payload: body, p_request_id: request }];
     if (action === 'claim_guard_save') return ['festival_claim_guard', { p_action: 'save', p_payload: body }];
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
+    if (action === 'account_delete') return ['festival_account_delete', { p_payload: body, p_request_id: request }];
     if (action === 'sun_claim') return ['festival_sun_claim', { p_payload: body, p_request_id: request }];
     if (action === 'booth_manager_save') return ['festival_booth_manager', { p_action: 'save', p_payload: body, p_request_id: request }];
     if (action === 'booth_manager_visit') return ['festival_booth_manager', { p_action: 'visit_approve', p_payload: body, p_request_id: request }];

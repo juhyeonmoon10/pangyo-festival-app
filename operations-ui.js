@@ -170,6 +170,12 @@ const festivalOpsUI = (() => {
       field('confirm','확인 문구 (초기화)','','required autocomplete="off" pattern="초기화" placeholder="초기화"')+
       `<input type="hidden" name="eventId" value="${h(event?.id)}">`,'참여 기록 초기화','refresh')}</section>`;
   }
+  // 학생 계정 삭제: the festival account only. The Google sign-in and ORBIT records live in the shared
+  // project and stay; the student can sign in again and register as a new participant.
+  function accountDeleteForm() {
+    return `<section class="ops-section ops-reset ops-account-delete"><h2>학생 계정 삭제</h2><p>잘못 가입했거나 중복된 학생 계정을 지워요. 삭제한 기록은 되돌릴 수 없어요.</p><ul class="ops-reset-scope"><li><strong>삭제</strong> 그 학생의 방문·스탬프, 바우처, 리뷰, 포인트, 소속 확인, 담당자 권한, 학번 등록 · 바로 로그아웃</li><li><strong>유지</strong> Google 로그인과 ORBIT 기록(같은 계정을 함께 써요), 처리 기록. 다시 로그인하면 새로 가입해요.</li></ul>`+
+      form('account_delete',participant('삭제할 학생')+reason()+field('confirm','확인 문구 (삭제)','','required autocomplete="off" pattern="삭제" placeholder="삭제"'),'계정 삭제','close')+'</section>';
+  }
   function unavailableEvent() {
     return `<section class="ops-section ops-unavailable" role="status"><h2>축제 정보를 확인할 수 없어요</h2><p>운영 정보를 다시 불러와 주세요. 계속 표시되면 담당자에게 확인해 주세요.</p><button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 불러오기</button></section>`;
   }
@@ -291,7 +297,7 @@ const festivalOpsUI = (() => {
     if(tab==='notice_admin') return noticeAdminView();
     if(tab==='identity_overview') return identityAdminView();
     if(tab==='catalog') return bulkStatusForm()+boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
-    if(tab==='participants') return searchForm()+table(data?.items,[['학번',r=>r.student_number || '-'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><p>학번으로 계정을 찾아 동아리 명단과 연결하거나 확인을 취소해요.</p>${identityFinder()}<button type="button" class="ghost-btn" data-ops-tab="identity_overview">${icon('check')} 소속 관리 열기</button></section>`;
+    if(tab==='participants') return searchForm()+table(data?.items,[['학번',r=>r.student_number || '-'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><p>학번으로 계정을 찾아 동아리 명단과 연결하거나 확인을 취소해요.</p>${identityFinder()}<button type="button" class="ghost-btn" data-ops-tab="identity_overview">${icon('check')} 소속 관리 열기</button></section>`+accountDeleteForm();
     if(tab==='visits') return `<section class="ops-section"><h2>수동 방문 승인</h2>${form('visit_approve',visitParticipant()+select('booth','방문 부스',options().filter(([key])=>catalog.find(b=>b.key===key)?.status==='open'),null)+reason(),'스탬프 1개 승인')}</section>`+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>person(r.name,r.student_number)],['부스',r=>catalog.find(b=>b.key===r.booth_key)?.name || r.booth_key],['방식','method'],['사유','reason']])+paging();
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>person(r.name,r.student_number)],['변경','delta'],['사유','reason']])+paging();
     if(tab==='rules') return (mine?.rewardProgram?.supported ? rewardConfigForm() : mine?.rewardProgram?.legacyRules
@@ -321,7 +327,7 @@ const festivalOpsUI = (() => {
       tell(note,'축제 정보를 다시 불러온 뒤 저장해 주세요.'); return;
     }
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
-    if(['visit_approve','points_adjust','voucher_issue'].includes(action)) {
+    if(['visit_approve','points_adjust','voucher_issue','account_delete'].includes(action)) {
       delete body.recipientQuery;
       if(!visitRecipient || body.studentNumber!==visitRecipient.studentNumber) {
         tell(note,'처리할 학생을 목록에서 골라 주세요.'); return;
@@ -345,7 +351,7 @@ const festivalOpsUI = (() => {
       body.booths=[...form.querySelectorAll('[name=booths]:checked')].map(x=>x.value);
       if(!body.booths.length) { tell(note,'상태를 바꿀 부스를 선택해 주세요.'); return; }
     }
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save','booth_status_bulk'].includes(action) && !confirm(action==='booth_status_bulk'?`선택한 부스 ${body.booths.length}개를 '${statusName(body.status)}'(으)로 바꿀까요?${body.status==='open'?'':' 이 부스들은 NFC 방문 인증이 중지돼요.'}`:action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`이 축제의 방문·스탬프, 바우처, 리뷰와 포인트를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 공용 퀘스트·잔고·기존 별점과 NFC 태그는 유지돼요. 삭제한 행사 기록은 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장이에요.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장이에요. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save','booth_status_bulk','account_delete'].includes(action) && !confirm(action==='account_delete'?`${visitRecipient.name} (${visitRecipient.studentNumber}) 학생의 축제 계정을 삭제할까요?\n방문·스탬프, 바우처, 리뷰, 포인트, 소속 확인과 담당자 권한이 모두 지워지고 바로 로그아웃돼요. 되돌릴 수 없어요.`:action==='booth_status_bulk'?`선택한 부스 ${body.booths.length}개를 '${statusName(body.status)}'(으)로 바꿀까요?${body.status==='open'?'':' 이 부스들은 NFC 방문 인증이 중지돼요.'}`:action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`이 축제의 방문·스탬프, 바우처, 리뷰와 포인트를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 공용 퀘스트·잔고·기존 별점과 NFC 태그는 유지돼요. 삭제한 행사 기록은 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장이에요.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장이에요. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; tell(note,'처리 중...');
     try {
       // Notice photos are uploaded first; the notice then stores their paths.
@@ -361,7 +367,7 @@ const festivalOpsUI = (() => {
       if(!response.ok && uploaded.length) festivalNotices.discard(uploaded);
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!response.ok) {
-        if(['visit_approve','points_adjust','voucher_issue'].includes(action) && ['NOT_FOUND','STUDENT_NOT_FOUND','STUDENT_AMBIGUOUS'].includes(response.code)) {
+        if(['visit_approve','points_adjust','voucher_issue','account_delete'].includes(action) && ['NOT_FOUND','STUDENT_NOT_FOUND','STUDENT_AMBIGUOUS'].includes(response.code)) {
           resetRecipient(form);
           tell(note,response.code==='NOT_FOUND'?'처리 대상을 찾지 못했어요. 새로고침 후 학생을 다시 확인해 주세요.':response.message);
           return;
@@ -375,7 +381,8 @@ const festivalOpsUI = (() => {
         serverReviews.clear(); serverMyReviews=null; serverCompletedBooths=[]; form.reset();
       }
       if(action==='notice_save') { selectedNotice=''; if(typeof festivalNotices!=='undefined') festivalNotices.afterSave(); }
-      notice=action==='notice_save'?(body.id?'공지를 수정했어요.':body.published?'공지를 등록했어요. 학생 홈에 바로 보여요.':'공지를 숨김 상태로 저장했어요.'):action==='booth_status_bulk'?`부스 ${response.data.selected}개를 '${statusName(response.data.status)}'(으)로 맞췄어요. 바뀐 부스 ${response.data.changed}개.`:action==='participation_reset'?`이 축제의 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 초기화했어요. 공용 기록은 유지돼요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
+      if(action==='account_delete') { visitRecipient=null; form.reset(); }
+      notice=action==='notice_save'?(body.id?'공지를 수정했어요.':body.published?'공지를 등록했어요. 학생 홈에 바로 보여요.':'공지를 숨김 상태로 저장했어요.'):action==='booth_status_bulk'?`부스 ${response.data.selected}개를 '${statusName(response.data.status)}'(으)로 맞췄어요. 바뀐 부스 ${response.data.changed}개.`:action==='participation_reset'?`이 축제의 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 초기화했어요. 공용 기록은 유지돼요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':action==='account_delete'?`${response.data.name} (${response.data.studentNumber || '학번 없음'}) 학생의 계정을 삭제했어요. 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 지웠어요.`:'저장했어요.';
       selectedBooth=response.data.booth || selectedBooth; selectedRule=response.data.id && action==='rule_save'?response.data.id:selectedRule;
       noticeAt=action;
       await refresh();
