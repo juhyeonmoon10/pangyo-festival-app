@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | **레거시 NFC 서버 함수가 실서버에 배포돼 있었다.** `api/v1/events/[eventId]/stamps/nfc.mjs`가 Vercel 함수로 올라가 `POST /api/v1/events/…/stamps/nfc`에 응답했다. 빌드 스크립트는 정적 파일만 내보내지만 Vercel이 `api/` 폴더를 따로 함수로 만들었다. | 지금은 비밀 키가 설정돼 있지 않아 `SERVICE_NOT_CONFIGURED`만 돌려준다. 누가 Vercel에 `SUPABASE_SECRET_KEY`를 넣으면 서비스 키로 DB를 부르는 공개 주소가 된다. | `.vercelignore`로 `api/`, `tests/`, `nfc-server/`, `operations-server/`, `supabase/`, `artifacts/`를 업로드에서 뺐다. 화면에서 쓰이지 않던 호출 코드(`createHttpStampGateway`)도 지웠다. |
 | 2 | **보안 헤더 부족.** CSP(콘텐츠 보안 정책)가 없었다. | XSS가 생기면 막을 두 번째 벽이 없다. | 모든 응답에 CSP, `Cross-Origin-Opener-Policy`, `Permissions-Policy`를 붙인다(아래 3절). |
-| 3 | **평점 함수 2개를 로그인 없이 부를 수 있다.** `public.refresh_booth_rating`, `public.handle_booth_rating_changed`(ORBIT이 만든 함수). 처음 만들 때 PUBLIC 권한만 뺐고, Supabase 기본 권한이 anon·authenticated에 남았다(Supabase 보안 경고 0028·0029). | 점수를 바꿀 수는 없고 다시 계산만 한다. 다만 누구나 반복 호출해 DB에 부하를 줄 수 있다. | `operations-server/rating-function-grants.sql`(되돌리기 `-rollback.sql`). **DB 적용 대기.** 트리거는 실행 권한을 보지 않아 평점은 계속 갱신된다(격리 테스트로 확인). 이 함수를 직접 부르는 앱은 ORBIT 전 브랜치와 이 앱 모두 없다. |
+| 3 | **평점 함수 2개를 로그인 없이 부를 수 있다.** `public.refresh_booth_rating`, `public.handle_booth_rating_changed`(ORBIT이 만든 함수). 처음 만들 때 PUBLIC 권한만 뺐고, Supabase 기본 권한이 anon·authenticated에 남았다(Supabase 보안 경고 0028·0029). | 점수를 바꿀 수는 없고 다시 계산만 한다. 다만 누구나 반복 호출해 DB에 부하를 줄 수 있다. | `operations-server/rating-function-grants.sql`(되돌리기 `-rollback.sql`). **2026-10-31 DB 적용**(마이그레이션 `20261031103515 festival_rating_function_grants`). 적용 후 두 함수 모두 anon·authenticated 실행 권한이 없고 트리거 `booth_ratings_refresh_booth_rating`은 그대로 있다. 보안 경고 0028(로그인 없이 실행)은 0건이 됐다. 트리거는 실행 권한을 보지 않아 평점은 계속 갱신된다(격리 테스트로 확인). 이 함수를 직접 부르는 앱은 ORBIT 전 브랜치와 이 앱 모두 없다. |
 | 4 | 데모 바우처 QR 창 제목을 이스케이프하지 않았다. | 제목이 고정 문구라 실제 위험은 없다. | `escapeHtml` 적용. |
 
 ## 2. 문제없음을 확인한 부분
@@ -109,3 +109,12 @@ Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), us
 8. **점검 범위 밖**
    - 같은 DB의 ORBIT 함수(`orbit_*`: 주식·블랙잭·상점)는 축제 앱이 쓰지 않아 깊게 보지 않았다.
    - 관리자 함수 안에 관리자 확인 코드가 있는 것만 확인했다.
+
+## 6. 적용 후 Supabase 보안 경고
+
+- 0028 "로그인 없이 SECURITY DEFINER 함수 실행": 2건 → 0건.
+- 0029 "로그인 사용자가 SECURITY DEFINER 함수 실행": 44건 → 42건.
+  - 남은 축제 함수 23개는 의도한 것이다. 로그인한 사용자가 부르는 API이고, 함수 안에서 본인 또는 관리자 여부를 확인한다.
+  - 나머지 19개는 ORBIT 함수다.
+- 0008 "RLS는 켜졌지만 정책 없음"(정보 수준): 의도한 상태다. 축제 테이블은 함수로만 접근한다.
+- "Leaked Password Protection Disabled": 이메일 로그인을 쓰지 않으면 관계없다(5절 7번).

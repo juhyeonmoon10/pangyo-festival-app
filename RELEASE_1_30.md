@@ -15,7 +15,7 @@
    - `Cross-Origin-Opener-Policy`
    - `Permissions-Policy`
 3. **데모 바우처 QR 창** 제목을 이스케이프한다.
-4. **DB 변경(적용 대기)**: `operations-server/rating-function-grants.sql`.
+4. **DB 변경(2026-10-31 적용, 마이그레이션 `20261031103515 festival_rating_function_grants`)**: `operations-server/rating-function-grants.sql`.
    - 평점 다시 계산 함수 2개를 브라우저가 직접 부르지 못하게 한다.
    - 되돌리기는 `rating-function-grants-rollback.sql`.
 
