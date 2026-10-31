@@ -35,6 +35,8 @@
     SUN_CARD_REPLAYED: '이미 사용한 카드 주소예요. 카드를 휴대폰에 다시 대 주세요.', SUN_CARD_EXISTS: '이미 등록된 카드예요. 목록에서 부스를 바꿔 주세요.',
     SUN_KEY_INVALID: '키는 32자리 16진수이고, 두 키가 서로 달라야 해요.', SUN_KEYS_CONFIRM_REQUIRED: '확인 문구로 "키 교체"를 정확히 입력해 주세요.',
     SUN_NOT_READY: '보안 카드 키를 먼저 만들어 주세요.',
+    BOOTH_MANAGER_REQUIRED: '이 부스의 담당자만 사용할 수 있어요.', BOOTH_APPROVAL_NOT_ALLOWED: '이 부스는 스탬프 수동 승인이 허용되지 않았어요. 운영자에게 문의해 주세요.',
+    BOOTH_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있어요.',
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
   const writeKinds = new Set(['event_save', 'booth_save', 'claim', 'visit_approve', 'review_save', 'points_adjust', 'rule_save', 'voucher_issue', 'voucher_claim', 'voucher_qr', 'voucher_redeem', 'voucher_void']);
@@ -56,6 +58,10 @@
   writeKinds.add('reward_config');
   writeKinds.add('participation_reset');
   writeKinds.add('sun_claim');
+  readKinds.add('booth_manager');
+  readKinds.add('booth_manager_lookup');
+  writeKinds.add('booth_manager_save');
+  writeKinds.add('booth_manager_visit');
   // Each write action maps to its guarded RPC; only the reset RPC takes no action name.
   function call(action, body, request) {
     if (action === 'notice_save' || action === 'notice_delete') return ['festival_notice_admin', { p_action: action.slice(7), p_payload: body }];
@@ -63,6 +69,8 @@
     if (action === 'claim_guard_save') return ['festival_claim_guard', { p_action: 'save', p_payload: body }];
     if (action === 'participation_reset') return ['festival_ops_reset', { p_payload: body, p_request_id: request }];
     if (action === 'sun_claim') return ['festival_sun_claim', { p_payload: body, p_request_id: request }];
+    if (action === 'booth_manager_save') return ['festival_booth_manager', { p_action: 'save', p_payload: body, p_request_id: request }];
+    if (action === 'booth_manager_visit') return ['festival_booth_manager', { p_action: 'visit_approve', p_payload: body, p_request_id: request }];
     // Participants are named by 학번; the server resolves the account.
     if (['visit_approve', 'points_adjust', 'voucher_issue'].includes(action)) return ['festival_ops_write_student', { p_action: action, p_payload: body, p_request_id: request }];
     if (action === 'voucher_code_redeem') return ['festival_voucher_redeem', { p_action: 'redeem', p_payload: body, p_request_id: request }];
@@ -105,6 +113,8 @@
           : kind === 'identity_overview' ? await rpc('festival_identity_overview', {})
           : kind === 'student_lookup' ? await rpc('festival_student_lookup', { p_payload: { studentNumber: query.studentNumber } })
           : kind === 'claim_guard' ? await rpc('festival_claim_guard', { p_action: 'read', p_payload: {} })
+          : kind === 'booth_manager' ? await rpc('festival_booth_manager', { p_action: 'status', p_payload: {} })
+          : kind === 'booth_manager_lookup' ? await rpc('festival_booth_manager', { p_action: 'lookup', p_payload: { booth: query.booth, studentNumber: query.studentNumber } })
           : kind === 'booth_stamps' ? await rpc('festival_booth_stamp_counts', {})
           : kind === 'voucher_code_check' ? await rpc('festival_voucher_redeem', { p_action: 'check', p_payload: { code: query.code } })
           : await rpc('festival_ops_read', { p_kind: kind, p_query: query });
@@ -147,17 +157,20 @@
       return operation;
     }
     // Secure-card (NTAG 424 DNA) management. Not idempotent requests: each call is one operator action.
-    async function sun(action, payload = {}) {
+    async function sun(action, payload = {}) { return direct('festival_sun_admin', action, payload); }
+    // 부스 담당자 grants (operators only): list, candidates, grant, revoke.
+    async function boothManagers(action, payload = {}) { return direct('festival_booth_manager_admin', action, payload); }
+    async function direct(name, action, payload) {
       const id = actor();
       if (!id) return error(Error('AUTH_REQUIRED'));
       try {
-        const result = await rpc('festival_sun_admin', { p_action: action, p_payload: payload });
+        const result = await rpc(name, { p_action: action, p_payload: payload });
         if (actor() !== id) return error(Error('AUTH_REQUIRED'));
         if (result.error) return error(result.error);
         return { ok: true, data: validate(result.data) };
       } catch (e) { return error(e); }
     }
-    return Object.freeze({ read, write, sun });
+    return Object.freeze({ read, write, sun, boothManagers });
   }
   return { create, error };
 });

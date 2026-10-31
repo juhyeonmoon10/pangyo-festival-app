@@ -541,3 +541,50 @@ body.design-web {
 .sun-card-list li { padding: 12px 0; border-top: 1px solid var(--line); }
 .sun-card-list li.is-off { color: var(--muted); }
 .sun-card-list small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+/* Map labels fit their room: wrap only between words and scale to the widest word and line count. */
+.design-web .plan-room { container-type: size; padding: 2px; }
+.design-web .map-screen .plan-room > span, .design-web .home-map .plan-room > span {
+  overflow: visible; max-width: 100%; white-space: normal; text-overflow: clip;
+  word-break: keep-all; overflow-wrap: normal; line-height: 1.15;
+  font-size: 10px;
+  font-size: clamp(7px, min(calc((100cqw - 4px) / var(--label-units, 3)), calc((100cqh - 4px) / (var(--label-lines, 1) * 1.2))), 11px);
+}
+.design-web .plan-corridor span { position: absolute; left: var(--label-at, 50%); top: 50%; transform: translate(-50%, -50%); white-space: nowrap; }
+/* The status chips under a booth name stay in place; they wrap instead of scrolling sideways. */
+.design-web .booth-stats { overflow: visible; flex-wrap: wrap; touch-action: auto; }
+/* Notices: home rows open the notice; a notice page shows its photos and full text. */
+.web-news-open { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.festival-notices-screen .top-bar h1 { font-size: 18px; }
+.festival-notice-list { display: grid; gap: 0; margin: 0; padding: 0 16px 24px; list-style: none; }
+.festival-notice-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.festival-notice-row > span { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.festival-notice-row strong { overflow-wrap: anywhere; }
+.festival-notice-row small { color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.festival-notice-row em { color: var(--muted); font-size: 12px; font-style: normal; }
+.festival-notice-article { padding: 8px 16px 32px; }
+.festival-notice-article h2 { margin: 8px 0 4px; font-size: 22px; line-height: 1.35; overflow-wrap: anywhere; }
+.festival-notice-date { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+.festival-notice-photo { display: block; width: 100%; height: auto; margin: 0 0 12px; border-radius: 12px; background: var(--surface-2); }
+.festival-notice-body { margin: 8px 0 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.7; }
+.ops-notice-images { display: grid; gap: 8px; }
+.ops-notice-images ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ops-notice-images li { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.ops-notice-images img { width: 100%; height: 100%; object-fit: cover; }
+.ops-notice-images li .icon-btn { position: absolute; top: 2px; right: 2px; width: 32px; height: 32px; min-width: 32px; background: rgba(0, 0, 0, .55); color: #fff; }
+.ops-notice-photo-pick { display: inline-flex; align-items: center; gap: 6px; width: auto; justify-self: start; cursor: pointer; }
+/* 부스 담당자 */
+.manage-screen .top-bar h1 { font-size: 18px; }
+.manage-screen .ops-body { padding-inline: 16px; }
+.manager-pick { display: grid; gap: 6px; margin: 8px 0 0; font-weight: 700; }
+.manager-program { display: grid; gap: 12px; margin: 4px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.manager-program legend { padding: 0 6px; font-weight: 700; }
+.manager-accounts { display: grid; gap: 8px; margin: 12px 0; }
+.manager-account { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.manager-account.is-chosen { border-color: var(--primary); }
+.manager-account span { display: grid; gap: 2px; min-width: 0; }
+.manager-account small { color: var(--muted); overflow-wrap: anywhere; }
+.manager-account small.is-warning { color: #a14449; }
+.manager-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.manager-list li { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+.manager-list li.is-off { color: var(--muted); }
+.manager-list small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }

@@ -90,7 +90,7 @@ test('map search and room attributes escape external names', () => {
   assert.doesNotMatch(api.mapView(), /title="" onmouseover=/);
 });
 
-test('Korean composition preserves input and commits only after composition ends', () => {
+test('Korean composition keeps the input and updates results while composing', () => {
   const api = setup();
   const handlers = {};
   const input = { dataset: {}, value: '', addEventListener: (event, callback) => { handlers[event] = callback; },
@@ -102,7 +102,9 @@ test('Korean composition preserves input and commits only after composition ends
   handlers.compositionstart();
   input.value = '1학ㄴ';
   handlers.input({ isComposing: true, target: input });
-  assert.equal(api.state.search, '');
+  // Only the result list is redrawn, so the text being composed stays in the same input.
+  assert.equal(api.state.search, '1학ㄴ');
+  assert.equal(api.nodes.get('#searchScreenInput'), input);
   input.value = '1학년 1반';
   handlers.compositionend({ target: input });
   assert.equal(api.state.search, '1학년 1반');
@@ -123,4 +125,17 @@ test('zoom limits and reset-to-fit offsets are unchanged', () => {
   assert.equal(api.state.mapZoom, 0.9);
   assert.equal(api.state.mapOffsetX, 0);
   assert.equal(api.state.mapOffsetY, 0);
+});
+
+test('one-letter searches match the start of visible names, and consonants search by initials', () => {
+  const api = setup();
+  const names = query => { api.state.search = query; return api.searchResults().map(b => b.name); };
+  const one = names('인');
+  assert.ok(one.some(name => name.startsWith('인사이트')));
+  // Hidden aliases such as "실내건축디자인" no longer pull in unrelated booths.
+  assert.ok(!one.some(name => /건축|아트/.test(name)));
+  const initial = names('ㅅ');
+  assert.ok(initial.includes('상담실') && initial.includes('시청각실'));
+  assert.equal(names('ㅅㄷ')[0], '상담실');
+  assert.ok(names('인문').some(name => name.startsWith('인사이트')));
 });

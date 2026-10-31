@@ -216,8 +216,8 @@ const festivalWeb = (() => {
     const toWrite = pendingReviews.length;
     const voucherCount = coupons().filter(c => couponState(c) === "available").length;
     return `<main class="web-home">
-      <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-home-notices aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
-      ${notice ? `<button type="button" class="festival-notice-strip" data-home-notices>${icon('notice')}<span>${escapeHtml(notice.title)}</span>${icon('arrow')}</button>` : ''}
+      <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-route="notices" aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
+      ${notice ? `<button type="button" class="festival-notice-strip" data-notice-open="${escapeHtml(notice.id)}">${icon('notice')}<span>${escapeHtml(notice.title)}</span>${icon('arrow')}</button>` : ''}
       <section class="web-welcome"><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 모아봐요.</h1></section>
       ${identityPrompt()}
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
@@ -236,7 +236,7 @@ const festivalWeb = (() => {
       ${visits.length ? `<section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
         <div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>
       </section>` : ""}
-      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><h2>축제 소식</h2>${news.length ? `<ul class="web-news-list">${news.slice(0, 5).map(n => `<li class="${n.important ? 'important' : ''}"><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${escapeHtml(n.title)}</strong>${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}${n.publishedAt ? `<small>${new Date(n.publishedAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}</small>` : ''}</li>`).join('')}</ul>` : '<strong>등록된 공지가 없어요</strong>'}</div></section>
+      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><div class="section-heading"><h2>축제 소식</h2>${news.length ? `<button type="button" class="text-link" data-route="notices">전체 보기 ${icon('arrow')}</button>` : ''}</div>${news.length ? `<ul class="web-news-list">${news.slice(0, 5).map(n => `<li class="${n.important ? 'important' : ''}"><button type="button" class="web-news-open" data-notice-open="${escapeHtml(n.id)}"><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${escapeHtml(n.title)}</strong>${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}${n.publishedAt ? `<small>${new Date(n.publishedAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}${n.images?.length ? ` · 사진 ${n.images.length}장` : ''}</small>` : ''}</button></li>`).join('')}</ul>` : '<strong>등록된 공지가 없어요</strong>'}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
       ${bottomNav("home")}
     </main>`;
@@ -406,9 +406,9 @@ const festivalWeb = (() => {
   }
 
   function program(booth) {
-    if (isServerMode() && booth.opsRecord?.description) return `<section class="web-program section"><h2>프로그램 안내</h2><p>${escapeHtml(booth.opsRecord.description)}</p></section>`;
-    const p = (!isServerMode() && booth.program) || window.FestivalPrograms?.[booth.officialClubId || booth.id];
-    return `<section class="web-program section"><div class="section-heading"><h2>프로그램 안내</h2><span>${p ? "행사 프로그램" : "안내 준비 중"}</span></div>${p ? `<h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.description)}</p><dl>${[["운영 시간", p.hours], ["소요 시간", p.duration], ["참여 방법", p.participation], ["준비물", p.materials]].map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value || "추후 안내")}</dd></div>`).join("")}</dl>` : `<p>이 동아리의 행사 프로그램은 아직 등록되지 않았어요. 확정된 활동과 참여 방법이 이곳에 표시됩니다.</p><dl><div><dt>운영 시간</dt><dd>추후 안내</dd></div><div><dt>참여 방법</dt><dd>현장 운영자에게 문의</dd></div></dl>`}${canUseMockNfcTools() ? programEditor(booth, p) : ""}</section>`;
+    const served = isServerMode() && booth.opsRecord?.program && (booth.opsRecord.program.title || booth.opsRecord.program.description) ? booth.opsRecord.program : null;
+    const p = served || (!isServerMode() && booth.program) || window.FestivalPrograms?.[booth.officialClubId || booth.id];
+    return `<section class="web-program section"><div class="section-heading"><h2>프로그램 안내</h2><span>${p ? "행사 프로그램" : "안내 준비 중"}</span></div>${p ? `${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ''}${p.description ? `<p>${escapeHtml(p.description)}</p>` : ''}<dl>${[["운영 시간", p.hours], ["소요 시간", p.duration], ["참여 방법", p.participation], ["준비물", p.materials]].map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value || "추후 안내")}</dd></div>`).join("")}</dl>` : `<p>이 동아리의 행사 프로그램은 아직 등록되지 않았어요. 확정된 활동과 참여 방법이 이곳에 표시됩니다.</p><dl><div><dt>운영 시간</dt><dd>추후 안내</dd></div><div><dt>참여 방법</dt><dd>현장 운영자에게 문의</dd></div></dl>`}${canUseMockNfcTools() ? programEditor(booth, p) : ""}</section>`;
   }
 
   function programEditor(booth, p = {}) {
@@ -522,11 +522,6 @@ const festivalWeb = (() => {
     });
     document.querySelector('[data-reward-retry]')?.addEventListener('click',event=>redeemRewardChoice(event.currentTarget.dataset.rewardRetry,null,Number(event.currentTarget.dataset.rewardTarget)));
     document.querySelector("[data-home-menu]")?.addEventListener("click", event => showMenu(event.currentTarget));
-    document.querySelector("[data-home-notices]")?.addEventListener("click", () => {
-      const section = document.querySelector("#homeNews");
-      section?.scrollIntoView({ block: "center", behavior: "instant" });
-      section?.focus({ preventScroll: true });
-    });
     document.querySelectorAll("[data-voucher-filter]").forEach(b => b.onclick = () => { voucherFilter = b.dataset.voucherFilter; render(); });
     document.querySelectorAll('[data-review-filter]').forEach(b => b.onclick = () => { reviewFilter = b.dataset.reviewFilter; render(); });
     document.querySelectorAll("[data-voucher]").forEach(b => b.onclick = () => showVoucher(b.dataset.voucher, b));
