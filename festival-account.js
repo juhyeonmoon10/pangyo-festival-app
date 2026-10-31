@@ -416,28 +416,32 @@
       return null;
     }
 
-    // Notice photos in the public 'festival-notices' bucket. Only operators may upload or delete
-    // (storage policy); anyone signed in can view them by URL.
-    const NOTICE_IMAGE = /^notices\/[0-9a-f]{32}\.(jpg|png|webp)$/;
-    const noticeImages = {
-      url: path => NOTICE_IMAGE.test(String(path)) ? `${config.PROJECT_URL}/storage/v1/object/public/festival-notices/${path}` : "",
-      async upload(blob) {
-        const path = `notices/${Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("")}.jpg`;
-        try {
-          const { error } = await client.storage.from("festival-notices").upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000", upsert: false });
-          if (error) return { ok: false, ...normalizeError(error) };
-          return { ok: true, path };
-        } catch (error) { return { ok: false, ...normalizeError(error) }; }
-      },
-      async remove(paths) {
-        const valid = (paths || []).filter(path => NOTICE_IMAGE.test(String(path)));
-        if (!valid.length) return;
-        try { await client.storage.from("festival-notices").remove(valid); } catch { /* A leftover photo is harmless. */ }
-      },
-    };
+    // Photos in public Storage buckets: notice photos ('festival-notices', operators upload) and booth
+    // profile photos ('festival-booths', operators and booth managers upload). Anyone can view them by URL.
+    function publicImages(bucket, folder) {
+      const valid = path => new RegExp(`^${folder}/[0-9a-f]{32}\\.(jpg|png|webp)$`).test(String(path));
+      return {
+        url: path => valid(path) ? `${config.PROJECT_URL}/storage/v1/object/public/${bucket}/${path}` : "",
+        async upload(blob) {
+          const path = `${folder}/${Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("")}.jpg`;
+          try {
+            const { error } = await client.storage.from(bucket).upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000", upsert: false });
+            if (error) return { ok: false, ...normalizeError(error) };
+            return { ok: true, path };
+          } catch (error) { return { ok: false, ...normalizeError(error) }; }
+        },
+        async remove(paths) {
+          const listed = (paths || []).filter(valid);
+          if (!listed.length) return;
+          try { await client.storage.from(bucket).remove(listed); } catch { /* A leftover photo is harmless. */ }
+        },
+      };
+    }
+    const noticeImages = publicImages("festival-notices", "notices");
+    const boothImages = publicImages("festival-booths", "booths");
 
     return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
-      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages,
+      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages,
       reviewIdentity: async (action, payload) => {
         try {
           const { data, error } = await client.rpc('festival_review_identity_student', { p_action: action, p_payload: payload });

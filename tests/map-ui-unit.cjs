@@ -29,7 +29,7 @@ function setup() {
   for (const file of ['assets/vendor/ui-icons.js', 'web-experience.js', 'nfc-manager.js', 'operations-ui.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
-  const api = vm.runInContext('({state, mapView, visibleBooths, searchResults, setSheetLevel, bindEvents, adjustMapZoom})', context);
+  const api = vm.runInContext('({state, mapView, visibleBooths, searchResults, setSheetLevel, bindEvents, adjustMapZoom, planAssignments, mapPlanForFloor, focusMapOnBooth})', context);
   api.state.user = api.state.db.users[0];
   api.state.selectedBoothId = null;
   return { ...api, nodes, app };
@@ -138,4 +138,38 @@ test('one-letter searches match the start of visible names, and consonants searc
   assert.ok(initial.includes('상담실') && initial.includes('시청각실'));
   assert.equal(names('ㅅㄷ')[0], '상담실');
   assert.ok(names('인문').some(name => name.startsWith('인사이트')));
+});
+
+test('a room chosen by the booth manager places the booth there, once', () => {
+  const api = setup();
+  api.state.floor = 2;
+  const [first, second] = api.state.db.booths.filter(b => b.floor === 2);
+  Object.assign(first, { mapRoom: '다목적강당', placed: true, homeFloor: 2 });
+  const plan = api.mapPlanForFloor(2), floorBooths = api.state.db.booths.filter(b => b.floor === 2);
+  const assigned = api.planAssignments(plan, floorBooths);
+  const hall = plan.rooms.findIndex(r => r.label === '다목적강당');
+  assert.equal(assigned[hall].id, first.id);
+  // Its provisional classroom is free now and each booth is drawn once.
+  const ids = assigned.filter(Boolean).map(b => b.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(assigned[plan.rooms.findIndex(r => r.label === first.room)], null);
+  assert.equal((api.mapView().match(new RegExp('data-map-select="' + first.id + '"', 'g')) || []).length, 1);
+  // A second booth in the same room gets a marker inside it.
+  Object.assign(second, { mapRoom: '다목적강당', placed: true, homeFloor: 2 });
+  const html = api.mapView();
+  assert.match(html, new RegExp('class="marker[^"]*"[^>]*data-map-select="' + second.id + '"'));
+  // Stairs are never a booth room.
+  assert.ok(api.planAssignments(plan, floorBooths).every((b, i) => !b || plan.rooms[i].type !== 'core'));
+});
+
+test('a booth moved to another floor without a room has no marker but stays in the list', () => {
+  const api = setup();
+  const booth = api.state.db.booths.find(b => b.id === 'g1-1');
+  Object.assign(booth, { floor: 4, homeFloor: 2, placed: true, mapRoom: '', location: '4층 하늘정원 옆' });
+  api.state.floor = 4;
+  const html = api.mapView();
+  assert.ok(api.visibleBooths().some(b => b.id === 'g1-1'));
+  assert.doesNotMatch(html, /class="marker[^"]*"[^>]*data-map-select="g1-1"/);
+  api.focusMapOnBooth('g1-1');
+  assert.ok(Number.isFinite(api.state.mapOffsetX) && Number.isFinite(api.state.mapOffsetY));
 });

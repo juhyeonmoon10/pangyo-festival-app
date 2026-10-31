@@ -97,11 +97,11 @@ const festivalNotices = (() => {
     }));
   }
 
-  // Longest edge at most 1600 px, JPEG: a phone photo becomes a few hundred KB.
-  async function shrink(file) {
+  // Longest edge at most 1600 px (booth photos: 1080), JPEG: a phone photo becomes a few hundred KB.
+  async function shrink(file, edge = MAX_EDGE) {
     if (!/^image\//.test(file.type) && !/\.(heic|heif)$/i.test(file.name)) throw new Error('NOT_IMAGE');
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
@@ -135,5 +135,5 @@ const festivalNotices = (() => {
   }
   function reset() { draft?.added.forEach(a => URL.revokeObjectURL(a.preview)); draft = null; }
 
-  return { listView, detailView, bind, open, editor, uploadDraft, afterSave, discard, reset };
+  return { listView, detailView, bind, open, editor, uploadDraft, afterSave, discard, reset, shrink };
 })();
