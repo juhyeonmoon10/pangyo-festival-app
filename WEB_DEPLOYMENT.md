@@ -20,7 +20,11 @@ The original 1.2 notes below are historical. Current screen paths are in `WEB_RO
 The build uses Vercel Build Output API v3. Only allowlisted browser files,
 vendor libraries/licenses, and club logos enter `.vercel/output/static`.
 Legacy `api/`, SQL, environment files, test reports, and local documents are
-not published as website files. No server functions are built.
+not published as website files. `.vercelignore` keeps `api/` and the server and
+test folders out of the upload, so Vercel builds no server functions (before
+1.30 it turned `api/` into a function on its own). Every response carries a
+Content-Security-Policy and the other security headers from `tools/build-web.cjs`;
+`tests/csp-browser.cjs` opens the built site with those headers.
 
 This deploy does not apply SQL, change Auth configuration, or modify ORBIT.
 The browser retains its existing Supabase integration. Real Google login and

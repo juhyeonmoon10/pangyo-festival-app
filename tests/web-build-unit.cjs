@@ -4,7 +4,7 @@ const path = require('node:path');
 const { build, publicFiles, output } = require('../tools/build-web.cjs');
 
 const first = build();
-assert.equal(first.version, '1.29');
+assert.equal(first.version, '1.30');
 // An open page compares its own release with the deployed one to offer a reload.
 assert.ok(fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8').includes(`const APP_RELEASE = "${first.version}";`), 'APP_RELEASE must match the build version');
 assert.equal(fs.existsSync(path.join(output, 'functions')), false);
@@ -34,4 +34,20 @@ for (const page of ['/', '/login', '/admin', '/map', '/stamp', '/voucher/', '/my
 for (const privatePath of ['/api/debug', '/operations-server/install.sql', '/.env', '/tests/stamp-ui-preview.html', '/missing.js']) {
   assert.equal(pattern.test(privatePath), false, `A private or missing file must not become an app page: ${privatePath}`);
 }
+// Every response carries the security headers; the CSP admits the inline <base> script by hash only.
+const headers = config.routes[0].headers;
+assert.equal(config.routes[0].src, '/(.*)');
+const csp = Object.fromEntries(headers['Content-Security-Policy'].split('; ').map(part => [part.split(' ')[0], part.split(' ').slice(1)]));
+assert.deepEqual(csp['default-src'], ["'self'"]);
+assert.ok(!csp['script-src'].some(v => ["'unsafe-inline'", "'unsafe-eval'", 'https:', '*'].includes(v)), 'script-src must not allow inline or remote code');
+const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+assert.equal(inline.length, 1, 'index.html keeps exactly one inline script');
+assert.ok(csp['script-src'].includes(`'sha256-${require('node:crypto').createHash('sha256').update(inline[0][1]).digest('base64')}'`));
+assert.ok(csp['connect-src'].includes('https://vvvkzvxahviwbuyfbwir.supabase.co'));
+assert.deepEqual(csp['object-src'], ["'none'"]);
+assert.deepEqual(csp['frame-ancestors'], ["'self'"]);
+for (const name of ['X-Content-Type-Options', 'Referrer-Policy', 'X-Frame-Options', 'Cross-Origin-Opener-Policy', 'Permissions-Policy']) assert.ok(headers[name], name);
+// The legacy api/ folder never reaches Vercel, so no server function is deployed from it.
+const ignored = fs.readFileSync(path.join(__dirname, '../.vercelignore'), 'utf8').split(/\r?\n/);
+for (const dir of ['/api', '/tests', '/nfc-server', '/operations-server', '/supabase', '/artifacts']) assert.ok(ignored.includes(dir), `.vercelignore must list ${dir}`);
 console.log('PASS: dependency closure, static-only output, private file exclusion, stale output removal, NFC route.');

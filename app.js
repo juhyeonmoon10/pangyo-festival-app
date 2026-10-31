@@ -962,57 +962,6 @@ const mockStampGateway = {
   },
 };
 
-function createHttpStampGateway() {
-  return {
-    async claimNfc({ eventId, nfcToken, idempotencyKey }) {
-      let response;
-      try {
-        response = await fetch(`/api/v1/events/${encodeURIComponent(eventId)}/stamps/nfc`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            "Idempotency-Key": idempotencyKey,
-          },
-          body: JSON.stringify({ token: nfcToken }),
-        });
-      } catch {
-        return nfcFailure("NETWORK_ERROR", "네트워크 연결을 확인한 뒤 같은 요청으로 다시 시도해 주세요.", { status: 0, retryable: true });
-      }
-
-      let payload = {};
-      try {
-        payload = await response.json();
-      } catch {
-        return nfcFailure("INVALID_SERVER_RESPONSE", "서버 응답을 확인할 수 없어요.", { status: response.status, retryable: response.status >= 500 });
-      }
-      if (!response.ok) {
-        return nfcFailure(
-          payload.error?.code || "STAMP_REQUEST_FAILED",
-          payload.error?.message || "방문 인증을 처리하지 못했어요.",
-          {
-            status: response.status,
-            retryable: Boolean(payload.error?.retryable),
-            requestId: payload.meta?.requestId,
-          },
-        );
-      }
-
-      const stamp = payload.data?.stamp || {};
-      return {
-        ok: true,
-        status: response.status,
-        result: payload.data?.result || "EARNED",
-        boothId: stamp.boothId || null,
-        stampId: stamp.id || null,
-        earnedAt: stamp.earnedAt || null,
-        requestId: payload.meta?.requestId || response.headers.get("X-Request-Id") || makeId(),
-        replayed: false,
-      };
-    },
-  };
-}
-
 const stampGateway = isServerMode() ? {
   async claimNfc({ nfcToken }) {
     if (!festivalAccount) return nfcFailure("AUTH_REQUIRED", "로그인이 필요해요.");
@@ -4199,7 +4148,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.29";
+const APP_RELEASE = "1.30";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

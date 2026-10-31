@@ -1,0 +1,10 @@
+# Only the static site is deployed (tools/build-web.cjs). Vercel would otherwise
+# turn the legacy api/ folder into server functions, so it never leaves this repo.
+/api
+/tests
+/nfc-server
+/operations-server
+/supabase
+/artifacts
+/.env
+/.env.*
