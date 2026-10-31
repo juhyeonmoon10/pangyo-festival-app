@@ -56,9 +56,10 @@ const festivalVoucherManager = (() => {
     if (!kinds().length) return '';
     return `<section class="ops-section voucher-manager"><h2>바우처 사용 승인</h2>
       <p class="web-muted">${kinds().map(k => h(ROLES[k])).join(' · ')}</p>
-      <p>학생 바우처 화면의 인증키 8자리를 입력해 확인한 뒤 상품을 전달하고 사용 완료로 처리해요. ${kinds().map(k => NAMES[k]).join('·')} 바우처만 승인할 수 있고, 본인 바우처는 승인할 수 없어요.</p>
+      <p>학생 바우처 화면의 QR을 카메라로 스캔하거나 인증키 8자리를 입력해 확인한 뒤, 상품을 전달하고 사용 완료로 처리해요. ${kinds().map(k => NAMES[k]).join('·')} 바우처만 승인할 수 있고, 본인 바우처는 승인할 수 없어요.</p>
+      <button type="button" class="primary-btn full-action" data-vm-camera ${busy ? 'disabled' : ''}>${icon('scan')} QR 스캔으로 승인</button>
       <form class="ops-form" data-vm-redeem><label>인증키 (8자리)<input class="input ops-code-input" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="11" placeholder="예: AB12CD34"></label>
-        ${slot('vm-redeem')}<button class="primary-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('ticket')} 바우처 확인</button></form></section>`;
+        ${slot('vm-redeem')}<button class="ghost-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('ticket')} 인증키로 확인</button></form></section>`;
   }
 
   async function redeem(form) {
@@ -75,13 +76,14 @@ const festivalVoucherManager = (() => {
       const p = preview.data;
       if (!p.valid) { report('vm-redeem', p.state === 'used' ? '이미 사용한 바우처예요.' : p.state === 'void' ? '취소된 바우처예요.' : p.state === 'expired' ? '만료된 바우처예요.' : !p.eventOpen ? '축제가 운영 중이 아니어서 사용할 수 없어요.' : '사용할 수 없는 바우처예요.'); return; }
       showSpot('vm-redeem', '');
-      if (!confirm(`${p.title}\n${p.participant}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
+      if (!confirm(`${p.title}\n${p.participant}${p.studentNumber ? ` (${p.studentNumber})` : ''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
       showSpot('vm-redeem', '처리하는 중...', 'info');
       const r = await ops().write('voucher_code_redeem', { code });
       if (state.user?.id !== actor || !form.isConnected) return;
       if (!r.ok) { report('vm-redeem', r.message); return; }
       form.reset();
       report('vm-redeem', `${r.data.participant || '학생'} 학생의 ${r.data.title}을(를) 사용 완료로 처리했어요.`, 'success');
+      festivalVoucherScan.approved(r.data);
     } finally { busy = false; if (button.isConnected) button.disabled = false; }
   }
 
@@ -143,6 +145,13 @@ const festivalVoucherManager = (() => {
     if (root) {
       root.querySelector('[data-vm-retry]')?.addEventListener('click', () => { failure = ''; render(); load(); });
       root.querySelector('[data-vm-redeem]')?.addEventListener('submit', e => { e.preventDefault(); redeem(e.currentTarget); });
+      // A scanned code goes through the same check, confirmation and redemption as a typed one.
+      root.querySelector('[data-vm-camera]')?.addEventListener('click', () => festivalVoucherScan.scan(code => {
+        const form = document.querySelector('[data-vm-redeem]');
+        if (!form) return;
+        form.elements.code.value = code;
+        redeem(form);
+      }));
     }
     const admin = document.querySelector('[data-vm-root]');
     const adminOpened = Boolean(admin) && !adminShown;

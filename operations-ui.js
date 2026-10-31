@@ -608,12 +608,13 @@ const festivalOpsUI = (() => {
       if(!preview.ok) { tell(note,preview.code==='VOUCHER_INVALID'?'맞지 않거나 시간이 지난 인증키예요. 참여자 화면의 새 인증키를 확인해 주세요.':preview.message); return; }
       const p=preview.data;
       if(!p.valid) { tell(note,p.state==='used'?'이미 사용한 바우처예요.':p.state==='void'?'취소된 바우처예요.':p.state==='expired'?'만료된 바우처예요.':!p.eventOpen?'축제가 운영 중이 아니어서 사용할 수 없어요.':'사용할 수 없는 바우처예요.'); return; }
-      if(!confirm(`${p.title}\n${p.participant}${p.own?' (내 바우처)':''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
+      if(!confirm(`${p.title}\n${p.participant}${p.studentNumber?` (${p.studentNumber})`:''}${p.own?' · 내 바우처':''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
       const r=await api().write('voucher_code_redeem',{code});
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!r.ok) { tell(note,r.message); return; }
       notice='바우처를 사용 처리했어요.'; noticeAt='redeem';
       form.reset(); await refresh(); showNotice();
+      festivalVoucherScan.approved(r.data);
     } finally { busy=false; if(form.isConnected) button.disabled=false; }
   }
   function closeDialog() {
@@ -628,26 +629,11 @@ const festivalOpsUI = (() => {
     d.querySelector('button').onclick=closeDialog; d.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
     document.body.append(d); d.showModal(); return d;
   }
-  async function camera() {
-    const note=document.querySelector('#opsRedeem .ops-form-status');
-    if(!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) { tell(note,'이 브라우저에서는 QR 스캔을 지원하지 않아요. 참여자 화면의 인증키 8자리를 입력해 주세요.'); return; }
-    const d=dialog('바우처 QR 스캔'), body=d.querySelector('.ops-dialog-content');
-    body.innerHTML='<video playsinline muted></video><p role="status">카메라 연결 중...</p>';
-    try {
-      const capture=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-      if(!d.isConnected) { capture.getTracks().forEach(t=>t.stop()); return; }
-      stream=capture; const video=body.querySelector('video'); video.srcObject=stream; await video.play();
-      const detector=new BarcodeDetector({formats:['qr_code']});
-      body.querySelector('p').textContent='바우처 QR을 비춰 주세요.';
-      const tick=async()=>{
-        if(!d.isConnected) return;
-        try {
-          const list=await detector.detect(video); const found=list.find(x=>VOUCHER_CODE.test(x.rawValue));
-          if(found) { const f=document.querySelector('#opsRedeem'); if(f){f.elements.token.value=found.rawValue;closeDialog();f.requestSubmit();} return; }
-        } catch { /* Try the next camera frame. */ }
-        cameraTimer=setTimeout(tick,250);
-      }; tick();
-    } catch { if(d.isConnected) body.querySelector('p').textContent='카메라 권한을 확인해 주세요.'; }
+  // The camera and QR reading live in voucher-scan.js (shared with 바우처 담당자); it also reads QR
+  // codes where BarcodeDetector is missing (iPhone Safari).
+  function camera() {
+    closeDialog();
+    festivalVoucherScan.scan(code=>{ const f=document.querySelector('#opsRedeem'); if(f){f.elements.token.value=code;f.requestSubmit();} });
   }
   // Copies inside the open modal dialog: a selection outside the top layer cannot be copied.
   async function copyText(text,container) {
