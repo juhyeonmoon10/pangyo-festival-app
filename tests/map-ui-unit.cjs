@@ -54,8 +54,10 @@ test('each floor has exactly one selected floor control and correct list count',
     assert.equal((html.match(/data-floor="/g) || []).length, 4);
     assert.equal((html.match(/aria-pressed="true"/g) || []).length, 1);
     assert.match(html, new RegExp(`data-floor="${floor}"[^>]*aria-pressed="true"`));
-    assert.ok(html.includes(`${floor}층 부스</strong>`));
-    assert.ok(html.includes(`id="mapResultCount">${api.visibleBooths().length}개`));
+    // Facilities are listed with the booths but counted apart.
+    assert.match(html, new RegExp(`${floor}층 부스(·시설)?</strong>`));
+    const list = api.visibleBooths(), facilities = list.filter(b => b.category === "facility").length;
+    assert.ok(html.includes(`id="mapResultCount">부스 ${list.length - facilities}개${facilities ? ` · 시설 ${facilities}곳` : ""}`));
   }
 });
 

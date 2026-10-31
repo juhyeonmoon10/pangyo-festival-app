@@ -123,7 +123,7 @@ try {
     await page.locator('#serverAdminIssue').click();
     const url=await page.locator('#serverAdminUrl').inputValue();
     assert.match(url,/^https:\/\/festival\.test\/(index\.html)?#t=nf1\./);
-    assert.match(await page.locator('#serverAdminResult').innerText(),new RegExp(`\\(${memo}\\) 태그를 발급했습니다`));
+    assert.match(await page.locator('#serverAdminResult').innerText(),new RegExp(`\\(${memo}\\) 태그를 발급했어요`));
     await page.waitForFunction(n=>document.querySelectorAll('.nfc-issued-tag').length===n,before+1);
     const card=page.locator('.nfc-issued-tag').first();
     assert.match(await card.innerText(),new RegExp(memo));

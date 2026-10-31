@@ -155,7 +155,7 @@ try {
     await screenshot(a.page,width,'reset-form');
     await r.locator('[name=confirm]').fill('초기화');
     await r.locator('button[type=submit]').click();
-    await a.page.getByText(/참여 기록을 초기화했어요/).waitFor();
+    await a.page.getByText(/리뷰 [0-9]+건을 초기화했어요/).waitFor();
     for(const t of ['festival_ops.visits','festival_ops.vouchers','festival_ops.reviews','festival_ops.ledger']) assert.equal(await count(t),0,t);
     assert.equal((await db.query('select admin from public.users where id=$1',[admin.uid])).rows[0].admin,true);
 

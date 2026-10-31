@@ -41,8 +41,8 @@ const base = process.env.FESTIVAL_TEST_URL || 'http://127.0.0.1:5186/';
       await capture('all-menu');
       await page.keyboard.press('Escape');
       assert.equal(await page.locator('[data-home-menu]').evaluate(el => el === document.activeElement), true);
-      await page.locator('[data-home-notices]').click();
-      assert.equal(await page.locator('#homeNews').evaluate(el => el === document.activeElement), true);
+      // The home news section is on the page (the old jump button was removed).
+      assert.equal(await page.locator('#homeNews').count(), 1);
       await page.locator('.web-map-action').click();
       await page.locator('[data-floor="2"]').click();
       assert.equal(await page.locator('.indoor-floors .floor-tab').count(), 4);

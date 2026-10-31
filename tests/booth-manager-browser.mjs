@@ -200,9 +200,32 @@ try {
   // The manager's photo, hours and place on the booth page.
   assert.match(await v.page.locator('.detail-hero .club-visual img').getAttribute('src'),/festival-booths\/booths\/[0-9a-f]{32}\.jpg$/);
   assert.match(await v.page.locator('.detail-status-row').innerText(),/10:00–15:00/);
-  assert.match(await v.page.locator('.detail-club-heading .meta').innerText(),/3층 · 다목적강당/);
+  // One place text on the page: the meta line and the header agree.
+  assert.match(await v.page.locator('.detail-club-heading .meta').innerText(),/3층 다목적강당/);
+  assert.equal(await v.page.locator('.detail-screen .top-title span').innerText(),'3층 다목적강당');
+  assert.equal(await v.page.locator('[data-catalog-position]').count(),0);
   assert.doesNotMatch(await v.page.locator('.detail-club-heading .meta').innerText(),/임시 배치/);
   await check(v.page,'booth-detail');
+  // Text a booth manager types is shown as text, never run as HTML (location and hours).
+  await db.query(`update festival_ops.booths set location='<img src=x onerror="window.__xss=1">', program=program||'{"hours":"<b onmouseover=x>10:00</b>"}' where key=$1`,[CLUB]);
+  await v.page.evaluate(()=>festivalOpsUI.refresh(false));
+  await v.page.evaluate(()=>render());
+  await v.page.locator('.detail-screen .top-title span').filter({hasText:'<img'}).waitFor();
+  assert.equal(await v.page.evaluate(()=>window.__xss),undefined);
+  assert.equal(await v.page.locator('.detail-screen img[src="x"], .detail-status-row b').count(),0);
+  assert.match(await v.page.locator('.detail-status-row').innerText(),/<b onmouseover=x>10:00<\/b>/);
+  await v.page.evaluate(()=>{state.route='map';render();});
+  assert.equal(await v.page.locator('.sheet img[src="x"]').count(),0);
+  assert.equal(await v.page.evaluate(()=>window.__xss),undefined);
+  await db.query(`update festival_ops.booths set location='3층 다목적강당', program=program||'{"hours":"10:00–15:00"}' where key=$1`,[CLUB]);
+  await v.page.evaluate(()=>festivalOpsUI.refresh(false));
+  // Earned stamps read "적립 완료" on every row of the home record (not "평가하기" from the row index).
+  await v.page.evaluate(()=>{state.route='home';render();});
+  const records=await v.page.locator('.web-records .web-visit em').allInnerTexts();
+  assert.ok(records.length>=1); assert.ok(records.every(t=>t==='적립 완료'),records.join(','));
+  flows.push('manager text escaped','home record labels');
+  await v.page.evaluate(id=>goDetail(id),id);
+  await v.page.getByText('미니 해커톤 체험',{exact:true}).waitFor();
   await v.page.locator('[data-locate-booth]').click();
   await v.page.locator('.map-preview-card').waitFor();
   // 3층, inside 다목적강당.
