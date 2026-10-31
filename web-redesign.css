@@ -494,10 +494,10 @@
 .stamp-visit-history[open] > summary .ui-icon { transform: rotate(-90deg); }
 .stamp-history-body { border-top: 1px solid var(--line); padding-bottom: 10px; }
 .stamp-history-body > .text-link { display: flex; margin-left: auto; }
-.stamp-rating-pending { padding: 18px 0 22px; border-top: 1px solid var(--line); }
-.stamp-rating-pending h2 { display: flex; align-items: center; gap: 6px; color: #8b6415; font-size: 16px; }
-.stamp-rating-pending h2 > .ui-icon { width: 20px; height: 20px; }
-.stamp-rating-pending .web-visit { min-height: 72px; }
+.stamp-visits { padding: 18px 0 22px; border-top: 1px solid var(--line); }
+.stamp-visits h2 { display: flex; align-items: center; gap: 6px; font-size: 16px; }
+.stamp-visits h2 > span { color: var(--primary, #147a57); }
+.stamp-visits .web-visit { min-height: 72px; }
 @media (max-width: 359px) {
   .stamp-path-page { --stamp-size: 68px; }
   .stamp-path-list { padding-inline: 20px; }

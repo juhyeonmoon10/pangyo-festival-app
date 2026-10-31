@@ -2448,18 +2448,21 @@ function issuedTagItem(tag) {
   const busy = serverAdmin.tagBusy === tag.id;
   const tone = tag.status === "revoked" ? "disabled" : tag.status === "expired" ? "missing" : "enabled";
   const editing = serverAdmin.editingTag === tag.id;
+  // A failed action on this tag is shown in the tag's own row; a failed memo keeps what was typed.
+  const failed = serverAdmin.tagNote?.id === tag.id ? serverAdmin.tagNote : null;
   return `<li class="nfc-issued-tag is-${tag.status}" data-tag-id="${escapeHtml(tag.id)}">
       <div class="nfc-issued-head"><strong>${escapeHtml(tagBoothName(tag.boothKey))}</strong><span class="nfc-tag-state ${tone}">${TAG_STATUS_LABELS[tag.status]}</span></div>
       <p class="nfc-issued-memo ${tag.label ? "" : "empty"}">${escapeHtml(tag.label || "메모 없음")}</p>
       <p class="nfc-issued-meta">${tag.source === "discovered" ? `이전 발급 · ${formatShortDateTime(tag.issuedAt)} 첫 인식` : `${formatShortDateTime(tag.issuedAt)} 발급${tag.issuerName ? ` · ${escapeHtml(tag.issuerName)}` : ""}`}</p>
       <p class="nfc-issued-meta">인식 ${tag.useCount}회${tag.lastUsedAt ? ` · 마지막 ${formatShortDateTime(tag.lastUsedAt)}` : ""}${tag.revokedAt ? ` · ${formatShortDateTime(tag.revokedAt)} 중지` : ""}</p>
-      ${editing ? `<form class="nfc-issued-label" data-tag-label-form="${escapeHtml(tag.id)}"><input class="input" name="label" maxlength="40" value="${escapeHtml(tag.label)}" aria-label="카드 메모" autocomplete="off" /><button type="submit" class="primary-btn" ${busy ? "disabled" : ""}>저장</button><button type="button" class="ghost-btn" data-server-tag="cancel" data-tag="${escapeHtml(tag.id)}">취소</button></form>` : ""}
+      ${editing ? `<form class="nfc-issued-label" data-tag-label-form="${escapeHtml(tag.id)}"><input class="input" name="label" maxlength="40" value="${escapeHtml(failed?.label ?? tag.label)}" aria-label="카드 메모" autocomplete="off" /><button type="submit" class="primary-btn" ${busy ? "disabled" : ""}>저장</button><button type="button" class="ghost-btn" data-server-tag="cancel" data-tag="${escapeHtml(tag.id)}">취소</button></form>` : ""}
       <div class="nfc-issued-actions">
         ${tag.status === "active" ? `<button type="button" class="ghost-btn" data-server-tag="url" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>${icon("copy")} 주소 보기</button>` : ""}
         ${editing ? "" : `<button type="button" class="ghost-btn" data-server-tag="edit" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>메모</button>`}
         ${tag.status === "active" ? `<button type="button" class="ghost-btn danger" data-server-tag="revoke" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>사용 중지</button>` : ""}
         ${tag.status === "revoked" ? `<button type="button" class="ghost-btn" data-server-tag="restore" data-tag="${escapeHtml(tag.id)}" ${busy ? "disabled" : ""}>다시 사용</button>` : ""}
       </div>
+      ${spotMarkup(failed, `tag:${tag.id}`)}
     </li>`;
 }
 
@@ -3952,16 +3955,18 @@ async function serverTagAction(action, id) {
   if (action === "label") payload.label = String(document.querySelector(`[data-tag-label-form="${id}"] [name="label"]`)?.value || "").trim();
   const actingUser = state.user.id;
   serverAdmin.tagBusy = id;
+  serverAdmin.tagNote = null;
   render();
   const response = await festivalAccount.nfcTags(action, payload);
   serverAdmin.tagBusy = null;
   if (state.user?.id !== actingUser || !isAdminUser()) return;
   if (!response.ok) {
-    serverAdmin.tagsError = response.message;
+    serverAdmin.tagNote = { id, at: `tag:${id}`, text: response.message, tone: "error", label: action === "label" ? payload.label : undefined };
     render();
+    showSpot(`tag:${id}`, response.message);
     return;
   }
-  serverAdmin.tagsError = "";
+  serverAdmin.tagNote = null;
   if (action === "url") {
     serverAdmin.result = { tone: "success", title: `${name} 태그 주소`,
       body: "이미 발급한 태그와 같은 주소예요. 카드를 다시 기록할 때 사용하세요.",
@@ -4049,6 +4054,35 @@ function showStampPop() {
   pop.textContent = "스탬프 획득";
   document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 900);
+}
+
+// An action's result goes in the slot next to the control that started it ([data-spot]), never at
+// the top of a long screen where it goes unnoticed. note: { at, text, tone } or null.
+function spotMarkup(note, at) {
+  const mine = note?.at === at && note.text;
+  return `<p class="ops-form-status" role="status" data-spot="${escapeHtml(at)}"${mine ? ` data-tone="${escapeHtml(note.tone || "error")}"` : ""}>${mine ? escapeHtml(note.text) : ""}</p>`;
+}
+function showSpot(at, text, tone = "error") {
+  const node = [...document.querySelectorAll("[data-spot]")].find(item => item.dataset.spot === at);
+  if (!node) return false;
+  node.textContent = text;
+  node.dataset.tone = tone;
+  node.closest("details")?.setAttribute("open", "");
+  if (text) node.scrollIntoView({ block: "nearest" });
+  return true;
+}
+// Status lines written in place (forms of the operator tools, card registration, reviews) are
+// scrolled into view when they get text, so a result below the fold is still seen.
+function watchStatusLines() {
+  if (typeof MutationObserver !== "function" || !document.body) return;
+  const LINES = ".ops-form-status, .nfc-register-status, .review-feedback";
+  new MutationObserver(records => {
+    for (const record of records) {
+      const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      const line = element?.closest?.(LINES);
+      if (line?.textContent.trim() && line.getClientRects().length) { line.scrollIntoView({ block: "nearest" }); return; }
+    }
+  }).observe(document.body, { childList: true, characterData: true, subtree: true });
 }
 
 function applyServerProfile(profile) {
@@ -4139,7 +4173,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.27";
+const APP_RELEASE = "1.28";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;
@@ -4168,6 +4202,7 @@ function watchDeployment() {
 
 render();
 watchDeployment();
+watchStatusLines();
 initializeAccount();
 publicCatalog.subscribe(updateCatalogDom);
 publicCatalog.refresh();

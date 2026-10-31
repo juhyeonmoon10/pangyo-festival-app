@@ -202,7 +202,7 @@ const festivalOpsUI = (() => {
       (typeof festivalNotices==='undefined'?'':festivalNotices.editor(n))+
       `<label class="ops-checkbox"><input name="important" type="checkbox" ${n?.important?'checked':''}>중요 공지 (홈 맨 위 알림 띠에 표시)</label>`+
       `<label class="ops-checkbox"><input name="published" type="checkbox" ${!n || n.published?'checked':''}>학생에게 게시</label>`+
-      `<input type="hidden" name="id" value="${h(n?.id)}"><input type="hidden" name="version" value="${n?.version || 0}">`,n?'공지 수정':'공지 등록',n?'save':'plus')}${n?`<button type="button" class="ghost-btn danger ops-notice-delete" data-notice-delete="${h(n.id)}" data-notice-version="${n.version}">${icon('close')} 공지 삭제</button>`:''}</section>`
+      `<input type="hidden" name="id" value="${h(n?.id)}"><input type="hidden" name="version" value="${n?.version || 0}">`,n?'공지 수정':'공지 등록',n?'save':'plus')}${n?`<button type="button" class="ghost-btn danger ops-notice-delete" data-notice-delete="${h(n.id)}" data-notice-version="${n.version}">${icon('close')} 공지 삭제</button>${spotMarkup(null,'notice-delete')}`:''}</section>`
       +`<section class="ops-section"><h2>등록된 공지 <span class="ops-count">${items.length}개</span></h2>${items.length?`<ul class="ops-notice-list">${items.map(x=>`<li class="${x.published?'':'is-hidden'}"><div><strong>${x.important?'<span class="ops-notice-flag">중요</span>':''}${h(x.title)}</strong>${x.body?`<p>${h(x.body)}</p>`:''}<small>${h(time(x.createdAt))} · ${h(x.author)}${x.images?.length?` · 사진 ${x.images.length}장`:''}${x.published?'':' · 숨김'}</small></div><button type="button" class="ghost-btn" data-notice-edit="${h(x.id)}">수정</button></li>`).join('')}</ul>`:'<p class="ops-empty">아직 등록된 공지가 없어요.</p>'}</section>`;
   }
   function guardSummary(minutes,count) {
@@ -756,7 +756,7 @@ const festivalOpsUI = (() => {
       busy=true; b.disabled=true;
       try {
         const r=await api().write('notice_delete',{id:n.id,version:n.version});
-        if(!r.ok) { failure=r.message; render(); return; }
+        if(!r.ok) { showSpot('notice-delete',r.message); b.disabled=false; return; }
         if(typeof festivalNotices!=='undefined') { festivalNotices.reset(); festivalNotices.discard(n.images); }
         selectedNotice=''; notice='공지를 삭제했어요.'; await refresh();
       } finally { busy=false; }

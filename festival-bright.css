@@ -133,8 +133,6 @@ body.design-web {
 .design-web .stamp-path-step.is-claimable .stamp-path-face { border: 1px solid var(--reward-edge); }
 .design-web .stamp-path-step.is-claimable .stamp-reward-marker { color: var(--reward-ink); }
 .design-web .stamp-path-step.is-issued .stamp-reward-marker { color: var(--primary); }
-.design-web .stamp-rating-pending { color: var(--festival-blue); }
-.design-web .stamp-rating-pending h2 { color: var(--festival-blue); }
 .design-web .stamp-path-progress { height: 6px; }
 .festival-wallet-summary, .festival-profile-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 6px 0 22px; padding: 18px 0; border-block: 1px solid var(--line); }
 .festival-wallet-summary > div, .festival-profile-stats > div { text-align: center; padding-inline: 4px; min-width: 0; }
@@ -596,3 +594,14 @@ body.design-web {
 .manager-list li { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
 .manager-list li.is-off { color: var(--muted); }
 .manager-list small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+/* Operating hours picked with the phone's clock: 시작 – 끝, one row per time range. */
+.manager-hour-rows { display: grid; gap: 8px; }
+.manager-hour-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 8px; }
+.manager-hour-row label { display: grid; gap: 4px; min-width: 0; font-size: 13px; }
+.manager-hour-row input[type=time] { min-width: 0; width: 100%; padding-inline: 10px; font-size: 15px; }
+.manager-hour-row .icon-btn { position: absolute; top: -6px; right: 0; width: 28px; height: 28px; min-height: 0; padding: 0; }
+.manager-hour-row > span { display: none; }
+.manager-hours [data-hours-add] { justify-self: start; }
+/* Results shown next to the pressed button: progress in a neutral color, errors red, success green. */
+.ops-form-status[data-tone="info"] { color: var(--muted, #5b6470); }
+.ops-form-status[data-tone="error"] { color: #a62936; }
