@@ -500,6 +500,8 @@ body.design-web {
 .ops-notice-flag, .web-news-flag { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 999px; background: #fdecea; color: #a14449; font-size: 11px; font-weight: 700; vertical-align: 2px; }
 .ops-notice-delete { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; min-height: 44px; color: #a14449; }
 .ops-count { margin-left: 6px; color: var(--muted); font-size: 14px; font-weight: 400; }
+/* The notice column fills the row beside the megaphone, so each notice spans the screen width. */
+.web-announcement > div { flex: 1; min-width: 0; }
 .web-news-list { display: grid; gap: 12px; margin: 6px 0 0; padding: 0; list-style: none; }
 .web-news-list li + li { padding-top: 12px; border-top: 1px solid var(--line); }
 .web-news-list strong { display: block; overflow-wrap: anywhere; }
