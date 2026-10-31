@@ -62,3 +62,12 @@ test('Google login uses the existing root callback from every web page',async()=
     await account.signIn();assert.equal(options.redirectTo,'https://festival.test/');
   }
 });
+
+test('notice pages have their own URLs',()=>{
+  assert.deepEqual(router.parse('/notices'),{route:'notices'});
+  const target={route:'notice',noticeId:'2f1c9e40-1d1b-4b4b-9f0e-0a1b2c3d4e5f'};
+  assert.deepEqual(router.parse(router.pathname(target)),target);
+  assert.equal(router.parse('/notices/a/b'),null);
+  assert.ok(new RegExp(`^${router.pagePattern}$`).test('/notices/abc'));
+  assert.ok(new RegExp(`^${router.pagePattern}$`).test('/manage'));
+});

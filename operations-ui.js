@@ -13,8 +13,8 @@ const festivalOpsUI = (() => {
   let visitRecipient=null;
   let visitSyncPending=false, visitSyncGeneration=0;
   let identity=null, identityBusy=false, identityNote='', identityQuery='', identityDraft='';
-  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',identity_overview:'소속 관리',nfc:'NFC 발급',sun:'보안 NFC 카드','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
-  const localTabs=new Set(['tools','nfc','sun','stamp-simulator','settings']);
+  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',identity_overview:'소속 관리',booth_managers:'부스 담당자',nfc:'NFC 발급',sun:'보안 NFC 카드','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
+  const localTabs=new Set(['tools','nfc','sun','booth_managers','stamp-simulator','settings']);
   const h=value=>escapeHtml(String(value ?? ''));
   const VOUCHER_CODE=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
   const api=()=>festivalAccount?.operations;
@@ -144,7 +144,7 @@ const festivalOpsUI = (() => {
     return `<nav class="festival-ops-tabs" aria-label="관리 마법사 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>${!['dashboard','tools','audit'].includes(tab) ? '<button type="button" class="text-link festival-tool-back" data-ops-tab="tools">'+icon('back')+' 관리 도구 목록</button>' : ''}`;
   }
   function toolsMenu() {
-    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['sun','lock','보안 NFC 카드 (NTAG 424)'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
+    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['sun','lock','보안 NFC 카드 (NTAG 424)'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['booth_managers','user','부스 담당자'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
     return `<nav class="festival-ops-tools" aria-label="관리 도구">${tools.map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</nav>`;
   }
   function eventForm() {
@@ -193,10 +193,11 @@ const festivalOpsUI = (() => {
     return `<section class="ops-section ops-notice-form"><h2>${n?'공지 수정':'새 공지'}</h2><label>편집할 공지<select id="opsNoticeSelect" class="select"><option value="">새 공지 작성</option>${items.map(x=>`<option value="${h(x.id)}" ${x.id===selectedNotice?'selected':''}>${h(x.title)}${x.published?'':' (숨김)'}</option>`).join('')}</select></label>${form('notice_save',
       field('title','제목',n?.title,'required maxlength="80" autocomplete="off"')+
       `<label>내용<textarea class="textarea" name="body" maxlength="1000" rows="5" placeholder="학생 홈 화면의 축제 소식에 보여요.">${h(n?.body)}</textarea></label>`+
+      (typeof festivalNotices==='undefined'?'':festivalNotices.editor(n))+
       `<label class="ops-checkbox"><input name="important" type="checkbox" ${n?.important?'checked':''}>중요 공지 (홈 맨 위 알림 띠에 표시)</label>`+
       `<label class="ops-checkbox"><input name="published" type="checkbox" ${!n || n.published?'checked':''}>학생에게 게시</label>`+
       `<input type="hidden" name="id" value="${h(n?.id)}"><input type="hidden" name="version" value="${n?.version || 0}">`,n?'공지 수정':'공지 등록',n?'save':'plus')}${n?`<button type="button" class="ghost-btn danger ops-notice-delete" data-notice-delete="${h(n.id)}" data-notice-version="${n.version}">${icon('close')} 공지 삭제</button>`:''}</section>`
-      +`<section class="ops-section"><h2>등록된 공지 <span class="ops-count">${items.length}개</span></h2>${items.length?`<ul class="ops-notice-list">${items.map(x=>`<li class="${x.published?'':'is-hidden'}"><div><strong>${x.important?'<span class="ops-notice-flag">중요</span>':''}${h(x.title)}</strong>${x.body?`<p>${h(x.body)}</p>`:''}<small>${h(time(x.createdAt))} · ${h(x.author)}${x.published?'':' · 숨김'}</small></div><button type="button" class="ghost-btn" data-notice-edit="${h(x.id)}">수정</button></li>`).join('')}</ul>`:'<p class="ops-empty">아직 등록된 공지가 없어요.</p>'}</section>`;
+      +`<section class="ops-section"><h2>등록된 공지 <span class="ops-count">${items.length}개</span></h2>${items.length?`<ul class="ops-notice-list">${items.map(x=>`<li class="${x.published?'':'is-hidden'}"><div><strong>${x.important?'<span class="ops-notice-flag">중요</span>':''}${h(x.title)}</strong>${x.body?`<p>${h(x.body)}</p>`:''}<small>${h(time(x.createdAt))} · ${h(x.author)}${x.images?.length?` · 사진 ${x.images.length}장`:''}${x.published?'':' · 숨김'}</small></div><button type="button" class="ghost-btn" data-notice-edit="${h(x.id)}">수정</button></li>`).join('')}</ul>`:'<p class="ops-empty">아직 등록된 공지가 없어요.</p>'}</section>`;
   }
   function guardSummary(minutes,count) {
     return Number.isInteger(minutes) && Number.isInteger(count) && minutes>0 && count>0
@@ -228,7 +229,7 @@ const festivalOpsUI = (() => {
       field('name','부스 이름',b?.name,'required maxlength="100"')+field('location','위치',b?.location,'maxlength="200"')+
       select('floor','층',[[1,'1층'],[2,'2층'],[3,'3층'],[4,'4층']],b?.floor || 1)+
       select('status','운영 상태',[['paused','일시 중지'],['open','운영 중'],['closed','마감']],b?.status || 'paused')+
-      `<label>프로그램 안내<textarea class="textarea" name="description" maxlength="2000">${h(b?.description)}</textarea></label><input type="hidden" name="booth" value="${h(b?.key)}"><input type="hidden" name="version" value="${b?.version || 0}">`)}</section>`;
+      `<label>부스 소개<textarea class="textarea" name="description" maxlength="2000">${h(b?.description)}</textarea></label><input type="hidden" name="booth" value="${h(b?.key)}"><input type="hidden" name="version" value="${b?.version || 0}">`)}</section>`;
   }
   function ruleForm() {
     const rules=(data?.items || []).filter(x=>!x.reward_kind);
@@ -297,6 +298,7 @@ const festivalOpsUI = (() => {
   function admin() {
     if(tab==='nfc') return serverAdminView();
     // Secure cards (NTAG 424 DNA) are managed apart from the signed NFC tags.
+    if(tab==='booth_managers') return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>관리 마법사</strong></div></header>${navigation()}<div class="ops-body"><h1>부스 담당자</h1>${typeof festivalBoothManager==='undefined'?'':festivalBoothManager.adminView()}</div>${bottomNav('admin')}</main>`;
     if(tab==='sun') return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>관리 마법사</strong></div></header>${navigation()}${typeof festivalSunCards==='undefined'?'':festivalSunCards.view()}${bottomNav('admin')}</main>`;
     if(tab==='stamp-simulator') return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>관리 마법사</strong></div></header>${navigation()}${typeof festivalStampSimulator==='undefined'?'':festivalStampSimulator.view()}${bottomNav('admin')}</main>`;
     return `<main class="screen ops-screen"><header class="top-bar"><button class="icon-btn" data-route="home" aria-label="홈으로">${icon('back')}</button><div class="top-title"><strong>관리 마법사</strong></div></header>${navigation()}<div class="ops-body" aria-busy="${!loaded}"><h1>${labels[tab]}</h1>${notice?`<p class="ops-form-status" data-tone="success" role="status">${h(notice)}</p>`:''}${failure?`<p class="ops-alert" role="alert">${h(failure)}</p>`:''}${!loaded?'<p role="status">불러오는 중...</p>':failure?'':content()}</div>${bottomNav('admin')}</main>`;
@@ -338,7 +340,17 @@ const festivalOpsUI = (() => {
     if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save','booth_status_bulk'].includes(action) && !confirm(action==='booth_status_bulk'?`선택한 부스 ${body.booths.length}개를 '${statusName(body.status)}'(으)로 바꿀까요?${body.status==='open'?'':' 이 부스들은 NFC 방문 인증이 중지돼요.'}`:action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`이 축제의 방문·스탬프, 바우처, 리뷰와 포인트를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 공용 퀘스트·잔고·기존 별점과 NFC 태그는 유지돼요. 삭제한 행사 기록은 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장입니다.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장입니다. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; note.textContent='처리 중...';
     try {
+      // Notice photos are uploaded first; the notice then stores their paths.
+      let uploaded=[];
+      if(action==='notice_save' && typeof festivalNotices!=='undefined') {
+        note.textContent='사진을 올리는 중...';
+        const up=await festivalNotices.uploadDraft(body.id);
+        if(!up.ok) { note.textContent=up.message; return; }
+        if(up.images) body.images=up.images;
+        uploaded=up.uploaded;
+      }
       const response=await api().write(action,body);
+      if(!response.ok && uploaded.length) festivalNotices.discard(uploaded);
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!response.ok) {
         if(['visit_approve','points_adjust','voucher_issue'].includes(action) && ['NOT_FOUND','STUDENT_NOT_FOUND','STUDENT_AMBIGUOUS'].includes(response.code)) {
@@ -354,7 +366,7 @@ const festivalOpsUI = (() => {
         // Local caches mirror the deleted server records until the next profile load.
         serverReviews.clear(); serverMyReviews=null; serverCompletedBooths=[]; form.reset();
       }
-      if(action==='notice_save') selectedNotice='';
+      if(action==='notice_save') { selectedNotice=''; if(typeof festivalNotices!=='undefined') festivalNotices.afterSave(); }
       notice=action==='notice_save'?(body.id?'공지를 수정했어요.':body.published?'공지를 등록했어요. 학생 홈에 바로 보여요.':'공지를 숨김 상태로 저장했어요.'):action==='booth_status_bulk'?`부스 ${response.data.selected}개를 '${statusName(response.data.status)}'(으)로 맞췄어요. 바뀐 부스 ${response.data.changed}개.`:action==='participation_reset'?`이 축제의 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 초기화했어요. 공용 기록은 유지돼요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':'저장했어요.';
       selectedBooth=response.data.booth || selectedBooth; selectedRule=response.data.id && action==='rule_save'?response.data.id:selectedRule;
       await refresh();
@@ -739,6 +751,7 @@ const festivalOpsUI = (() => {
       try {
         const r=await api().write('notice_delete',{id:n.id,version:n.version});
         if(!r.ok) { failure=r.message; render(); return; }
+        if(typeof festivalNotices!=='undefined') { festivalNotices.reset(); festivalNotices.discard(n.images); }
         selectedNotice=''; notice='공지를 삭제했어요.'; await refresh();
       } finally { busy=false; }
     });

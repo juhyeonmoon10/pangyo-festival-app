@@ -101,6 +101,8 @@ function navigationSnapshot() {
     searchOpen: state.searchOpen,
     adminTab: state.adminTab,
     reviewPickerOpen: state.reviewPickerOpen,
+    noticeId: state.noticeId || null,
+    mapSelection: state.route === "map" && Boolean(state.selectedBoothId && state.mapSelectionEntry),
   };
 }
 
@@ -117,7 +119,7 @@ function writeNavigationHistory(mode = "push") {
 
 function navigateTo(route, { replace = false } = {}) {
   const changed = state.route !== route || (window.FestivalRouter?.isWeb(location)
-    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId}) !== location.pathname);
+    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId}) !== location.pathname);
   if (window.FestivalRouter && !state.user && route !== "login") {
     pendingNavigation = { ...navigationSnapshot(), route };
     route = "login";
@@ -133,6 +135,8 @@ function applyNavigationSnapshot(snapshot) {
   state.floor = Number(snapshot.floor) || 1;
   if (!FLOORS.some(item => item.floor === state.floor)) state.floor = 1;
   state.selectedBoothId = snapshot.selectedBoothId || null;
+  state.mapSelectionEntry = Boolean(snapshot.mapSelection);
+  state.noticeId = snapshot.noticeId || null;
   state.sheetLevel = snapshot.sheetLevel || "peek";
   state.sheetOpen = state.sheetLevel !== "peek";
   state.searchOpen = Boolean(snapshot.searchOpen);
@@ -1497,6 +1501,9 @@ function render() {
     if (state.route === "vouchers") app.innerHTML = isServerMode() ? festivalOpsUI.vouchers() : festivalWeb.vouchers();
     if (state.route === "reviews") app.innerHTML = festivalWeb.reviews();
     if (state.route === "identity") app.innerHTML = festivalOpsUI.identityView();
+    if (state.route === "notices") app.innerHTML = festivalNotices.listView();
+    if (state.route === "notice") app.innerHTML = festivalNotices.detailView();
+    if (state.route === "manage") app.innerHTML = festivalBoothManager.view();
     if (state.route === "boothReviews") app.innerHTML = boothReviewsView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
@@ -1742,6 +1749,7 @@ function profileView() {
         ${[["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
       </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "관리 마법사 열기" : "관리 마법사 열기"}</button>` : ""}
+      ${typeof festivalBoothManager !== "undefined" ? festivalBoothManager.profileButton() : ""}
       <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(festivalWeb.visitRow).join('') : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
@@ -1770,8 +1778,41 @@ function boothSearchText(booth) {
   return normalizeSearchText(`${booth.name} ${booth.clubName} ${booth.location} ${classLabel} ${(booth.aliases || []).join(" ")} ${remote?.name || ""} ${remote?.position || ""}`);
 }
 
+const HANGUL_INITIALS = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+// "판교 고" -> "ㅍㄱ ㄱ": each Hangul syllable becomes its initial consonant.
+function hangulInitials(value) {
+  return Array.from(String(value ?? ""), ch => {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    return code >= 0 && code < 11172 ? HANGUL_INITIALS[Math.floor(code / 588)] : ch.toLocaleLowerCase("ko-KR");
+  }).join("");
+}
+
+// Names people see on the list: the booth, its club and where it is.
+function boothVisibleNames(booth) {
+  const remote = catalogBooth(booth);
+  return [catalogName(booth), booth.name, booth.clubName, remote?.name, booth.location, remote?.position].filter(Boolean).map(String);
+}
+
+// 0 = no match, higher = better. A one-letter query (one syllable or consonants) only matches the
+// start of a visible word, so it never pulls in a booth through a hidden alias or a word's middle.
+function boothSearchScore(booth, query = state.search) {
+  const raw = String(query ?? "").replace(/[\s\u200B-\u200D\uFEFF]+/gu, "");
+  if (!raw) return 1;
+  const words = boothVisibleNames(booth).flatMap(name => name.split(/[\s()\-·,:/]+/u)).filter(Boolean);
+  if (/^[ㄱ-ㅎ]+$/u.test(raw)) {
+    if (words.some(word => hangulInitials(word).startsWith(raw))) return 3;
+    return raw.length > 1 && hangulInitials(boothVisibleNames(booth).join("")).replace(/\s+/gu, "").includes(raw) ? 1 : 0;
+  }
+  const needle = normalizeSearchText(raw);
+  if (normalizeSearchText(catalogName(booth)).startsWith(needle)) return 4;
+  if (words.some(word => normalizeSearchText(word).startsWith(needle))) return 3;
+  if (Array.from(needle).length < 2) return 0;
+  if (normalizeSearchText(boothVisibleNames(booth).join(" ")).includes(needle)) return 2;
+  return boothSearchText(booth).includes(needle) ? 1 : 0;
+}
+
 function matchesBoothSearch(booth) {
-  return boothSearchText(booth).includes(normalizeSearchText(state.search));
+  return boothSearchScore(booth) > 0;
 }
 
 function visibleBooths() {
@@ -1782,14 +1823,16 @@ function visibleBooths() {
 function searchResults() {
   let booths = state.db.booths;
   if (normalizeSearchText(state.search)) {
-    booths = booths.filter(matchesBoothSearch);
+    // Best matches first, then by name.
+    const scores = new Map(booths.map(booth => [booth.id, boothSearchScore(booth)]));
+    return sortedBooths(booths.filter(booth => scores.get(booth.id) > 0)).sort((a, b) => scores.get(b.id) - scores.get(a.id));
   }
   return sortedBooths(booths);
 }
 
 function mapPlanForFloor(floor) {
   const room = (label, x, y, w, h, type = "facility") => ({ label, x, y, w, h, type });
-  const corridor = (x, y, w, h, label = "복도") => ({ x, y, w, h, label });
+  const corridor = (x, y, w, h, label = "복도", labelAt = 50) => ({ x, y, w, h, label, labelAt });
   const connector = (x, y, w, h) => ({ x, y, w, h });
 
   if (floor === 1) {
@@ -1807,7 +1850,7 @@ function mapPlanForFloor(floor) {
         room("교장실", 34, 46, 10, 14),
         room("행정실", 44, 46, 8, 14),
       ],
-      corridors: [corridor(4, 40, 92, 6, "본관 복도")],
+      corridors: [corridor(4, 40, 92, 6, "본관 복도", 24)],
       connectors: [],
       exits: [{ label: "중앙 출입구", x: 58, y: 64 }],
     };
@@ -1847,17 +1890,17 @@ function mapPlanForFloor(floor) {
       subtitle: "2학년 교실 · 과학실 · 음악실",
       rooms: [
         ...shared,
-        room("음악실", 50, 52, 12, 11, "special"),
-        room("과학실", 31, 67, 18, 12, "science"),
-        room("계단", 49, 67, 8, 20, "core"),
-        room("과학실", 31, 79, 18, 12, "science"),
-        room("진로상담부", 31, 91, 26, 5),
-        room("학사실", 57, 67, 14, 29),
-        room("다목적강당", 77, 67, 21, 27, "auditorium"),
+        room("음악실", 60, 49, 12, 10, "special"),
+        room("과학실", 31, 65, 18, 8, "science"),
+        room("계단", 49, 65, 8, 16, "core"),
+        room("과학실", 31, 73, 18, 8, "science"),
+        room("진로상담부", 31, 81, 26, 9),
+        room("학사실", 57, 65, 14, 25),
+        room("다목적강당", 77, 65, 21, 25, "auditorium"),
       ],
-      corridors: [corridor(4, 28, 95, 6), corridor(31, 61, 67, 6, "특별실 연결")],
-      connectors: [connector(50, 48, 5, 13), connector(71, 72, 6, 6)],
-      exits: [{ label: "본관 출입구", x: 49, y: 54 }, { label: "특별실 계단", x: 55, y: 89 }],
+      corridors: [corridor(4, 28, 95, 6), corridor(31, 59, 67, 6, "특별실 연결", 72)],
+      connectors: [connector(50, 48, 5, 11), connector(71, 70, 6, 6)],
+      exits: [{ label: "본관 출입구", x: 52.5, y: 53 }],
     };
   }
 
@@ -1865,7 +1908,7 @@ function mapPlanForFloor(floor) {
     subtitle: "3학년 교실 · 미술실 · 하늘정원",
     rooms: [
       ...shared,
-      room("미술실", 53, 53, 12, 11, "special"),
+      room("미술실", 60, 49, 12, 10, "special"),
       room("하늘정원", 31, 66, 35, 24, "garden"),
       room("다목적강당", 76, 66, 22, 24, "auditorium"),
     ],
@@ -1893,18 +1936,25 @@ function boothForPlanRoom(item, booths) {
   return booths.find((booth) => booth.name === item.label || booth.location.includes(item.label)) || null;
 }
 
+// Room labels wrap only between words; the CSS scales the text to the widest word and the line count.
+function planLabelFit(label) {
+  const words = String(label).split(/\s+/u).filter(Boolean);
+  const width = Math.max(1.5, ...words.map(word => Array.from(word).reduce((sum, ch) => sum + (/[가-힣ㄱ-ㅎ]/u.test(ch) ? 1 : 0.62), 0)));
+  return `--label-units:${width.toFixed(2)};--label-lines:${Math.max(1, words.length)}`;
+}
+
 function mapPlanMarkup(plan, booths) {
   return `
     <div class="plan-boundary" aria-hidden="true"></div>
     ${plan.connectors.map((item) => `<div class="plan-connector" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"></div>`).join("")}
-    ${plan.corridors.map((item) => `<div class="plan-corridor" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"><span>${item.label}</span></div>`).join("")}
+    ${plan.corridors.map((item) => `<div class="plan-corridor" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"><span style="--label-at:${item.labelAt}%">${item.label}</span></div>`).join("")}
     ${plan.rooms.map((item, index) => {
       const booth = boothForPlanRoom(item, booths);
-      if (!booth) return `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms"><span>${item.label}</span></div>`;
+      if (!booth) return `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms;${planLabelFit(item.label)}"><span>${item.label}</span></div>`;
       const visited = repo.hasStamp(state.user.id, booth.id);
       const selected = state.selectedBoothId === booth.id;
       return `
-        <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}, ${statusInfo(booth.status).label}" title="${escapeHtml(booth.name)}">
+        <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms;${planLabelFit(item.label)}" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}, ${statusInfo(booth.status).label}" title="${escapeHtml(booth.name)}">
           <span>${item.label}</span>
           <small>${booth.category === "class" ? "부스" : "안내"}</small>
           <i class="room-state" aria-hidden="true">${icon("check")}</i>
@@ -2057,7 +2107,6 @@ function choiceSelect({ id, label, caption = "", options }) {
 
 function markerClass(booth) {
   const classes = ["marker", booth.category || "class", `status-${booth.status}`];
-  if (booth.favorite) classes.push("favorite");
   if (repo.hasStamp(state.user.id, booth.id)) classes.push("visited");
   return classes.join(" ");
 }
@@ -2089,9 +2138,9 @@ function boothItem(booth) {
     <button class="booth-item ${booth.category || "class"} ${officialClub ? "has-club-visual" : ""} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       ${officialClub ? clubVisual(booth) : ""}
       <span class="booth-main">
-        <strong>${booth.favorite ? icon("heart") + " " : ""}${catalogName(booth)}</strong>
+        <strong>${catalogName(booth)}</strong>
         <span class="meta">${metaText}</span>
-        <span class="booth-stats"><i class="rating-stat">${icon("star")} ${catalogRating(booth)}</i><i>${isServerMode() ? (repo.hasReview(state.user.id, booth.id) ? "별점 남김" : stamped ? "별점 남기기" : "방문 후 평가") : `평가 ${rating.count}`}</i><i data-booth-visited="${booth.id}" class="${stamped ? "visit-complete" : ""}">${stamped ? "방문 완료" : "방문 전"}</i></span>
+        <span class="booth-stats"><i class="rating-stat">${icon("star")} ${catalogRating(booth)}</i>${isServerMode() ? (stamped ? `<i>${repo.hasReview(state.user.id, booth.id) ? "별점 남김" : "별점 남기기"}</i>` : "") : `<i>평가 ${rating.count}</i>`}<i data-booth-visited="${booth.id}" class="${stamped ? "visit-complete" : ""}">${stamped ? "방문 완료" : "방문 전"}</i></span>
       </span>
       ${statusBadge(booth.status)}
       <span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span>
@@ -2737,7 +2786,7 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
-  const current = active === "boothReviews" ? "map" : ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity"].includes(active) ? "profile" : active;
+  const current = active === "boothReviews" ? "map" : ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity", "manage"].includes(active) ? "profile" : ["notices", "notice"].includes(active) ? "home" : active;
   return `
     <nav class="bottom-nav" aria-label="주요 메뉴">
       ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}
@@ -2760,6 +2809,7 @@ function bindEvents() {
     state.floor = booth.floor;
     state.search = '';
     state.selectedBoothId = booth.id;
+    state.mapSelectionEntry = false;
     state.mapZoom = 1;
     state.mapOffsetX = state.mapOffsetY = 0;
     setSheetLevel('peek');
@@ -2937,7 +2987,6 @@ function bindEvents() {
     commitSearch(event.target.value);
   });
   searchInput?.addEventListener("input", (event) => {
-    if (event.isComposing || searchInput.dataset.composing === "true") return;
     commitSearch(event.target.value);
   });
   document.querySelector("#clearEmptySearch")?.addEventListener("click", () => {
@@ -2963,29 +3012,13 @@ function bindEvents() {
   document.querySelector("#mapCard")?.addEventListener("click", (event) => {
     if (!state.selectedBoothId) return;
     if (event.target.closest("button") || event.target.closest(".map-preview-card")) return;
-    state.selectedBoothId = null;
-    state.mapZoom = 1;
-    state.mapOffsetX = 0;
-    state.mapOffsetY = 0;
-    if (history.state?.key === HISTORY_KEY && history.state.selectedBoothId && navigationIndex > 0) history.back();
-    else {
-      render();
-      writeNavigationHistory("replace");
-    }
+    closeMapCard();
   });
   bindBoothListButtons();
   document.querySelectorAll("[data-clear-selection]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      state.selectedBoothId = null;
-      state.mapZoom = 1;
-      state.mapOffsetX = 0;
-      state.mapOffsetY = 0;
-      if (history.state?.key === HISTORY_KEY && history.state.selectedBoothId && navigationIndex > 0) history.back();
-      else {
-        render();
-        writeNavigationHistory("replace");
-      }
+      closeMapCard();
     });
   });
   document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", (event) => {
@@ -3062,6 +3095,8 @@ function bindEvents() {
   festivalOpsUI.bind();
   if (typeof festivalStampSimulator !== "undefined") festivalStampSimulator.bind();
   if (typeof festivalSunCards !== "undefined") festivalSunCards.bind();
+  if (typeof festivalNotices !== "undefined") festivalNotices.bind();
+  if (typeof festivalBoothManager !== "undefined") festivalBoothManager.bind();
 }
 
 function closeMenus() {
@@ -3635,12 +3670,32 @@ function adjustMapZoom(delta) {
 
 function selectMapBooth(id) {
   if (state.selectedBoothId === id) return;
+  // Opening a card adds one history entry; switching to another booth replaces it, so the back
+  // button and the card's X both return to the map without a card.
+  const opening = !state.selectedBoothId || !state.mapSelectionEntry;
   state.selectedBoothId = id;
+  state.mapSelectionEntry = true;
   state.searchOpen = false;
   if (state.sheetLevel === "full") setSheetLevel("mid");
   state.openMenu = null;
   render();
-  writeNavigationHistory("push");
+  writeNavigationHistory(opening ? "push" : "replace");
+}
+
+// Closes the booth card and stays on the map. History steps back only over the entry the map
+// itself added; a card opened from a booth's 지도에서 보기 is closed in place.
+function closeMapCard() {
+  const pushed = history.state?.key === HISTORY_KEY && history.state.mapSelection && navigationIndex > 0;
+  state.selectedBoothId = null;
+  state.mapSelectionEntry = false;
+  state.mapZoom = 1;
+  state.mapOffsetX = 0;
+  state.mapOffsetY = 0;
+  if (pushed) history.back();
+  else {
+    render();
+    writeNavigationHistory("replace");
+  }
 }
 
 function focusMapOnBooth(id, targetZoom = state.mapZoom) {
@@ -4066,7 +4121,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.25";
+const APP_RELEASE = "1.26";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;
