@@ -9,6 +9,18 @@
   const SUN_TOKEN_PATTERN = /^sun1\.[0-9A-F]{32}\.[0-9A-F]{16}(\.[A-Za-z0-9_-]{1,300})?$/;
   const claimToken = value => typeof value === "string" && value.length <= 1024 && (TOKEN_PATTERN.test(value) || SUN_TOKEN_PATTERN.test(value));
   const PENDING_KEY = "pangyo-pending-nfc-v1";
+  const STUDENT_NUMBER = /^[1-3][0-9]{4}$/;
+  // A @pangyo.hs.kr Google account is named "<학번 5자리><이름>", e.g. "21001홍길동" (the name has
+  // two or more Hangul letters). Returns { studentNumber, name } or null for any other account.
+  function schoolIdentity(email, names) {
+    if (typeof email !== "string" || !/@pangyo\.hs\.kr$/i.test(email.trim())) return null;
+    for (const value of names) {
+      if (typeof value !== "string") continue;
+      const match = value.normalize("NFC").trim().match(/^([1-3][0-9]{4})\s*([가-힣]{2,30})$/);
+      if (match) return { studentNumber: match[1], name: match[2] };
+    }
+    return null;
+  }
   const MESSAGES = {
     AUTH_REQUIRED: "로그인이 필요해요.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
     PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", PROFILE_CONFLICT: "계정 연결을 확인해야 해요. 운영자에게 문의해 주세요.",
@@ -198,14 +210,24 @@
 
     async function profile() {
       const current = await readProfile();
-      if (!current.needsProfile || validName(current.name)) return current;
+      if (!current.needsProfile || (validName(current.name) && STUDENT_NUMBER.test(current.studentNumber))) return current;
       const { data, error } = await client.auth.getUser();
       if (error) throw error;
       if (!data?.user || data.user.id !== current.authUserId) throw new Error("AUTH_REQUIRED");
       const google = data.user.identities?.find(identity => identity.provider === "google")?.identity_data || {};
       const metadata = data.user.user_metadata || {};
-      const name = [google.full_name, google.name, metadata.full_name, metadata.name].find(validName);
-      // This is an onboarding default, not a completed profile or a role assertion.
+      const names = [google.full_name, google.name, metadata.full_name, metadata.name];
+      // School accounts are named "21001홍길동": the 학번 and the name are filled in for the student
+      // to confirm. This is an onboarding default, not a completed profile or a role assertion.
+      const school = schoolIdentity(data.user.email || current.email, names);
+      if (validName(current.name)) {
+        return school && !STUDENT_NUMBER.test(current.studentNumber) ? { ...current, studentNumber: school.studentNumber, studentNumberDetected: true } : current;
+      }
+      if (school) {
+        const studentNumber = STUDENT_NUMBER.test(current.studentNumber) ? current.studentNumber : school.studentNumber;
+        return { ...current, name: school.name, studentNumber, ...(studentNumber === school.studentNumber ? { studentNumberDetected: true } : {}) };
+      }
+      const name = names.find(validName);
       return { ...current, name: name ? name.trim() : current.name };
     }
 
@@ -491,5 +513,5 @@
       },
       signOut: () => client.auth.signOut({ scope: "local" }), normalizeError };
   }
-  return { createAccount, normalizeError, validateProfile, validateReviews, validateReviewPolicy, validateIdentityState, validateIssuedTag, TOKEN_PATTERN, SUN_TOKEN_PATTERN };
+  return { createAccount, normalizeError, validateProfile, schoolIdentity, validateReviews, validateReviewPolicy, validateIdentityState, validateIssuedTag, TOKEN_PATTERN, SUN_TOKEN_PATTERN };
 });
