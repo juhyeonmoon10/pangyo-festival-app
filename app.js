@@ -4149,7 +4149,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.32";
+const APP_RELEASE = "1.33";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

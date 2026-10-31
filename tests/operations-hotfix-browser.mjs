@@ -310,6 +310,10 @@ try {
     await a.page.waitForFunction(()=>document.querySelector('#opsRedeem [name=token]')?.value==='');
     assert.equal((await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}])).vouchers[0].state,'used');
     await screenshot(a.page,width,'redeemed');
+    // The approval popup names the owner; it closes with 확인.
+    assert.match(await a.page.locator('.voucher-approved-list').innerText(),/격리 학생/);
+    await a.page.locator('[data-voucher-approved-ok]').click();
+    assert.equal(await a.page.locator('.voucher-scan-dialog').count(),0);
     // The student's open voucher dialog notices the redemption within one 5-second check.
     await s.page.locator('.ops-voucher-done.used').getByText('사용이 완료되었어요').waitFor({timeout:9000});
     assert.equal(await s.page.locator('.ops-qr, .ops-voucher-code, [data-copy-code]').count(),0);

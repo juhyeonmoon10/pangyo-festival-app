@@ -460,6 +460,13 @@ body.design-web {
 .ops-voucher-done strong { font-size: 19px; }
 .ops-voucher-done p { margin: 0; color: var(--muted); font-size: 14px; }
 .ops-voucher-done + .primary-btn { width: 100%; }
+/* Approval popup (voucher-scan.js): what was approved, for whom and when. */
+.voucher-approved-list { display: grid; gap: 0; margin: 0 0 4px; border-top: 1px solid var(--line); }
+.voucher-approved-list div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.voucher-approved-list dt { color: var(--muted); font-size: 14px; flex: none; }
+.voucher-approved-list dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.voucher-approved-list + .primary-btn { width: 100%; }
+.voucher-manager [data-vm-camera] { margin: 4px 0 8px; }
 /* NFC stamp rate limit settings and the participants who reached it. */
 .ops-guard-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .ops-guard-summary { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--festival-mint, #e8f8f0); color: var(--primary); font-size: 14px; font-weight: 700; }

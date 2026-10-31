@@ -1,5 +1,6 @@
 // Real browser and operations SQL; all remote requests terminate in local PGlite.
-// Covers 권한 관리 → 바우처 담당자: grant by kind, approval limited to that kind, revoke.
+// Covers 권한 관리 → 바우처 담당자: grant by kind, approval limited to that kind (typed or scanned
+// with a fake camera), the approval popup, revoke, and operator scanning.
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -40,7 +41,7 @@ async function account(admin,studentNumber,name='격리 학생') {
 const admin=await account(true,'29999','격리 운영자');
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'바우처 담당자 격리 검증',state:'open',reviewPoints:10,version:0});
-for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions','sun-nfc','booth-managers','notice-images','booth-profile','manual-voucher-issue','voucher-managers'])
+for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions','sun-nfc','booth-managers','notice-images','booth-profile','manual-voucher-issue','voucher-managers','voucher-approval-and-manual-issue'])
   await db.exec(fs.readFileSync(path.join(root,`operations-server/${file}.sql`),'utf8'));
 for(const {key} of (await db.query('select key from festival_ops.booths')).rows) await write(admin,'booth_save',{booth:key,name:key,status:'open',floor:1,version:1});
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
@@ -53,7 +54,10 @@ await rpc(lead,'select public.festival_review_identity_self($1,$2) value',['conf
 
 const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==','base64');
 const output=path.join(root,'artifacts/voucher-manager'); fs.mkdirSync(output,{recursive:true});
-const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
+const cameraFile=path.join(output,'camera.y4m');
+fs.writeFileSync(cameraFile,'');
+const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH,
+  args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream',`--use-file-for-fake-video-capture=${cameraFile}`]});
 const pages=[], uploads=[], boothUploads=[], removed=[];
 async function pageFor(a,width=390) {
   const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true});
@@ -114,6 +118,28 @@ async function issue(kind,to) {
 const codeOf=async id=>(await db.query('select festival_ops.voucher_code(code_secret,festival_ops.voucher_step()) c from festival_ops.vouchers where id=$1',[id])).rows[0].c;
 const stateOf=async id=>(await db.query('select state from festival_ops.vouchers where id=$1',[id])).rows[0].state;
 const food=await issue('food',visitor),photo=await issue('photo',visitor);
+// The fake camera shows this voucher's current QR (the student's screen), drawn as a Y4M video.
+const {createRequire:req}=await import('node:module');
+const qrcode=req(import.meta.url)('../assets/vendor/qrcode-1.4.4.js');
+async function showOnCamera(id) {
+  const q=qrcode(0,'M'); q.addData(await codeOf(id)); q.make();
+  const W=640,H=480,n=q.getModuleCount(),cell=Math.floor(360/(n+8)),size=cell*(n+8),x0=(W-size)/2|0,y0=(H-size)/2|0;
+  const y=Buffer.alloc(W*H,235);
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(q.isDark(r,c))
+    for(let dy=0;dy<cell;dy++) y.fill(16,(y0+(r+4)*cell+dy)*W+x0+(c+4)*cell,(y0+(r+4)*cell+dy)*W+x0+(c+5)*cell);
+  const uv=Buffer.alloc(W*H/2,128), frame=Buffer.concat([Buffer.from('FRAME\n'),y,uv]);
+  fs.writeFileSync(cameraFile,Buffer.concat([Buffer.from(`YUV4MPEG2 W${W} H${H} F10:1 Ip A1:1 C420jpeg\n`),frame,frame]));
+}
+// The popup after an approval: voucher, owner name, 학번 and the approval date and time.
+async function popup(page,title) {
+  const list=page.locator('.voucher-approved-list');
+  await list.waitFor();
+  const rows=Object.fromEntries(await list.locator('div').evaluateAll(ds=>ds.map(d=>[d.querySelector('dt').textContent,d.querySelector('dd').textContent])));
+  assert.equal(rows['바우처'],title); assert.equal(rows['이름'],'가상방문'); assert.equal(rows['학번'],'21001');
+  assert.match(rows['승인 일시'],/^\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{2}:\d{2}$/);
+  assert.match(await page.locator('.voucher-scan-dialog .ops-voucher-done strong').innerText(),/사용 승인이 완료되었어요/);
+  return async()=>{ await page.locator('[data-voucher-approved-ok]').click(); await page.waitForFunction(()=>!document.querySelector('.voucher-scan-dialog')); };
+}
 
 const flows=[];
 try {
@@ -165,10 +191,17 @@ try {
   // The typed code stays after a failure.
   assert.equal((await form.locator('[name=code]').inputValue()).length,8);
   await check(m.page,'manager-refused');
-  await form.locator('[name=code]').fill(await codeOf(food));
-  await form.locator('button[type=submit]').click();
+  // The food voucher by camera: scan, confirm, then the approval popup.
+  await showOnCamera(food);
+  await m.page.locator('[data-vm-camera]').click();
+  await m.page.locator('.voucher-scan-dialog video').waitFor();
+  const close=await popup(m.page,'푸드트럭 교환권');
+  await check(m.page,'manager-scan-approved');
+  await close();
   await m.page.locator('[data-spot=vm-redeem]',{hasText:'사용 완료로 처리했어요'}).waitFor();
   assert.equal(await stateOf(food),'used');
+  // Windows Chrome has no BarcodeDetector: the bundled jsQR read the frame.
+  if(!await m.page.evaluate(()=>'BarcodeDetector' in window)) assert.equal(await m.page.evaluate(()=>typeof window.jsQR),'function');
   const audit=(await db.query('select actor_id,action,reason from festival_ops.audit where target=$1',[food])).rows[0];
   assert.deepEqual(audit,{actor_id:lead.uid,action:'voucher_manager_redeem',reason:'food'});
   await check(m.page,'manager-redeemed');
@@ -176,7 +209,7 @@ try {
   await form.locator('[name=code]').fill(await codeOf(food));
   await form.locator('button[type=submit]').click();
   await m.page.locator('[data-spot=vm-redeem]',{hasText:'이미 사용한 바우처예요.'}).waitFor();
-  flows.push('manager refused other kind','manager redeemed own kind');
+  flows.push('manager refused other kind','manager scanned and redeemed own kind','approval popup');
 
   // A participant without the role sees no voucher approval.
   const v=await pageFor(visitor);
@@ -201,11 +234,14 @@ try {
   await openOperatorTool(a.page,'vouchers');
   const redeem=a.page.locator('#opsRedeem');
   await redeem.waitFor();
-  await redeem.locator('[name=token]').fill(await codeOf(photo));
-  await redeem.locator('button[type=submit]').click();
+  await showOnCamera(photo);
+  await redeem.locator('[data-ops-camera]').click();
+  const closeOps=await popup(a.page,'포토부스 이용권');
+  await check(a.page,'operator-scan-approved');
+  await closeOps();
   await a.page.getByText('바우처를 사용 처리했어요.',{exact:false}).waitFor();
   assert.equal(await stateOf(photo),'used');
-  flows.push('operator redeems any kind');
+  flows.push('operator scans any kind');
 
   for(const {errors} of pages) assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:true,flows}));
