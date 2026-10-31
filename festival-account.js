@@ -5,6 +5,9 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
   const TOKEN_PATTERN = /^nf1\.[A-Za-z0-9_-]+\.[0-9a-f]{64}$/;
+  // NTAG 424 DNA secure-card reads (see sun-nfc.js); verified only by festival_sun_claim.
+  const SUN_TOKEN_PATTERN = /^sun1\.[0-9A-F]{32}\.[0-9A-F]{16}(\.[A-Za-z0-9_-]{1,300})?$/;
+  const claimToken = value => typeof value === "string" && value.length <= 1024 && (TOKEN_PATTERN.test(value) || SUN_TOKEN_PATTERN.test(value));
   const PENDING_KEY = "pangyo-pending-nfc-v1";
   const MESSAGES = {
     AUTH_REQUIRED: "로그인이 필요합니다.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
@@ -15,6 +18,9 @@
     PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했어요. 새로고침 후 이름을 확인해 주세요.",
     NFC_DISABLED: "방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
     NFC_TAG_EXPIRED: "사용이 중지되었거나 교체·만료된 태그입니다.",
+    SUN_DISABLED: "보안 카드 적립이 잠시 중지됐어요.", SUN_CARD_INVALID: "확인되지 않은 보안 카드예요. 카드를 휴대폰에 다시 대 주세요.",
+    SUN_CARD_UNKNOWN: "아직 등록되지 않은 보안 카드예요. 부스 운영자에게 알려 주세요.", SUN_CARD_STOPPED: "사용이 중지된 보안 카드예요.",
+    SUN_CARD_REPLAYED: "이미 사용한 카드 주소예요. 카드를 휴대폰에 다시 대 주세요.",
     NOT_FOUND: "대상을 찾을 수 없어요. 목록을 새로고침해 주세요.",
     CLAIM_RATE_LIMITED: "짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.",
     VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있어요.",
@@ -272,13 +278,16 @@
     }
 
     function claim(token) {
-      if (typeof token !== "string" || token.length > 1024 || !TOKEN_PATTERN.test(token)) {
+      if (!claimToken(token)) {
         return Promise.resolve({ ok: false, ...normalizeError({ message: "NFC_TAG_INVALID" }) });
       }
       if (inFlight.has(token)) return inFlight.get(token);
       const request = Promise.resolve().then(async () => {
         try {
-          const op = operations && await operations.write('claim', { token });
+          // Secure-card reads go only through the operations RPC; there is no legacy fallback.
+          const sun = SUN_TOKEN_PATTERN.test(token) ? globalThis.FestivalSun?.fromToken(token) : null;
+          if (SUN_TOKEN_PATTERN.test(token) && (!sun || !operations)) return { ok: false, ...normalizeError({ message: sun ? "SERVER_NOT_READY" : "SUN_CARD_INVALID" }) };
+          const op = operations && await (sun ? operations.write('sun_claim', globalThis.FestivalSun.payload(sun)) : operations.write('claim', { token }));
           if (op && !op.ok) return op;
           const { data, error } = op || await client.rpc("festival_nfc_claim", { p_token: token });
           if (error) return { ok: false, ...normalizeError(error) };
@@ -391,7 +400,7 @@
     function savePending(claim) {
       try {
         if (!claim) storage.removeItem(PENDING_KEY);
-        else if (TOKEN_PATTERN.test(claim.nfcToken) && claim.nfcToken.length <= 1024) {
+        else if (claimToken(claim.nfcToken)) {
           storage.setItem(PENDING_KEY, JSON.stringify({ ...claim, savedAt: Date.now() }));
         }
       } catch { /* Authentication remains usable if browser storage is restricted. */ }
@@ -400,7 +409,7 @@
     function pending() {
       try {
         const claim = JSON.parse(storage.getItem(PENDING_KEY) || "null");
-        if (claim && TOKEN_PATTERN.test(claim.nfcToken) && claim.nfcToken.length <= 1024
+        if (claim && claimToken(claim.nfcToken)
           && Date.now() - claim.savedAt >= 0 && Date.now() - claim.savedAt < 15 * 60 * 1000) return claim;
       } catch { /* Treat corrupt local state as absent. */ }
       savePending(null);
@@ -458,5 +467,5 @@
       },
       signOut: () => client.auth.signOut({ scope: "local" }), normalizeError };
   }
-  return { createAccount, normalizeError, validateProfile, validateReviews, validateReviewPolicy, validateIdentityState, validateIssuedTag, TOKEN_PATTERN };
+  return { createAccount, normalizeError, validateProfile, validateReviews, validateReviewPolicy, validateIdentityState, validateIssuedTag, TOKEN_PATTERN, SUN_TOKEN_PATTERN };
 });

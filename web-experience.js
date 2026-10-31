@@ -487,6 +487,12 @@ const festivalWeb = (() => {
               stopScan(); button.textContent = "NFC 읽기 시작";
               nfcAdapter.scan(createNfcClaim(token, "web-nfc")); return;
             }
+            // A secure card produces a new one-time link on every read.
+            const sun = window.FestivalSun?.parse(url.href);
+            if (sun) {
+              stopScan(); button.textContent = "NFC 읽기 시작";
+              nfcAdapter.scan(createNfcClaim(window.FestivalSun.toToken(sun), "web-nfc")); return;
+            }
           } catch { /* Ignore unsupported records. */ }
         }
         if (status?.isConnected) status.textContent = "이 웹사이트에서 발급한 태그가 아니에요.";
