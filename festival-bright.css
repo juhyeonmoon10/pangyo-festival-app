@@ -605,3 +605,27 @@ body.design-web {
 /* Results shown next to the pressed button: progress in a neutral color, errors red, success green. */
 .ops-form-status[data-tone="info"] { color: var(--muted, #5b6470); }
 .ops-form-status[data-tone="error"] { color: #a62936; }
+/* 1.29 — fixes from the 1.28 audit (BUG_AUDIT_1_28.md). */
+/* Disabled commands look disabled (the green fill used to hide the legacy grey). */
+.design-web :is(.primary-btn, .ghost-btn, .danger-btn):disabled { opacity: .5; cursor: not-allowed; }
+.design-web .primary-btn:disabled:hover { background: var(--primary); }
+/* Focus: the green outline only, without the legacy pink glow. */
+.design-web :is(.input, .textarea, .select):focus { box-shadow: none; }
+/* Legacy slate text and blue fallbacks follow the festival palette. */
+.design-web :is(.section-heading h2, .panel.section h2, .detail-hero .title, .detail-metrics strong, .profile-list strong) { color: var(--text); }
+.design-web :is(.detail-hero .meta, .profile-list span) { color: var(--muted); }
+.design-web .club-visual { border-color: var(--line); box-shadow: none; }
+.design-web .club-visual.fallback { background: var(--primary); color: #fff; }
+/* MY rows: label on the left, value on the right, the whole row is the target. */
+.design-web .profile-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; }
+.design-web .profile-list > div strong { text-align: right; }
+.design-web .profile-identity-row { min-height: 52px; }
+/* Readable floor of 12px on the map list, its chips and the stamp faces. */
+.design-web :is(.map-screen .sheet .booth-main .meta, .map-sheet-title small, .search-result-list .booth-main .meta, .web-program .section-heading > span, .stamp-path-face small) { font-size: 12px; }
+.design-web .booth-stats i, .design-web .map-screen .sheet .booth-stats, .design-web .map-screen :is(.sheet, .search-result-list) .status-badge { font-size: 12px; }
+.design-web .booth-stats i, .design-web .map-screen .sheet .booth-stats i { height: 24px; font-size: 12px; font-weight: 700; }
+/* 44px touch targets in the operator tools and the hours editor. */
+.design-web :is(.ops-bulk-quick .ghost-btn, .ops-notice-list .ghost-btn, .server-admin .nfc-issued-actions .ghost-btn) { min-height: 44px; }
+.design-web .ops-form .ops-checkbox, .design-web .ops-bulk-list .ops-checkbox { min-height: 44px; }
+.design-web .ops-checkbox input { width: 24px; height: 24px; flex: none; }
+.manager-hour-row .icon-btn { top: -14px; right: -8px; width: 44px; height: 44px; }

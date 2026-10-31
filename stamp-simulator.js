@@ -77,7 +77,7 @@ const festivalStampSimulator = (() => {
     const next = visits.length<3?3:6;
     return `<section class="stamp-simulator" data-stamp-simulator aria-label="스탬프 모의 발급">
       <header class="stamp-sim-heading"><h1>스탬프 모의 발급</h1><span>테스트 전용</span></header>
-      <p class="stamp-sim-boundary">완성 스탬프를 가정한 테스트입니다. 실제 방문·별점·포인트·바우처는 바뀌지 않으며, 새로고침하면 모의 기록이 사라집니다.</p>
+      <p class="stamp-sim-boundary">완성 스탬프를 가정한 테스트예요. 실제 방문·별점·포인트·바우처는 바뀌지 않으며, 새로고침하면 모의 기록이 사라집니다.</p>
       <dl class="stamp-sim-stats"><div><dt>모의 스탬프</dt><dd>${visits.length}<small>개</small></dd></div><div><dt>모의 바우처</dt><dd>${vouchers.length}<small>장</small></dd></div></dl>
       <form id="stampSimIssueForm" class="stamp-sim-form"><label for="stampSimBooth">발급할 부스</label><select id="stampSimBooth" class="select" ${list.length?'':'disabled'}>${list.map(b=>`<option value="${h(b.id)}" ${b.id===selected?'selected':''}>${h(b.name)}${visits.some(v=>v.boothId===b.id)?' · 발급됨':''}</option>`).join('')}</select>
         <button type="submit" id="stampSimIssue" class="primary-btn" ${!current||already?'disabled':''}>${icon('stamp')} ${already?'이 부스 발급 완료':'모의 발급'}</button>
@@ -131,7 +131,7 @@ const festivalStampSimulator = (() => {
     };
     const resetButton = document.querySelector('[data-stamp-sim-reset]');
     if (resetButton) resetButton.onclick = () => {
-      if (guard() && confirm('이 화면의 모의 스탬프와 모의 바우처만 초기화할까요? 실제 기록은 유지됩니다.')) repaint(reset(), '#stampSimBooth');
+      if (guard() && confirm('이 화면의 모의 스탬프와 모의 바우처만 초기화할까요? 실제 기록은 유지돼요.')) repaint(reset(), '#stampSimBooth');
     };
     const previewButton = document.querySelector('[data-stamp-sim-preview]');
     if (previewButton) previewButton.onclick = preview;

@@ -1,6 +1,6 @@
 # 판교고 축제 웹 UI 디자인 가이드라인
 
-작성일: 2026-10-31 (버전 1.28 기준)
+작성일: 2026-10-31 (버전 1.28 측정, 1.29 수정 반영)
 
 이 문서는 다른 UI를 가진 사이트와 이 사이트를 합칠 때, 이 사이트의 모습과 사용감을 그대로 유지하기 위한 기준이다.
 
@@ -117,8 +117,8 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
 | 상태 | 글자 | 배경 | 비고 |
 | --- | --- | --- | --- |
 | 성공·운영 중 배지 `.status-badge.success` | `#166534` | `#dcfce7` | |
-| 위험 배지 `.status-badge.danger` (일시 중지에 쓰임) | `#991b1b` | `#fee2e2` | |
-| 경고 배지 `.status-badge.warning` | `#92400e` | `#fef3c7` | |
+| 위험 배지 `.status-badge.danger` | `#991b1b` | `#fee2e2` | 오류 상태에만 |
+| 경고 배지 `.status-badge.warning` (일시 중지) | `#92400e` | `#fef3c7` | 1.29부터 일시 중지는 노랑 |
 | 중립 배지 (준비 중·마감·상태 미등록) | `#475569` | `#f1f5f9` | |
 | 오류 문구 `.ops-form-status`, `.ops-alert` | `#a62936` / `#a43530` | 없음 / `#fff0ed` | |
 | 성공 문구 `[data-tone=success]` | `#087e5a` | 없음 | |
@@ -149,17 +149,15 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
 - 점수별 막대: 5점 `#96c6a0`, 4점 `#b9d47c`, 3점 `#f6d56b`, 2점 `#f3b06d`, 1점 `#e9886a`.
 - 작성자 아바타(이름 끝 두 글자): `#e07b39`, `#7b3fa6`, `#2f7d6d`, `#3d6fb6`, `#c2477a`, `#8a6d1f` 중 이름으로 고정 선택.
 
-### 3.7 쓰지 말아야 할 옛 색 (아직 일부 화면에 새어 나옴)
+### 3.7 쓰지 말아야 할 옛 색
 
 - `styles.css`의 파랑 `#2563eb`, 남색 글자 `#0f172a` / `#172033` / `#526176`, 분홍 그림자 `rgba(255,79,100,…)`.
-- 이 색들은 아직 다음 자리에 보인다.
-  - 섹션 제목 h2(`#0f172a`)
-  - 부스 상세 제목(`#0f172a`), 상세 메타(`#526176`)
-  - 동아리 이미지 없을 때 기본 바탕(`#2563eb`)
-  - 입력칸 포커스 분홍 번짐
-- 합칠 때는 다음 원칙을 따른다.
-  - **화면을 똑같이 유지하는 것이 목표면** 실측값을 그대로 옮긴다.
-  - **정리하는 것이 목표면** 위 자리를 `--text`/`--muted`/`--primary`로 바꾼다.
+- 1.29에서 `festival-bright.css` 끝부분이 다음 자리를 축제 색으로 덮어쓴다.
+  - 섹션 제목·상세 제목·통계 숫자 → `--text`
+  - 상세 메타 → `--muted`
+  - 동아리 이미지 없을 때 바탕 → `--primary`
+  - 입력칸 포커스의 분홍 번짐 → 제거
+- 옛 색은 `styles.css`에만 남아 있다. 새 화면에서 그 값을 참고하지 않는다.
 
 ### 3.8 모서리 (실측)
 
@@ -246,7 +244,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | 최소 글자 | **12px** | 하단 내비, 캡션, 날짜 |
 | (예외) 지도 방 이름 | 7~11px | 방 크기에 맞춤 |
 
-> 지도 목록 일부는 아직 11px, 범례는 9px다([버그 목록](BUG_AUDIT_1_28.md) 참고). 새로 만드는 화면은 12px 아래로 내리지 않는다.
+> 1.29부터 지도 목록의 메타·칩·배지와 스탬프 도장 안 글자도 12px이다. 새로 만드는 화면은 12px 아래로 내리지 않는다.
 
 ---
 
@@ -307,9 +305,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
   - 주 버튼은 `#075e43`으로 바뀐다.
   - `styles.css`의 1px 위로 뜨는 효과가 아이콘·고스트 버튼에 남아 있다.
 - **포커스**: `3px solid #285e92`, 바깥 3px 간격.
-- **비활성**: `cursor: not-allowed`.
-  - **현재 비활성 주 버튼이 활성과 같은 색으로 보인다.** [버그 목록](BUG_AUDIT_1_28.md) 참고.
-  - 새 화면에서는 `opacity: .55` 정도로 구분해야 한다.
+- **비활성**: 불투명도 50%, `cursor: not-allowed`(1.29부터, 주·보조·위험 버튼 공통).
 - **문구**: 동사로 끝낸다("부스 정보 저장", "학생 확인", "스탬프 1개 승인"). 실행 결과가 무거운 버튼은 누르기 전에 `confirm()`으로 한 번 더 묻는다.
 
 ### 6.2 입력
@@ -318,7 +314,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
   - 최소 높이 48px, 글자 16px, 모서리 12px.
   - 테두리 1px `#d5e1da`, 바탕 `#fbfdfc`, 안쪽 여백 13px 14px.
   - 텍스트영역은 최소 96px이고 세로로만 늘어난다.
-- **포커스**: 테두리 `--primary`, 바깥선 `2px solid #0b8c6350`(반투명 초록), 1px 간격. 지금은 분홍 번짐(`0 0 0 4px rgba(255,79,100,.12)`)이 함께 나온다(버그).
+- **포커스**: 테두리 `--primary`, 바깥선 `2px solid #0b8c6350`(반투명 초록), 1px 간격. 그림자는 없다.
 - **라벨**: `<label>` 안에 입력을 넣는 구조이고 글자 13~14px/600이다. 라벨과 입력 사이 6~8px.
 - **placeholder**: `--muted`, 불투명도 1. "예: …" 형태로 쓴다.
 - **체크박스·라디오**: `accent-color: var(--primary)`, 22px. 줄 전체(라벨)를 누를 수 있게 한다.
@@ -488,7 +484,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - **동아리 이미지** `.club-visual`
   - 목록 36~44px(모서리 8px), 상세 56px(모서리 16px).
   - 사진은 `cover`로 채우고, 로고는 `contain` + 안쪽 4px + 흰 바탕으로 넣는다.
-  - 이미지가 없으면 첫 글자를 넣는다. 지금은 바탕 `#0f766e`, 상세는 파랑이 섞여 있다.
+  - 이미지가 없으면 첫 글자를 흰색으로 넣고 바탕은 `--primary`, 테두리 `--line`, 그림자 없음.
 - 담당자가 올린 사진은 긴 변 1080px JPEG이고, 공지 사진은 1600px이다.
 - 홈 일러스트(`festival-map-1.4.webp`)는 88×80 영역에 `contain`으로 넣는다.
 - 모든 장식 이미지는 `alt=""`로 둔다. 동아리 대표 이미지는 상세 화면에서만 "○○ 대표 이미지"로 alt를 단다.
@@ -628,7 +624,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 ## 14. DESIGN.md와 실제 화면의 차이
 
-화면을 똑같이 유지하려면 "실제" 열을 따른다.
+화면을 똑같이 유지하려면 "실제" 열을 따른다. 1.29에서 DESIGN.md를 실제 값에 맞췄고, 아래 표 끝의 다섯 줄은 1.29에서 화면 쪽을 고쳤다.
 
 | 항목 | DESIGN.md | 실제(측정) | 원인 |
 | --- | --- | --- | --- |
@@ -639,7 +635,8 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | 지도 시트 그림자 | `0 -6px 24px #183e2c12` | `rgba(23,32,51,.12) 0 -8px 24px` | `styles.css` 값이 남았다 |
 | 부스 상세 제목 | 26px | **23px**, 색 `#0f172a` | `web-redesign.css` 270행, `styles.css` 색 |
 | 섹션 제목 색 | ink | `#0f172a` | `styles.css` |
-| 입력 포커스 | 파랑 3px 링 | 초록 반투명 2px 선 + **분홍 4px 번짐** | `styles.css`의 `.input:focus` |
-| 비활성 버튼 | "보이게 유지" | **활성과 똑같이 보임** | `.design-web .primary-btn`이 `:disabled` 회색을 덮어쓴다 |
-| 동아리 이미지 없음 | — | 초록 `#0f766e` / 상세 파랑 `#2563eb` + 그림자 | `styles.css` |
-| 일시 중지 표시 | 노랑(경고) | 배지는 **빨강**(danger), 지도는 노랑 | `BOOTH_STATUS.paused.tone = 'danger'` |
+| 입력 포커스 | 파랑 3px 링 | 1.28: 분홍 번짐 → **1.29: 초록 테두리·선만** | `styles.css`의 `.input:focus` |
+| 비활성 버튼 | "보이게 유지" | 1.28: 활성과 같음 → **1.29: 불투명도 50%** | `.design-web .primary-btn`이 `:disabled` 회색을 덮어썼다 |
+| 동아리 이미지 없음 | — | 1.28: 청록·파랑 → **1.29: `--primary`** | `styles.css` |
+| 일시 중지 표시 | 노랑(경고) | 1.28: 배지 빨강 → **1.29: 배지도 노랑** | `BOOTH_STATUS.paused.tone` |
+| 섹션·상세 제목 색 | ink | 1.28: `#0f172a` → **1.29: `--text`** | `styles.css` |

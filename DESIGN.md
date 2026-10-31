@@ -41,7 +41,8 @@ typography:
     letterSpacing: "0"
 rounded:
   compact: "4px"
-  control: "8px"
+  control: "12px"
+  surface: "8px"
 spacing:
   tight: "8px"
   related: "12px"
@@ -53,12 +54,12 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.paper}"
     rounded: "{rounded.control}"
-    height: "50px"
+    height: "48px"
   button-secondary:
     backgroundColor: "{colors.wash}"
     textColor: "{colors.ink}"
     rounded: "{rounded.control}"
-    height: "50px"
+    height: "44px"
   input:
     backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
@@ -129,7 +130,7 @@ Primary green identifies actions, completed ink stamps, selected ratings, and cu
 
 Use the local Korean-capable stack in the frontmatter; no remote font download is required. Font names earlier in the stack are optional, not bundled assets. All letter spacing is zero.
 
-- Web screen headers use the screen-title role; map and stamp headers retain the heading role. Home greetings are 27px, reducing to 24px at the compact breakpoint; booth titles are 26px and the login title 32px.
+- Web screen headers use the screen-title role; map and stamp headers retain the heading role. Home greetings are 27px, reducing to 24px at the compact breakpoint; booth titles are 23px and the login title 32px.
 - Body copy is 15px; input text is 16px. Supporting labels are generally 12-13px.
 - Home record counts use 36px, the stamp summary 40px, and compact statistics 27px with tabular numerals.
 - Korean phrases keep words together but can wrap anywhere when necessary. Do not scale type with viewport width.
@@ -142,17 +143,17 @@ Use full-width section breaks and unframed lists. The map remains a full-height 
 
 ## Elevation & Depth
 
-Most surfaces are flat and separated by spacing, a thin line, or a restrained tint. Buttons and floor controls have no decorative shadow. The map sheet uses `0 -6px 24px #183e2c12` to identify a movable layer. Dialogs retain protected focus and a dim backdrop.
+Most surfaces are flat and separated by spacing, a thin line, or a restrained tint. Buttons and floor controls have no decorative shadow. The map sheet uses a soft upward shadow (rendered `0 -8px 24px rgba(23,32,51,.12)`) to identify a movable layer. Dialogs retain protected focus and a dim backdrop.
 
 ## Shapes
 
-Controls, coupon items, and dialogs use restrained corners. Buttons use 8px; compact map geometry uses 4px. Circular double-ring stamps and the round brand mark are intentional exceptions. No page section is nested inside a decorative card.
+Controls, coupon items, and dialogs use restrained corners. Buttons and inputs use 12px; icon buttons, cards, the map search and sheet use 8px; compact map geometry and badges use 4px. Circular double-ring stamps and the round brand mark are intentional exceptions. No page section is nested inside a decorative card.
 
 ## Components
 
 ### Buttons and Inputs
 
-Primary and secondary commands have a minimum height of 50px. Icon commands are at least 44px. Inputs are at least 48px tall. Focus is a 3px information-blue outline with a 3px offset. Input carets are green. Disabled and loading states remain visible and keep their functional behavior.
+Primary commands are 48px tall (44px inside operator forms), secondary commands 44px, the danger command 50px. Icon commands are at least 44px. Inputs are at least 48px tall. Focus is a 3px information-blue outline with a 3px offset; focused inputs show a green border and outline only. Input carets are green. Disabled commands are shown at 50% opacity with a not-allowed cursor; loading states remain visible and keep their functional behavior.
 
 ### Navigation
 
@@ -187,5 +188,7 @@ Map panning and Korean composition do not trigger whole-screen entrance motion. 
 - Don't ship synthetic proposal data or mock operator actions as real features.
 - Don't reintroduce crowded dashboards, nested cards, crowding indicators, or event creation.
 - Don't carry legacy amber selected-star styling into new screens.
+
+Measured values for every component, the cascade between the five stylesheets and a merge checklist are in `UI_DESIGN_GUIDE.md`; when this file and the rendered page disagree, follow the guide.
 
 Legacy source styles remain beneath the final stylesheet for compatibility. Their dormant decorative treatments are not design rules for new components.

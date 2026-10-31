@@ -158,7 +158,7 @@ const festivalWeb = (() => {
   }
   function walletTabs() {
     const summary = walletSummary(), historyCount = coupons().filter(c => couponState(c) !== 'available').length;
-    return `<nav class="festival-view-tabs" aria-label="바우처 분류">${[['claim', '받기', summary.claimable ?? '—'], ['available', '보유', summary.available], ['history', '사용·종료', historyCount]].map(([id, label, count]) => `<button type="button" data-voucher-filter="${id}" aria-pressed="${voucherFilter === id}">${label} <span>${count}</span></button>`).join('')}</nav>`;
+    return `<nav class="festival-view-tabs" aria-label="바우처 분류">${[['claim', '받기', summary.claimable], ['available', '보유', summary.available], ['history', '사용·종료', historyCount]].map(([id, label, count]) => `<button type="button" data-voucher-filter="${id}" aria-pressed="${voucherFilter === id}">${label}${count === null || count === undefined ? '' : ` <span>${count}</span>`}</button>`).join('')}</nav>`;
   }
   function reviewRow(booth) {
     const rated = repo.hasReview(state.user.id, booth.id);
@@ -203,6 +203,16 @@ const festivalWeb = (() => {
     return `<button type="button" class="festival-identity-prompt" data-route="identity">${icon("user")}<span><strong>본인 소속 확인을 먼저 해 주세요</strong><small>${identity.locked ? "운영자 확인이 필요해요. 운영 부스에 문의해 주세요." : "소속 동아리를 확인해야 부스에 별점을 남길 수 있어요."}</small></span>${icon("arrow")}</button>`;
   }
 
+  // Nothing to review yet: either no visits, or visits waiting for the club identity check.
+  function continueEmpty(visits) {
+    const identity = isServerMode() ? festivalOpsUI.identity?.() : null;
+    const unchecked = isServerMode() ? Boolean(identity?.eligible && !identity.verified) : null;
+    const waitingIdentity = visits.filter(s => !repo.hasReview(state.user.id, s.boothId)
+      && (unchecked ?? reviewEligibility(s.boothId).reason === "REVIEW_IDENTITY_REQUIRED")).length;
+    if (waitingIdentity) return `<div class="festival-empty"><span>${icon('user')}</span><strong>소속 확인 후 후기를 남길 수 있어요</strong><p>방문한 부스 ${waitingIdentity}곳이 소속 확인을 기다리고 있어요.</p><button type="button" class="ghost-btn" data-route="identity">본인 소속 확인하기 ${icon('arrow')}</button></div>`;
+    return `<div class="festival-empty"><span>${icon('message')}</span><strong>남길 후기가 없어요</strong><p>새로운 부스를 방문해 보세요.</p><button type="button" class="ghost-btn" data-route="map">부스 찾아보기 ${icon('arrow')}</button></div>`;
+  }
+
   function home() {
     syncRewards();
     const visits = repo.stampsForUser(state.user.id);
@@ -226,7 +236,7 @@ const festivalWeb = (() => {
         <span class="map-action-copy"><strong>부스 찾아보기 ${icon("arrow")}</strong><span>층별 지도에서 부스 위치와 운영 상태를 확인해요.</span></span>
         <img class="map-action-art" src="./assets/festival-map-1.4.webp" width="1536" height="1024" alt="" />
       </button>
-      <section class="web-section festival-continue"><div class="section-heading"><h2>이어서 남기기</h2><button type="button" class="text-link" data-route="reviews">${toWrite}개 ${icon('arrow')}</button></div>${pendingReviews.length ? pendingReviews.slice(0, 2).map(reviewRow).join('') : `<div class="festival-empty"><span>${icon('message')}</span><strong>남길 후기가 없어요</strong><p>새로운 부스를 방문해 보세요.</p><button type="button" class="ghost-btn" data-route="map">부스 찾아보기 ${icon('arrow')}</button></div>`}</section>
+      <section class="web-section festival-continue"><div class="section-heading"><h2>이어서 남기기</h2><button type="button" class="text-link" data-route="reviews">${toWrite}개 ${icon('arrow')}</button></div>${pendingReviews.length ? pendingReviews.slice(0, 2).map(reviewRow).join('') : continueEmpty(visits)}</section>
       <section class="web-section home-quick-section">
         <div class="section-heading"><h2>축제 바로가기</h2><button type="button" class="text-link" data-home-menu>전체 메뉴 ${icon("arrow")}</button></div>
         <nav class="web-shortcuts" aria-label="축제 바로가기">
@@ -234,7 +244,7 @@ const festivalWeb = (() => {
         </nav>
       </section>
       ${visits.length ? `<section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
-        <div class="web-records">${visits.slice(-3).reverse().map(visitRow).join("")}</div>
+        <div class="web-records">${visits.slice(-3).reverse().map(v => visitRow(v)).join("")}</div>
       </section>` : ""}
       <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><div class="section-heading"><h2>축제 소식</h2>${news.length ? `<button type="button" class="text-link" data-route="notices">전체 보기 ${icon('arrow')}</button>` : ''}</div>${news.length ? `<ul class="web-news-list">${news.slice(0, 5).map(n => `<li class="${n.important ? 'important' : ''}"><button type="button" class="web-news-open" data-notice-open="${escapeHtml(n.id)}"><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${escapeHtml(n.title)}</strong>${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}${n.publishedAt ? `<small>${new Date(n.publishedAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}${n.images?.length ? ` · 사진 ${n.images.length}장` : ''}</small>` : ''}</button></li>`).join('')}</ul>` : '<strong>등록된 공지가 없어요</strong>'}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
@@ -266,7 +276,7 @@ const festivalWeb = (() => {
   function visitRow(visit, toRate = false) {
     const booth = state.db.booths.find(b => b.id === visit.boothId);
     if (!booth) return "";
-    return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span>${toRate ? '<em class="pending">평가하기</em>' : '<em class="done">적립 완료</em>'}${icon("arrow")}</button>`;
+    return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(typeof boothPlaceText === "function" ? boothPlaceText(booth) : booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span>${toRate ? '<em class="pending">평가하기</em>' : '<em class="done">적립 완료</em>'}${icon("arrow")}</button>`;
   }
   // Stamps not rated yet, rateable or not, in one 방문 기록 list.
   function waitingRow(stamp) {
@@ -293,7 +303,7 @@ const festivalWeb = (() => {
       </section>
       ${pending.length + restricted.length ? `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${pending.length + restricted.length}</span></h2></div>${[...pending, ...restricted].map(waitingRow).join("")}</section>` : ""}
       ${stampPath(earned, pending, rewards)}
-      <details class="stamp-visit-history"><summary><span>완료한 방문</span><span>${earned.length}개 ${icon("arrow")}</span></summary><div class="stamp-history-body"><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>${earned.length ? earned.slice().reverse().map(visitRow).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</div></details>
+      <details class="stamp-visit-history"><summary><span>완료한 방문</span><span>${earned.length}개 ${icon("arrow")}</span></summary><div class="stamp-history-body"><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>${earned.length ? earned.slice().reverse().map(v => visitRow(v)).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</div></details>
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
   }
@@ -354,7 +364,7 @@ const festivalWeb = (() => {
     const list = all.filter(c => voucherFilter === "available" ? couponState(c) === "available" : couponState(c) !== "available");
     return `<main class="screen web-page festival-wallet">${header("바우처")}${walletTabs()}
       <section class="festival-tab-content" aria-busy="${loading}">${failure ? `<p class="ops-alert" role="alert">${escapeHtml(failure)}</p><button class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 불러오기</button>` : ''}${loading ? '<p role="status">바우처를 불러오는 중이에요.</p>' : voucherFilter === 'claim' ? rewardPanel() : list.length ? list.map(voucherCard).join('') : `<div class="festival-empty"><span>${icon('ticket')}</span><strong>${voucherFilter === 'available' ? '보유한 바우처가 없어요' : '사용한 바우처가 없어요'}</strong><p>${voucherFilter === 'available' ? '달성한 혜택을 받아 보세요.' : '사용·만료·취소된 바우처는 여기에 남아요.'}</p>${voucherFilter === 'available' ? '<button class="ghost-btn" data-voucher-filter="claim">받을 바우처 확인</button>' : ''}</div>`}
-      ${!isServerMode() ? '<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>' : ''}<p id="opsVoucherStatus" role="status"></p></section>
+      ${!isServerMode() ? '<p class="web-demo-note">시연용 바우처 · 실제 상품으로 교환할 수 없어요.</p>' : ''}</section>
       ${bottomNav("vouchers")}</main>`;
   }
 
@@ -414,11 +424,12 @@ const festivalWeb = (() => {
   function program(booth) {
     const served = isServerMode() && booth.opsRecord?.program && Object.keys(booth.opsRecord.program).length ? booth.opsRecord.program : null;
     const p = served || (!isServerMode() && booth.program) || window.FestivalPrograms?.[booth.officialClubId || booth.id];
-    return `<section class="web-program section"><div class="section-heading"><h2>프로그램 안내</h2><span>${p ? "행사 프로그램" : "안내 준비 중"}</span></div>${p ? `${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ''}${p.description ? `<p>${escapeHtml(p.description)}</p>` : ''}<dl>${[["운영 시간", p.hours], ["소요 시간", p.duration], ["참여 방법", p.participation], ["준비물", p.materials]].map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value || "추후 안내")}</dd></div>`).join("")}</dl>` : `<p>이 동아리의 행사 프로그램은 아직 등록되지 않았어요. 확정된 활동과 참여 방법이 이곳에 표시됩니다.</p><dl><div><dt>운영 시간</dt><dd>추후 안내</dd></div><div><dt>참여 방법</dt><dd>현장 운영자에게 문의</dd></div></dl>`}${canUseMockNfcTools() ? programEditor(booth, p) : ""}</section>`;
+    const hours = isServerMode() ? formatOperatingHours(booth) : p?.hours || "추후 안내";
+    return `<section class="web-program section"><div class="section-heading"><h2>프로그램 안내</h2><span>${p ? "행사 프로그램" : "안내 준비 중"}</span></div>${p ? `${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ''}${p.description ? `<p>${escapeHtml(p.description)}</p>` : ''}<dl>${[["운영 시간", hours], ["소요 시간", p.duration], ["참여 방법", p.participation], ["준비물", p.materials]].map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value || "추후 안내")}</dd></div>`).join("")}</dl>` : `<p>이 동아리의 행사 프로그램은 아직 등록되지 않았어요. 확정된 활동과 참여 방법이 이곳에 표시돼요.</p><dl><div><dt>운영 시간</dt><dd>${escapeHtml(hours)}</dd></div><div><dt>참여 방법</dt><dd>현장 운영자에게 문의</dd></div></dl>`}${canUseMockNfcTools() ? programEditor(booth, p) : ""}</section>`;
   }
 
   function programEditor(booth, p = {}) {
-    return `<details class="web-program-editor"><summary>프로그램 안내 편집</summary><p class="web-muted">이 브라우저에만 저장됩니다. 공용 DB에는 반영되지 않아요.</p><form id="programEditor" data-booth-id="${booth.id}">
+    return `<details class="web-program-editor"><summary>프로그램 안내 편집</summary><p class="web-muted">이 브라우저에만 저장돼요. 공용 DB에는 반영되지 않아요.</p><form id="programEditor" data-booth-id="${booth.id}">
       ${[["title", "프로그램 이름", 80], ["description", "활동 소개", 1000], ["hours", "운영 시간", 100], ["duration", "소요 시간", 100], ["participation", "참여 방법", 300], ["materials", "준비물", 200]].map(([key, label, limit]) => `<label for="program-${key}">${label}${key === "title" || key === "description" ? " (필수)" : ""}</label>${key === "description" ? `<textarea class="textarea" id="program-${key}" name="${key}" maxlength="${limit}" required>${escapeHtml(p[key] || "")}</textarea>` : `<input class="input" id="program-${key}" name="${key}" maxlength="${limit}" value="${escapeHtml(p[key] || "")}" ${key === "title" ? "required" : ""}>`}`).join("")}
       <p id="programFeedback" role="status"></p><button class="primary-btn full-action" type="submit">${icon("save")} 안내 저장</button></form></details>`;
   }
