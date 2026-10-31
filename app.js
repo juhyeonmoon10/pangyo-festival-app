@@ -1274,7 +1274,8 @@ function formatTime(value) {
 }
 
 function formatOperatingHours(booth) {
-  if (isServerMode()) return "운영 시간 미등록";
+  // Booth managers enter the hours as text (program.hours).
+  if (isServerMode()) return booth.opsRecord?.program?.hours || "운영 시간 미등록";
   return `${formatTime(booth.opensAt)}–${formatTime(booth.closesAt)}`;
 }
 
@@ -1918,7 +1919,13 @@ function mapPlanForFloor(floor) {
   };
 }
 
-function boothMapPosition(booth) {
+// Markers for booths without a room of their own on the plan.
+function boothMapPosition(booth, plan, index = 0) {
+  // Several booths in one chosen room: markers inside that room, a little apart.
+  const room = booth.mapRoom && plan?.rooms.find(item => item.label === booth.mapRoom);
+  if (room) return { x: room.x + room.w / 2 + ((index % 3) - 1) * 3, y: room.y + room.h / 2 + 3 };
+  // A booth moved to another floor without a room has no place on the plan; the list still shows it.
+  if (booth.placed && booth.homeFloor && booth.floor !== booth.homeFloor) return null;
   const classMatch = /^g([1-3])-([1-8])$/.exec(booth.id);
   if (classMatch) return { x: classPositions[Number(classMatch[2]) - 1][0], y: 41 };
   const firstFloorPositions = {
@@ -1928,12 +1935,18 @@ function boothMapPosition(booth) {
     b4: { x: 84, y: 41 },
     b5: { x: 31, y: 31 },
   };
-  return firstFloorPositions[booth.id] || { x: booth.x, y: booth.y };
+  const fixed = firstFloorPositions[booth.id] || { x: booth.x, y: booth.y };
+  return Number.isFinite(fixed.x) && Number.isFinite(fixed.y) ? fixed : null;
 }
 
-function boothForPlanRoom(item, booths) {
-  if (item.type === "classroom") return booths.find((booth) => booth.id === `g${item.label}`) || null;
-  return booths.find((booth) => booth.name === item.label || booth.location.includes(item.label)) || null;
+// Which booth each room of the plan shows. A room a booth manager chose comes first; otherwise the
+// classroom's provisional booth, or a booth named after the room. Each booth takes one room at most.
+function planAssignments(plan, booths) {
+  const used = new Set(), take = booth => { if (booth) used.add(booth.id); return booth || null; };
+  const chosen = plan.rooms.map(item => item.type === "core" ? null : take(booths.find(booth => !used.has(booth.id) && booth.mapRoom === item.label)));
+  return plan.rooms.map((item, index) => chosen[index] || (item.type === "core" ? null : take(booths.find(booth => !used.has(booth.id) && !booth.mapRoom && (item.type === "classroom"
+    ? booth.id === `g${item.label}`
+    : booth.name === item.label || booth.location.includes(item.label))))));
 }
 
 // Room labels wrap only between words; the CSS scales the text to the widest word and the line count.
@@ -1944,12 +1957,13 @@ function planLabelFit(label) {
 }
 
 function mapPlanMarkup(plan, booths) {
+  const assigned = planAssignments(plan, booths);
   return `
     <div class="plan-boundary" aria-hidden="true"></div>
     ${plan.connectors.map((item) => `<div class="plan-connector" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"></div>`).join("")}
     ${plan.corridors.map((item) => `<div class="plan-corridor" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%"><span style="--label-at:${item.labelAt}%">${item.label}</span></div>`).join("")}
     ${plan.rooms.map((item, index) => {
-      const booth = boothForPlanRoom(item, booths);
+      const booth = assigned[index];
       if (!booth) return `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms;${planLabelFit(item.label)}"><span>${item.label}</span></div>`;
       const visited = repo.hasStamp(state.user.id, booth.id);
       const selected = state.selectedBoothId === booth.id;
@@ -1970,12 +1984,13 @@ function floorTabsView() {
 }
 
 function mapCanvasView(booths, plan) {
-  const placed = new Set(plan.rooms.map(item => boothForPlanRoom(item, booths)?.id).filter(Boolean));
+  const placed = new Set(planAssignments(plan, booths).filter(Boolean).map(booth => booth.id));
   const selected = booths.find(booth => booth.id === state.selectedBoothId);
   return `<div class="map-card ${selected ? "has-preview" : ""}" id="mapCard" style="--map-zoom:${state.mapZoom};--map-x:${state.mapOffsetX}px;--map-y:${state.mapOffsetY}px">
     <div class="map-canvas"><div class="map-grid"></div><div class="school-label">PANGYO HIGH SCHOOL · ${state.floor}층</div>${mapPlanMarkup(plan, booths)}
-      ${booths.filter(booth => !placed.has(booth.id)).map(booth => {
-        const position = boothMapPosition(booth);
+      ${booths.filter(booth => !placed.has(booth.id)).map((booth, index) => {
+        const position = boothMapPosition(booth, plan, index);
+        if (!position) return "";
         return `<button class="${markerClass(booth)} ${state.selectedBoothId === booth.id ? "selected" : ""}" style="left:${position.x}%;top:${position.y}%" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}" title="${escapeHtml(booth.name)}"><span aria-hidden="true">${icon("map")}</span></button>`;
       }).join("")}
     </div>
@@ -2132,11 +2147,11 @@ function boothItem(booth) {
   const rating = ratingInfo(booth.id);
   const officialClub = Boolean(booth.officialClubId);
   const metaText = officialClub
-    ? `${booth.location} · 임시 배치 · ${formatOperatingHours(booth)}`
+    ? `${booth.location}${booth.placed ? "" : " · 임시 배치"} · ${formatOperatingHours(booth)}`
     : `${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}`;
   return `
-    <button class="booth-item ${booth.category || "class"} ${officialClub ? "has-club-visual" : ""} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
-      ${officialClub ? clubVisual(booth) : ""}
+    <button class="booth-item ${booth.category || "class"} ${officialClub || booth.image ? "has-club-visual" : ""} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
+      ${officialClub || booth.image ? clubVisual(booth) : ""}
       <span class="booth-main">
         <strong>${catalogName(booth)}</strong>
         <span class="meta">${metaText}</span>
@@ -2182,10 +2197,10 @@ function detailView() {
       </header>
       <section class="detail-hero">
         <div class="detail-status-row">${statusBadge(booth.status)}<span>${formatOperatingHours(booth)}</span></div>
-        <div class="detail-club-heading${booth.officialClubId ? '' : ' is-text-only'}">
-          ${booth.officialClubId ? clubVisual(booth, "detail") : ""}
+        <div class="detail-club-heading${booth.officialClubId || booth.image ? '' : ' is-text-only'}">
+          ${booth.officialClubId || booth.image ? clubVisual(booth, "detail") : ""}
           <div>
-            <div class="meta">${booth.officialClubId ? "판교고 동아리 · 임시 배치" : booth.clubName} · ${booth.floor}층 · ${booth.room}</div>
+            <div class="meta">${booth.officialClubId ? `판교고 동아리${booth.placed ? "" : " · 임시 배치"}` : booth.clubName} · ${booth.floor}층 · ${escapeHtml(booth.mapRoom || (booth.placed ? booth.location.replace(/^\d층\s*/, "") : booth.room))}</div>
             <h1 class="title">${catalogName(booth)}</h1>
             <p class="catalog-position" data-catalog-position="${booth.id}">${escapeHtml(catalogPositionText(booth))}</p>
           </div>
@@ -2199,7 +2214,7 @@ function detailView() {
         <button type="button" class="ghost-btn full-action detail-review-link" data-open-booth-reviews="${escapeHtml(booth.id)}">${icon("message")}<span>리뷰 보기</span><b data-review-count-link>${escapeHtml(reviewCountText(rating))}</b>${icon("arrow")}</button>
         <button type="button" class="text-link festival-locate" data-locate-booth="${escapeHtml(booth.id)}">${icon('map')} 지도에서 위치 보기</button>
       </section>
-      <p class="detail-data-note">${isServerMode() ? "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주세요." : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
+      <p class="detail-data-note">${isServerMode() ? (booth.placed ? "부스 위치는 부스 담당자가 등록했어요." : "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주세요.") : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
       <section class="panel section">
         <h2>부스 소개</h2>
         <p class="subtitle">${escapeHtml(booth.description)}</p>
@@ -3701,7 +3716,10 @@ function closeMapCard() {
 function focusMapOnBooth(id, targetZoom = state.mapZoom) {
   const booth = state.db.booths.find((item) => item.id === id);
   if (!booth) return;
-  const position = boothMapPosition(booth);
+  // Center on the room the booth is drawn in, else on its marker.
+  const plan = mapPlanForFloor(booth.floor);
+  const room = plan.rooms[planAssignments(plan, state.db.booths.filter(item => item.floor === booth.floor)).findIndex(item => item?.id === booth.id)];
+  const position = room ? { x: room.x + room.w / 2, y: room.y + room.h / 2 } : boothMapPosition(booth, plan) || { x: 50, y: 48 };
   state.mapZoom = Math.min(1.52, Math.max(state.mapZoom, targetZoom));
   const maxX = 72 * state.mapZoom;
   const maxY = 92 * state.mapZoom;
@@ -4121,7 +4139,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.26";
+const APP_RELEASE = "1.27";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

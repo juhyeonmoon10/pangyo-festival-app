@@ -61,10 +61,16 @@ const festivalOpsUI = (() => {
         b={id:remote.key,category:'additional',room:'',favorite:false,aliases:[],imageKind:'initial',opsKey:remote.key};
         state.db.booths.push(b);
       }
+      // The bundled club image and floor, kept so a removed photo or location falls back to them.
+      if(!('catalogImage' in b)) Object.assign(b,{catalogImage:b.image || null,catalogImageKind:b.imageKind,homeFloor:b.floor});
+      const photo=remote.image && typeof festivalAccount!=='undefined' ? festivalAccount.boothImages?.url(remote.image) : '';
       Object.assign(b,{opsKey:remote.key,opsRecord:remote,name:remote.name,status:remote.status,
-        description:remote.description || b.description,location:remote.location || '위치 미등록'});
+        description:remote.description || b.description,location:remote.location || '위치 미등록',
+        image:photo || b.catalogImage,imageKind:photo ? 'photo' : b.catalogImageKind,mapRoom:remote.room || '',
+        placed:Boolean(remote.location || remote.room)});
       // Existing map geometry is not reassigned by an imported default floor.
-      if(remote.location || b.category==='additional') b.floor=remote.floor;
+      if(b.placed || b.category==='additional') b.floor=remote.floor;
+      else if(b.homeFloor) b.floor=b.homeFloor;
     }
     if(event) state.db.event={...state.db.event,name:event.name,emergencyMode:event.state==='paused'};
   }

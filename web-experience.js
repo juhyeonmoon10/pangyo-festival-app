@@ -406,7 +406,7 @@ const festivalWeb = (() => {
   }
 
   function program(booth) {
-    const served = isServerMode() && booth.opsRecord?.program && (booth.opsRecord.program.title || booth.opsRecord.program.description) ? booth.opsRecord.program : null;
+    const served = isServerMode() && booth.opsRecord?.program && Object.keys(booth.opsRecord.program).length ? booth.opsRecord.program : null;
     const p = served || (!isServerMode() && booth.program) || window.FestivalPrograms?.[booth.officialClubId || booth.id];
     return `<section class="web-program section"><div class="section-heading"><h2>프로그램 안내</h2><span>${p ? "행사 프로그램" : "안내 준비 중"}</span></div>${p ? `${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ''}${p.description ? `<p>${escapeHtml(p.description)}</p>` : ''}<dl>${[["운영 시간", p.hours], ["소요 시간", p.duration], ["참여 방법", p.participation], ["준비물", p.materials]].map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value || "추후 안내")}</dd></div>`).join("")}</dl>` : `<p>이 동아리의 행사 프로그램은 아직 등록되지 않았어요. 확정된 활동과 참여 방법이 이곳에 표시됩니다.</p><dl><div><dt>운영 시간</dt><dd>추후 안내</dd></div><div><dt>참여 방법</dt><dd>현장 운영자에게 문의</dd></div></dl>`}${canUseMockNfcTools() ? programEditor(booth, p) : ""}</section>`;
   }

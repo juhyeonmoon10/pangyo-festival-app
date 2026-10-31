@@ -578,6 +578,14 @@ body.design-web {
 .manager-pick { display: grid; gap: 6px; margin: 8px 0 0; font-weight: 700; }
 .manager-program { display: grid; gap: 12px; margin: 4px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .manager-program legend { padding: 0 6px; font-weight: 700; }
+.manager-photo { display: flex; gap: 12px; align-items: center; }
+.manager-photo > img, .manager-photo-empty { flex: none; width: 76px; height: 76px; border-radius: 16px; object-fit: cover; border: 1px solid var(--line); background: var(--surface-2, #f3f4f6); }
+.manager-photo-empty { display: grid; place-items: center; font-size: 28px; font-weight: 800; color: var(--muted, #6b7280); }
+.manager-photo > div { display: grid; gap: 6px; min-width: 0; }
+.manager-photo small { color: var(--muted, #6b7280); }
+.manager-photo .is-warning { color: var(--danger, #b42318); }
+.manager-photo .sun-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.manager-program small.web-muted { display: block; margin-top: 4px; font-weight: 400; }
 .manager-accounts { display: grid; gap: 8px; margin: 12px 0; }
 .manager-account { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .manager-account.is-chosen { border-color: var(--primary); }

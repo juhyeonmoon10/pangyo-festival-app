@@ -1,13 +1,23 @@
 /* 부스 담당자: students an operator put in charge of their own club's booth. They edit the booth's
-   introduction, program and status, and approve manual stamps there when the operator allowed it.
+   profile photo, status, operating hours, location (floor, map room, description), introduction and
+   program, and approve manual stamps there when the operator allowed it.
    Every action is re-checked by festival_booth_manager; operators grant the role in 관리 마법사. */
 const festivalBoothManager = (() => {
   let owner = null, status = null, loading = false, failure = '', selected = '', note = '', tone = '', busy = false;
   let lookup = null, adminList = null, adminLoading = false, adminFailure = '', candidate = null, adminNote = '', adminTone = '';
+  // Photo chosen but not saved yet: { booth, blob, preview } or { booth, removed: true }.
+  let photo = null, photoNote = '';
+  const images = () => festivalAccount?.boothImages;
   const h = value => escapeHtml(String(value ?? ''));
   const ops = () => festivalAccount?.operations;
   const STATUSES = [['open', '운영 중'], ['paused', '일시 중지'], ['closed', '마감']];
-  const PROGRAM = [['title', '프로그램 이름', 80], ['description', '활동 소개', 1000], ['hours', '운영 시간', 100], ['duration', '소요 시간', 100], ['participation', '참여 방법', 300], ['materials', '준비물', 200]];
+  // Operating hours are stored in program.hours but edited with the basic information.
+  const PROGRAM = [['title', '프로그램 이름', 80], ['description', '활동 소개', 1000], ['duration', '소요 시간', 100], ['participation', '참여 방법', 300], ['materials', '준비물', 200]];
+  const FLOORS = [1, 2, 3, 4];
+  // Rooms drawn on the map for a floor (stairs left out), so the booth lands on the right room.
+  const roomsOn = floor => typeof mapPlanForFloor === 'function'
+    ? [...new Set(mapPlanForFloor(Number(floor)).rooms.filter(r => r.type !== 'core').map(r => r.label))] : [];
+  const roomOptions = (floor, value) => `<option value="">지도에서 고르지 않음</option>${roomsOn(floor).map(r => `<option value="${h(r)}" ${r === value ? 'selected' : ''}>${h(r)}</option>`).join('')}`;
   const items = () => status?.items || [];
   const current = () => items().find(b => b.key === selected) || items()[0] || null;
   const say = (text, kind = 'success') => { note = text; tone = kind; };
@@ -15,7 +25,7 @@ const festivalBoothManager = (() => {
   const message = (text, kind) => text ? `<p class="ops-form-status" data-tone="${kind === 'error' ? 'error' : 'success'}" role="status">${h(text)}</p>` : '';
 
   function reset() {
-    owner = state.user?.id || null; status = null; failure = ''; selected = ''; note = ''; lookup = null;
+    owner = state.user?.id || null; status = null; failure = ''; selected = ''; note = ''; lookup = null; dropPhoto();
     adminList = null; adminFailure = ''; candidate = null; adminNote = '';
   }
 
@@ -44,6 +54,23 @@ const festivalBoothManager = (() => {
       : `<input class="input" name="${name}" maxlength="${limit}" value="${h(value)}" autocomplete="off">`}</label>`;
   }
 
+  function dropPhoto() { if (photo?.preview) URL.revokeObjectURL(photo.preview); photo = null; photoNote = ''; }
+
+  // The photo shown now: the unsaved choice, the saved photo, or the club's catalog image.
+  function photoMarkup(b) {
+    const local = typeof boothForKey === 'function' ? boothForKey(b.key) : null;
+    const pending = photo?.booth === b.key ? photo : null;
+    const fallback = local?.catalogImage || '';
+    const src = pending ? (pending.removed ? fallback : pending.preview) : b.image ? images()?.url(b.image) : fallback;
+    const own = pending ? !pending.removed : Boolean(b.image);
+    return `<div class="manager-photo" data-manager-photo>
+      ${src ? `<img src="${h(src)}" alt="${h(b.name)} 프로필 사진">` : `<span class="manager-photo-empty" aria-hidden="true">${h(String(b.name || '부').slice(0, 1))}</span>`}
+      <div><strong>프로필 사진</strong><small>${pending ? '저장하면 바뀌어요.' : own ? '올린 사진' : src ? '동아리 기본 이미지' : '사진 없음'}</small>
+        <span class="sun-actions"><label class="ghost-btn">${icon('plus')} 사진 고르기<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" data-manager-photo-file hidden></label>
+        ${pending ? `<button type="button" class="ghost-btn" data-manager-photo-undo>되돌리기</button>` : own ? `<button type="button" class="ghost-btn" data-manager-photo-remove>사진 빼기</button>` : ''}</span>
+        ${photoNote ? `<small class="is-warning" role="status">${h(photoNote)}</small>` : ''}</div></div>`;
+  }
+
   function approvalSection(b) {
     if (!b.canApprove) return `<section class="ops-section"><h2>스탬프 수동 승인</h2><p class="web-muted">운영자가 허용한 부스만 수동 승인을 할 수 있어요.</p></section>`;
     const accounts = lookup?.booth === b.key ? lookup.accounts : null;
@@ -68,10 +95,18 @@ const festivalBoothManager = (() => {
     else if (!items().length) body = `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없어요</strong><p>운영자가 부스 담당자로 지정하면 이곳에서 부스를 관리할 수 있어요.</p></div>`;
     else {
       const b = current(), p = b.program || {};
+      // A server without booth-profile.sql sends no 'room': the new fields would not be saved.
+      const full = 'room' in b;
       body = `${items().length > 1 ? `<label class="manager-pick">관리할 부스<select class="select" data-manager-booth>${items().map(x => `<option value="${h(x.key)}" ${x.key === b.key ? 'selected' : ''}>${h(x.name)}</option>`).join('')}</select></label>` : ''}
         <section class="ops-section manager-booth"><h2>${h(b.name)}</h2><p class="web-muted">${h(b.location || '위치 미등록')} · ${Number(b.floor) || 1}층${status.isAdmin ? ' · 운영자' : ' · 부스 담당자'}</p>
           <form class="ops-form" data-manager-save>
+            ${full ? photoMarkup(b) : ''}
             <label>운영 상태<select class="select" name="status">${STATUSES.map(([v, t]) => `<option value="${v}" ${b.status === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+            <label>운영 시간<input class="input" name="program.hours" maxlength="100" value="${h(p.hours)}" placeholder="예: 10:00–12:00, 13:00–15:00" autocomplete="off"></label>
+            ${full ? `<fieldset class="manager-program"><legend>위치</legend>
+              <label>층<select class="select" name="floor" data-manager-floor>${FLOORS.map(f => `<option value="${f}" ${Number(b.floor) === f ? 'selected' : ''}>${f}층</option>`).join('')}</select></label>
+              <label>지도 위치<select class="select" name="room" data-manager-room>${roomOptions(b.floor, b.room)}</select><small class="web-muted">고른 방에 부스가 지도에 표시돼요.</small></label>
+              ${field('location', '위치 설명', b.location, 200)}</fieldset>` : '<p class="web-muted">사진·위치는 서버 업데이트 후 바꿀 수 있어요.</p>'}
             ${field('description', '부스 소개', b.description, 2000, true)}
             <fieldset class="manager-program"><legend>프로그램 안내</legend>${PROGRAM.map(([k, label, limit]) => field(`program.${k}`, label, p[k], limit, k === 'description')).join('')}</fieldset>
             <p class="ops-form-status" role="status"></p>
@@ -86,16 +121,34 @@ const festivalBoothManager = (() => {
     const b = current();
     if (!b || busy) return;
     const values = Object.fromEntries(new FormData(form));
-    const program = Object.fromEntries(PROGRAM.map(([k]) => [k, String(values[`program.${k}`] || '').trim()]).filter(([, v]) => v));
+    const program = Object.fromEntries([...PROGRAM.map(([k]) => k), 'hours'].map(k => [k, String(values[`program.${k}`] || '').trim()]).filter(([, v]) => v));
     const payload = { booth: b.key, version: b.version, status: values.status, description: String(values.description || '').trim(), program };
+    if ('room' in b) {
+      payload.floor = Number(values.floor) || 1;
+      payload.room = String(values.room || '').trim();
+      // Without a description the room names the place, e.g. "3층 다목적강당".
+      payload.location = String(values.location || '').trim() || (payload.room ? `${payload.floor}층 ${payload.room}` : '');
+      payload.image = b.image || '';
+    }
     if (b.status === 'open' && payload.status !== 'open' && !confirm(`'${b.name}'을(를) ${payload.status === 'paused' ? '일시 중지' : '마감'}할까요? 이 부스는 방문 인증이 중지돼요.`)) return;
     busy = true; note = ''; render();
     const actor = state.user?.id;
+    const pending = 'room' in b && photo?.booth === b.key ? photo : null;
+    let uploaded = '';
+    if (pending?.blob) {
+      const result = await images()?.upload(pending.blob);
+      if (state.user?.id !== actor) return;
+      if (!result?.ok) { busy = false; say(result?.message || '사진을 올리지 못했어요. 다시 시도해 주세요.', 'error'); render(); return; }
+      uploaded = payload.image = result.path;
+    } else if (pending?.removed) payload.image = '';
     const response = await ops().write('booth_manager_save', payload);
     busy = false;
     if (state.user?.id !== actor) return;
-    if (!response.ok) say(response.message, 'error');
+    if (!response.ok) { say(response.message, 'error'); if (uploaded) images()?.remove([uploaded]); }
     else {
+      // The replaced photo is deleted when this account may (its uploader or an operator).
+      if (b.image && b.image !== response.data.image) images()?.remove([b.image]);
+      if (pending) dropPhoto();
       status.items = items().map(x => x.key === b.key ? response.data : x);
       say('부스 정보를 저장했어요. 학생 화면에 바로 보여요.');
       festivalOpsUI.refresh(false);
@@ -154,7 +207,7 @@ const festivalBoothManager = (() => {
           <label class="ops-checkbox"><input type="checkbox" name="canApprove">이 부스에서 스탬프 수동 승인 허용</label>
           <button class="primary-btn" type="submit">${icon('plus')} 부스 담당자로 지정</button></form>`
       : `<p class="ops-alert" role="alert">${h(candidate.name)} (${h(candidate.studentNumber)}) 학생은 소속 확인이 끝나지 않았어요. 소속 관리에서 먼저 확인해 주세요.</p>`) : '';
-    return `<div data-bm-root><section class="ops-section"><h2>부스 담당자 지정</h2><p>소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있어요. 담당자는 부스 소개·프로그램·운영 상태를 바꿀 수 있어요.</p>
+    return `<div data-bm-root><section class="ops-section"><h2>부스 담당자 지정</h2><p>소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있어요. 담당자는 프로필 사진·운영 상태·운영 시간·위치·부스 소개·프로그램을 바꿀 수 있어요.</p>
       ${message(adminNote, adminTone)}
       <form class="ops-form" data-bm-find><label>학생 학번<input class="input" name="studentNumber" inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" required autocomplete="off" placeholder="학번 5자리"></label>
         <label>Google 이메일 (같은 학번 계정이 여러 개일 때만)<input class="input" name="email" type="email" maxlength="320" autocomplete="off"></label>
@@ -170,6 +223,27 @@ const festivalBoothManager = (() => {
     return response.data;
   }
 
+  // Only the photo block is redrawn, so text typed in the form stays.
+  function redrawPhoto(root, b) {
+    const box = root.querySelector('[data-manager-photo]');
+    if (!box || !b) return;
+    box.outerHTML = photoMarkup(b);
+    bindPhoto(root);
+  }
+  function bindPhoto(root) {
+    root.querySelector('[data-manager-photo-file]')?.addEventListener('change', async e => {
+      const file = e.currentTarget.files?.[0], b = current();
+      if (!file || !b) return;
+      try {
+        const blob = await festivalNotices.shrink(file, 1080);
+        dropPhoto(); photo = { booth: b.key, blob, preview: URL.createObjectURL(blob) };
+      } catch { photoNote = '이 사진은 열 수 없어요. JPG·PNG 사진을 골라 주세요.'; }
+      redrawPhoto(root, b);
+    });
+    root.querySelector('[data-manager-photo-remove]')?.addEventListener('click', () => { const b = current(); dropPhoto(); photo = { booth: b.key, removed: true }; redrawPhoto(root, b); });
+    root.querySelector('[data-manager-photo-undo]')?.addEventListener('click', () => { dropPhoto(); redrawPhoto(root, current()); });
+  }
+
   let lastRoute = null, adminShown = false;
   function bind() {
     if (!isServerMode() || !state.user) return;
@@ -181,7 +255,13 @@ const festivalBoothManager = (() => {
     const root = document.querySelector('.manage-screen');
     if (root) {
       root.querySelector('[data-manager-retry]')?.addEventListener('click', () => { failure = ''; render(); load(); });
-      root.querySelector('[data-manager-booth]')?.addEventListener('change', e => { selected = e.target.value; lookup = null; note = ''; render(); });
+      root.querySelector('[data-manager-booth]')?.addEventListener('change', e => { selected = e.target.value; lookup = null; note = ''; dropPhoto(); render(); });
+      root.querySelector('[data-manager-floor]')?.addEventListener('change', e => {
+        const room = root.querySelector('[data-manager-room]');
+        if (room) room.innerHTML = roomOptions(e.target.value, room.value);
+      });
+      bindPhoto(root);
+      
       root.querySelector('[data-manager-save]')?.addEventListener('submit', e => { e.preventDefault(); save(e.currentTarget); });
       root.querySelector('[data-manager-lookup]')?.addEventListener('submit', e => { e.preventDefault(); find(e.currentTarget); });
       root.querySelectorAll('[name=managerAccount]').forEach(r => r.addEventListener('change', () => { lookup.ref = r.value; render(); }));
