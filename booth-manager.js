@@ -1,7 +1,8 @@
 /* 부스 담당자: students an operator put in charge of their own club's booth. They edit the booth's
    profile photo, status, operating hours, location (floor, map room, description), introduction and
    program, and approve manual stamps there when the operator allowed it.
-   Every action is re-checked by festival_booth_manager; operators grant the role in 관리 마법사.
+   Every action is re-checked by festival_booth_manager; operators grant the role in 관리 마법사 →
+   권한 관리. A 바우처 담당자 uses the same screen for voucher approval (voucher-manager.js).
    Results are shown next to the button that was pressed (spotMarkup/showSpot); a failed action keeps
    what was typed. */
 const festivalBoothManager = (() => {
@@ -55,10 +56,16 @@ const festivalBoothManager = (() => {
     if (['manage', 'profile'].includes(state.route)) render();
   }
 
+  // 바우처 담당자 shares this screen: its section follows the booth (voucher-manager.js).
+  const vouchers = () => typeof festivalVoucherManager === 'undefined' ? null : festivalVoucherManager;
+  const voucherKinds = () => vouchers()?.kinds() || [];
+
   function profileButton() {
-    if (!isServerMode() || !items().length) return '';
+    if (!isServerMode()) return '';
+    const voucher = vouchers()?.profileButton() || '';
+    if (!items().length) return voucher;
     const label = status.isAdmin ? '부스 소개·프로그램 관리' : `부스 관리 · ${items().map(b => b.name).join(', ')}`;
-    return `<button type="button" class="ghost-btn full-action" data-route="manage">${icon('admin')} ${h(label)}</button>`;
+    return `<button type="button" class="ghost-btn full-action" data-route="manage">${icon('admin')} ${h(label)}</button>${voucher}`;
   }
 
   function field(name, label, value, limit, area = false) {
@@ -132,11 +139,13 @@ const festivalBoothManager = (() => {
 
   function view() {
     if (owner !== (state.user?.id || null)) reset();
-    const head = `<header class="top-bar"><button class="icon-btn" data-history-back="profile" aria-label="뒤로">${icon('back')}</button><h1>부스 관리</h1><span class="icon-btn" aria-hidden="true"></span></header>`;
+    const voucherSection = vouchers()?.section() || '';
+    const title = items().length || !voucherKinds().length ? '부스 관리' : '바우처 사용 승인';
+    const head = `<header class="top-bar"><button class="icon-btn" data-history-back="profile" aria-label="뒤로">${icon('back')}</button><h1>${title}</h1><span class="icon-btn" aria-hidden="true"></span></header>`;
     let body;
-    if (failure) body = `<p class="ops-alert" role="alert">${h(failure)}</p><button type="button" class="ghost-btn" data-manager-retry>${icon('refresh')} 다시 불러오기</button>`;
-    else if (!status) body = '<p role="status">불러오는 중...</p>';
-    else if (!items().length) body = `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없어요</strong><p>운영자가 부스 담당자로 지정하면 이곳에서 부스를 관리할 수 있어요.</p></div>`;
+    if (failure) body = `<p class="ops-alert" role="alert">${h(failure)}</p><button type="button" class="ghost-btn" data-manager-retry>${icon('refresh')} 다시 불러오기</button>${voucherSection}`;
+    else if (!status || vouchers() && !vouchers().ready() && !items().length) body = '<p role="status">불러오는 중...</p>';
+    else if (!items().length) body = voucherSection || `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없어요</strong><p>운영자가 부스 담당자나 바우처 담당자로 지정하면 이곳에서 맡은 일을 할 수 있어요.</p></div>`;
     else {
       const b = current(), p = b.program || {};
       // A server without booth-profile.sql sends no 'room': the new fields would not be saved.
@@ -156,7 +165,7 @@ const festivalBoothManager = (() => {
             ${slot('save')}
             <button class="primary-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('save')} 부스 정보 저장</button>
           </form></section>
-        ${approvalSection(b)}`;
+        ${approvalSection(b)}${voucherSection}`;
     }
     return `<main class="screen manage-screen">${head}<div class="ops-body">${body}</div>${bottomNav('profile')}</main>`;
   }
@@ -248,7 +257,7 @@ const festivalBoothManager = (() => {
     report('lookup', response.data.result === 'ALREADY_EARNED' ? `${chosen.name} 학생은 이미 이 부스 스탬프가 있어요.` : `${chosen.name} 학생에게 스탬프 1개를 적립했어요.`, 'success', true);
   }
 
-  // 관리 마법사 → 부스 담당자 (operators).
+  // 관리 마법사 → 권한 관리 → 부스 담당자 (operators).
   async function loadAdmin() {
     if (adminLoading || !ops()?.boothManagers) return;
     adminLoading = true;
@@ -261,7 +270,7 @@ const festivalBoothManager = (() => {
   const managerSpot = m => `manager:${m.booth}:${m.studentNumber}:${m.email || ''}`;
   function adminView() {
     if (owner !== (state.user?.id || null)) reset();
-    const list = adminList ? `<section class="ops-section"><h2>지정된 담당자 <span class="ops-count">${adminList.length}명</span></h2>${adminSlot('list')}${adminList.length ? `<ul class="manager-list">${adminList.map((m, i) => `<li class="${m.active ? '' : 'is-off'}">
+    const list = adminList ? `<section class="ops-section"><h2>지정된 부스 담당자 <span class="ops-count">${adminList.length}명</span></h2>${adminSlot('list')}${adminList.length ? `<ul class="manager-list">${adminList.map((m, i) => `<li class="${m.active ? '' : 'is-off'}">
         <div><strong>${h(m.name)} (${h(m.studentNumber || '학번 없음')})</strong><small>${h(m.boothName)} · ${m.canApprove ? '스탬프 수동 승인 허용' : '수동 승인 불가'}${m.active ? '' : ' · 소속 확인이 취소돼 권한 중지됨'}</small></div>
         <div class="sun-actions"><button type="button" class="ghost-btn" data-bm-toggle="${i}">${m.canApprove ? '승인 허용 끄기' : '승인 허용 켜기'}</button><button type="button" class="ghost-btn danger" data-bm-revoke="${i}">해제</button></div>
         ${adminSlot(managerSpot(m))}</li>`).join('')}</ul>`
