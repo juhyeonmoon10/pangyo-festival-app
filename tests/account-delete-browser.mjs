@@ -142,6 +142,25 @@ try {
   assert.equal(meta.festival_student_number,undefined);
   flows.push('operator deletes from 참여자','wrong confirmation blocked');
 
+  // Two accounts share a 학번: the operator picks one and the confirmation names its Google email.
+  const twinA=await account(false,'21007','가상중복'), twinB=await account(false,'21007','가상중복');
+  const mailB=(await db.query('select email from auth.users where id=$1',[twinB.id])).rows[0].email;
+  await f.locator('[data-recipient-change]').click().catch(()=>{});
+  await f.locator('[name=recipientQuery]').fill('21007');
+  await f.locator('[data-recipient-find]').click();
+  await f.locator('[data-recipient-pick="21007"]').first().click();
+  await f.locator('[data-recipient-choice]').nth(1).waitFor();
+  const pickB=f.locator('[data-recipient-choice]').filter({hasText:mailB});
+  await pickB.click();
+  await f.locator('[name=reason]').fill('중복 가입 계정');
+  await f.locator('[name=confirm]').fill('삭제');
+  await f.locator('button[type=submit]').click();
+  await f.getByText('학생의 계정을 삭제했어요',{exact:false}).waitFor();
+  assert.ok(dialogs.at(-1).includes(mailB),dialogs.at(-1));
+  const kept=(await db.query('select raw_user_meta_data m from auth.users where id=$1',[twinA.id])).rows[0].m;
+  assert.equal(kept.festival_student_number,'21007');
+  flows.push('shared 학번: email in confirmation, only the chosen account deleted');
+
   // The student's open app loses its session at the next server call.
   await s.page.evaluate(()=>festivalOpsUI.refresh(false)).catch(()=>{});
   await s.page.reload();
