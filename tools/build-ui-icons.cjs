@@ -7,6 +7,7 @@ const names = {
   close: 'X', plus: 'Plus', minus: 'Minus', check: 'Check', arrow: 'ArrowRight', ticket: 'Ticket',
   notice: 'Megaphone', refresh: 'RotateCcw', list: 'List', lock: 'LockKeyhole', message: 'MessageSquare',
   save: 'Save', copy: 'Copy', logout: 'LogOut', bell: 'Bell',
+  game: 'Gamepad2', spade: 'Spade', trend: 'TrendingUp', hand: 'Hand',
 };
 const icons = Object.fromEntries(Object.entries(names).map(([name, key]) => {
   if (!lucide[key]) throw Error(`Missing icon ${key}`);

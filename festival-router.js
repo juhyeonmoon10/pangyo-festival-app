@@ -5,19 +5,23 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const paths = Object.freeze({home:'/',login:'/login',map:'/map',stamps:'/stamp',
     vouchers:'/voucher',profile:'/my',reviews:'/reviews',identity:'/identity',scan:'/nfc',admin:'/admin',
-    notices:'/notices',manage:'/manage'});
+    notices:'/notices',manage:'/manage',games:'/games',gamesStock:'/games/stock',gamesBlackjack:'/games/blackjack'});
   const aliases = Object.freeze({'/index.html':'home','/home':'home','/stamps':'stamps',
     '/vouchers':'vouchers','/profile':'profile','/scan':'scan'});
   const returnKey = 'pangyo-login-destination-v1';
-  const pagePattern = '/(?:|index\\.html|home/?|login/?|map/?|stamp/?|stamps/?|voucher/?|vouchers/?|my/?|profile/?|reviews/?|identity/?|nfc/?|scan/?|admin/?|notices(?:/[^/]+)?/?|manage/?|booth/[^/]+(?:/reviews)?/?)';
+  const pagePattern = '/(?:|index\\.html|home/?|login/?|map/?|stamp/?|stamps/?|voucher/?|vouchers/?|my/?|profile/?|reviews/?|identity/?|nfc/?|scan/?|admin/?|notices(?:/[^/]+)?/?|manage/?|games(?:/stock(?:/[^/]+)?|/blackjack)?/?|booth/[^/]+(?:/reviews)?/?)';
   const validId = id => typeof id === 'string' && id.length > 0 && id.length <= 180
     && !/[\/\\?#\u0000-\u001f]/.test(id) && !['.','..'].includes(id);
+  // ORBIT stock ids are positive integers (orbit_trade_stock takes p_stock_id integer).
+  const validStockId = id => /^[1-9][0-9]{0,9}$/.test(String(id ?? '')) && Number(id) <= 2147483647;
 
   function parse(pathname) {
     if (typeof pathname !== 'string' || !pathname.startsWith('/') || pathname.startsWith('//')) return null;
     const path = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname;
     const route = Object.keys(paths).find(key => paths[key] === path) || aliases[path];
     if (route) return {route};
+    const stock = path.match(/^\/games\/stock\/([^/]+)$/);
+    if (stock) return validStockId(stock[1]) ? {route:'gamesStockDetail',gameStockId:stock[1]} : null;
     const notice = path.match(/^\/notices\/([^/]+)$/);
     if (notice) {
       try { const id = decodeURIComponent(notice[1]); return validId(id) ? {route:'notice',noticeId:id} : null; } catch { return null; }
@@ -35,6 +39,7 @@
       return `/booth/${encodeURIComponent(snapshot.selectedBoothId)}${snapshot.route === 'boothReviews' ? '/reviews' : ''}`;
     }
     if (snapshot?.route === 'notice' && validId(snapshot.noticeId)) return `/notices/${encodeURIComponent(snapshot.noticeId)}`;
+    if (snapshot?.route === 'gamesStockDetail') return validStockId(snapshot.gameStockId) ? `/games/stock/${snapshot.gameStockId}` : paths.gamesStock;
     return paths[snapshot?.route] || '/map';
   }
 

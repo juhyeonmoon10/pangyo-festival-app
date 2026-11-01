@@ -107,7 +107,7 @@ components:
 
 # 판교고 축제 웹 디자인 가이드 (Bright Festival Pass)
 
-작성: 2026-11-01. 버전 1.36 화면을 측정했다. 예전 `DESIGN.md`(디자인 의도)와 `UI_DESIGN_GUIDE.md`(1.28 실측)를 이 파일 하나로 합쳤다.
+작성: 2026-11-01. 버전 1.36 화면을 측정했다. 예전 `DESIGN.md`(디자인 의도)와 `UI_DESIGN_GUIDE.md`(1.28 실측)를 이 파일 하나로 합쳤다. 1.37에서 미니게임(하단 내비 5번째 칸, 11.7)을 더했다.
 
 **이 문서의 목적.** 다른 UI를 가진 브랜치나 사이트와 병합한 뒤에도 지금 화면과 사용감이 그대로 남게 하는 것이다. 그래서 "어떻게 보이길 원하는가"보다 **"지금 실제로 어떻게 그려지는가"**를 기준으로 적었다.
 
@@ -137,7 +137,7 @@ components:
 8. 공통 컴포넌트
 9. 학생 화면 컴포넌트
 10. 운영자·담당자 화면 컴포넌트
-11. 1.31~1.36에 추가된 화면
+11. 1.31~1.37에 추가된 화면
 12. 아이콘
 13. 움직임
 14. 접근성
@@ -188,6 +188,7 @@ components:
 | 3 | `web-redesign.css` | 590 | `.design-web` | 홈, 스탬프판, 로그인, 바우처, 리뷰, 버튼 모서리 12px |
 | 4 | `operations.css` | 95 | `.ops-*` | 관리 마법사 폼, 표, 대화상자 |
 | 5 | `festival-bright.css` | 640 | `body.design-web` | **최종 레이어**. 색 토큰과 대부분의 최종 모양, 1.31~1.33 추가분 |
+| 6 | `festival-games.css` | 약 170 | `.design-web .festival-games`, `.game-*` | 미니게임(1.37). 기존 클래스는 `.bottom-nav` 5열 규칙 하나만 건드린다. 나머지는 모두 미니게임 범위 안이다(11.7) |
 
 - 같은 선택자가 여러 파일에 있으면 **뒤 파일이 이긴다**.
 - 앞 파일의 선택자가 더 구체적이면 앞 파일이 이긴다. 지금 화면은 이 역전에 기대고 있는 곳이 많다(17장). 예:
@@ -223,6 +224,7 @@ components:
 | `voucher-scan.js` | QR 스캔 창, 승인 팝업 (1.33). jsQR은 필요할 때만 불러온다 |
 | `operations-ui.js` | 관리 마법사, 서버 모드 바우처 |
 | `festival-router.js` | 주소와 화면 연결 |
+| `festival-games.js` | 미니게임 허브, 가상주식, 블랙잭 (1.37). `app.js`가 렌더할 때 쓰므로 `app.js` 바로 앞에 둔다 |
 | `app.js` | 로그인, 지도, 상세, MY, 렌더 |
 
 ### 2.3 범위(스코프)
@@ -317,6 +319,7 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
    - 결과 문구 위치: `error-placement-browser.mjs`
    - 보안 헤더 안에서 동작: `csp-browser.cjs`, `xss-sweep-browser.mjs`
    - 1.31~1.36 화면: `voucher-manager-browser.mjs`, `account-delete-browser.mjs`, `school-account-browser.cjs`, `operations-hotfix-browser.mjs`
+   - 1.37 미니게임과 5칸 하단 내비: `minigames-browser.mjs`(ORBIT 함수는 가짜 응답으로 대신한다)
 3. 18장 측정표의 값과 비교한다. 320px, 390px, 1024px에서 같은 화면을 캡처해 이 문서와 비교한다.
 4. 가로 스크롤이 생기지 않는지 확인한다(`document.documentElement.scrollWidth <= innerWidth`). 1.36에서 측정한 49개 화면은 모두 가로 스크롤이 없다.
 
@@ -610,13 +613,15 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 ### 8.4 하단 내비게이션
 
-- 4칸 고정: **홈 · 부스 지도 · 스탬프 · MY**. 순서와 이름을 바꾸지 않는다.
-- `.bottom-nav`: 높이 72px + safe area, 흰 바탕, 위 1px `--line`, 안쪽 `4px 6px 0`, 4열 같은 너비(390px에서 94.5px, 480px에서 117px).
+- 5칸 고정: **홈 · 부스 지도 · 스탬프 · 미니게임 · MY**. 순서와 이름을 바꾸지 않는다. 1.36까지는 4칸이었고 1.37에서 '미니게임'(아이콘 `game`)이 MY 앞에 들어왔다.
+- `.bottom-nav`: 높이 72px + safe area, 흰 바탕, 위 1px `--line`, 안쪽 `4px 6px 0`, 5열 같은 너비(390px에서 75.6px, 480px에서 93.6px). 5열 규칙은 `festival-games.css` 맨 위에 있다. 이 파일을 빼면 다섯 번째 칸이 다음 줄로 내려간다.
 - `.nav-btn`: 높이 67px, 글자 12px/800 `#60736b`, 모서리 8px, 아이콘과 글자 간격 4px.
 - 활성 칸: 아이콘 뒤 42×30 민트 상자(모서리 10px), 아이콘·글자 `--primary`. 홈 아이콘만 활성일 때 면을 채운다.
 - 하위 화면은 가장 가까운 탭을 활성으로 표시한다.
   - 바우처 → 스탬프. 공지 → 홈. 부스 리뷰·부스 상세 → 지도.
   - 리뷰, 소속 확인, 관리 마법사, 부스 관리, 바우처 사용 승인 → MY.
+  - 가상주식, 종목 상세, 블랙잭 → 미니게임.
+- **미니게임으로 가는 길은 하단 내비의 '미니게임' 칸 하나뿐이다.** 홈, MY, 메뉴 창 같은 다른 화면에 미니게임 링크나 바로가기를 두지 않는다(`minigames-browser.mjs`가 확인한다).
 
 ### 8.5 목록 행
 
@@ -801,7 +806,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 ---
 
-## 11. 1.31~1.36에 추가된 화면
+## 11. 1.31~1.37에 추가된 화면
 
 ### 11.1 홈 축제 소식 (1.31)
 
@@ -868,6 +873,33 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - 누르면 `confirm()` 창에 이름·학번과 **Google 이메일**(같은 학번 계정이 여럿일 때)이 나온다.
 - 성공하면 결과 줄에 지운 방문·바우처·리뷰 수를 보여 주고 폼을 비운다.
 
+### 11.7 미니게임 (1.37)
+
+ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)를 이 앱의 모양으로 다시 만든 화면이다. 새 부품을 만들지 않고 **기존 부품을 그대로 쓴다**: 머리 `.web-header`, 포인트 줄 `.profile-list`, 게임 목록 `.profile-shortcuts`, 탭 `.festival-view-tabs`, 섹션 `.ops-section`, 빈 상태 `.festival-empty`, 상태 `.status-badge`, 대화상자 `.ops-dialog`, 결과 줄 `spotMarkup`/`showSpot`(8.9).
+
+- **데이터와 포인트**
+  - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_state/join/cancel/action`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 6개만). 새 DB 변경은 없다.
+  - 쓰는 돈은 ORBIT의 **가상 포인트**(`public.users.money`)다. 축제 포인트·스탬프·바우처와 섞이지 않는다. 허브와 블랙잭 첫 화면에 "미니게임에서만 쓰는 포인트예요. 부스 스탬프·바우처와는 따로 계산돼요."를 둔다.
+  - 체험(로컬) 모드에서는 서버를 부르지 않고 `.festival-empty`로 "실제 로그인에서 이용할 수 있어요"만 보여 준다.
+- **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root`) → 가상 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
+- **가상주식 목록** `.game-stock`(`/games/stock`): 머리(뒤로→`games`, "가상주식", 새로고침 아이콘 버튼) → 시장 줄(`.status-badge` 거래 중=success / 거래 준비·마감=neutral + 개장·마감 카운트다운 13px, 0.2초마다 그 글자만 바꾼다) → 자산 3줄(총 가상 자산, 투자할 수 있는 포인트, 주식 평가 손익) → 밑줄 탭 4개(종목·관심·보유·거래 내역, 개수 붙임, 줄바꿈 금지) → 검색(돋보기 왼쪽 14px, 입력 왼쪽 안쪽 44px) + 정렬 셀렉트(118px) → 종목 행 → [띠] 소식 → 이전 거래 결과 확인(보조 버튼 + 설명 13px).
+  - **종목 행**: 왼쪽 별 아이콘 버튼 44×44(관심 종목, 켜지면 `--primary` 채움) + 행 버튼(`36px 1fr auto`, 간격 10, 최소 64px, 아래 1px 선). 동아리 이미지 36px(8px 모서리, 9.8과 같은 이미지·대체 글자), 이름 15px/700 + `STOCK-n · n주 보유` 12px, 오른쪽 가격 15px/700 + 등락 12px/650.
+  - 검색은 **화면을 다시 그리지 않고** 행에 `hidden`만 붙인다(한글 입력 중 포커스 유지, 9.5와 같은 원칙). 결과가 없으면 "검색 결과가 없어요."
+- **종목 상세** `/games/stock/{id}`: 머리(뒤로→`gamesStock`, 종목 이름, 오른쪽 관심 별) → 이미지 56px(16px) + "가상주식 · STOCK-n" 13px + 이름 23px/700 → 상태 배지(거래 가능 success / 거래 중지·가격 갱신 대기 warning / 거래 대기 neutral) + 카운트다운 → 가격 32px/750(+ "P" 18px) → 시작가 대비 등락 14px/650 → [띠] "행사 2시간 시세" 그래프 → 기준 시각 12px → 시작가·내 보유 수량·보유 평가액 3줄 → 결과 줄 → 매수(주 버튼)·매도(보조 버튼) 2열.
+  - 그래프: SVG 높이 168px, 가로 점선 4개(`--line`), 선 2.5px, 아래 면 불투명도 0.1, 아래 시각 눈금 5개 12px. 손가락·마우스를 대면 가까운 점의 "시각 · 가격"을 오른쪽 위 작은 상자(모서리 4px)에 보여 준다.
+- **가격 색(이 앱의 유일한 예외)**: 한국 시장 관례대로 오르면 `--festival-red #b93f3b`, 내리면 `--festival-blue #285e92`, 같으면 `--muted`. 색만 쓰지 않고 **반드시 ▲/▼와 +/− 부호를 함께** 쓴다. 이 빨강은 오류 뜻이 아니므로 가격·그래프·카드 무늬 밖에서는 쓰지 않는다.
+- **매수·매도 창** `dialog.ops-dialog.game-trade-dialog`(8.11과 같은 354px·20px·8px): 제목 "{종목} 매수" → 현재 확정 가격·주문 가능 2줄(`space-between`, 14px/15px 700) → 수량 조절(`44px 1fr 44px`, 버튼 바탕 `--surface-2`, 수량 20px/750) → 결과 줄 → "매수 확정 · 9,000P" 주 버튼 → "취소" 보조 버튼. 성공하면 창이 닫히고 매수 버튼 위 결과 줄에 "3주 매수가 3,000P에 확정됐어요."(success)가 남는다.
+  - 거래마다 확인 키를 먼저 브라우저에 저장하고 보낸다. 저장할 수 없으면 보내지 않는다. 결과를 모르는 거래는 "이전 거래 결과 확인"이 같은 키로 다시 보내 **한 번만** 처리된다(ORBIT `develop`과 같은 규칙).
+- **블랙잭** `/games/blackjack`
+  - 첫 화면: 가상 포인트 줄 → 안내 → (지난 판 결과 상자) → 결과 줄 → "300P 걸고 상대 찾기"(지난 판이 있으면 "한 판 더 하기") 주 버튼 → [띠] 규칙(목록 14px/1.6) → 카드 점수·용어 표(`84px 1fr`, 아래 1px 선). 포인트가 300P보다 적으면 버튼을 끄고 이유를 13px로 쓴다.
+  - 기다리는 중: `spade` 아이콘(초록) → "상대를 찾고 있어요" 17px/700 → 경과 시간 + "3분 안에 상대가 없으면 판돈을 돌려받아요." 14px → "취소하고 300P 돌려받기" 보조 버튼.
+  - 테이블: 상대 자리 → 차례 안내(14px/650, 내 차례면 `--primary`) + 남은 시간 막대(6px, `--line` 위 `--primary`, 아래 오른쪽 "9초" 12px) → 내 자리 → 결과 줄 → 히트(주, `plus`)·스탠드(보조, `hand`) 2열.
+    - 자리: 안쪽 14px, 1px `--line`, 모서리 8px, 흰 바탕. **차례인 자리**는 민트 바탕 + `--primary` 테두리. 머리: 이름 15px/700 + "카드 n장" 12px, 오른쪽 합계 20px/750(21 초과는 `#a62936`).
+    - 카드 48×68, 모서리 8px, 흰 바탕, 테두리 `#c3d0cb`, 숫자 18px/750 + 무늬 20px. ♥♦는 `--festival-red`. 뒤집힌 카드는 `--primary` 바탕에 흰 사선 무늬와 흰 안쪽 테두리 3px. 320px 화면 이하는 42×60.
+    - 동작 꼬리표(히트!, 스탠드, 21!, 멈춤)는 흰 알약 12px/700 초록, 버스트·시간 초과는 `#fff0ed`/`#a62936`.
+  - 끝나면 카드를 상대 첫 장 → 내 첫 장 → … 순서로 0.7초마다 한 장씩 뒤집고(동작 줄이기면 뒤집는 효과 없이 순서만), 가운데에 결과 상자를 띄운다. 승리 민트/`--primary`, 패배 `--surface-2`, 무승부 `--festival-sky`/`--festival-blue`. 제목 24px/750 + "+300P" 14px/650 + "확인" 주 버튼.
+  - 판이 진행 중이면 1초마다 상태를 다시 읽는다(화면이 보일 때만). 바뀐 것이 있을 때만 다시 그리고, 누르고 있던 버튼에 포커스를 돌려준다. 남은 시간과 경과 시간은 0.2초마다 그 글자만 바꾼다.
+
 ---
 
 ## 12. 아이콘
@@ -875,7 +907,8 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - **Lucide 1.8.0**에서 뽑은 인라인 SVG다(`assets/vendor/ui-icons.js`, `window.FestivalIcons`).
   - `stroke-width: 1.8`, `stroke-linecap/linejoin: round`, `fill: none`, `stroke: currentColor`.
   - 크기 기본 22px(`.ui-icon`). 문맥에 따라 15·16·18·19·20·24·25·26·29·32·44px.
-- 등록된 이름(26개): home, map, scan, stamp, star, back, admin, user, heart, external, search, close, plus, minus, check, arrow, ticket, notice, refresh, list, lock, message, save, copy, logout, bell.
+- 등록된 이름(30개): home, map, scan, stamp, star, back, admin, user, heart, external, search, close, plus, minus, check, arrow, ticket, notice, refresh, list, lock, message, save, copy, logout, bell, game(Gamepad2), spade(Spade), trend(TrendingUp), hand(Hand).
+  - 마지막 4개는 1.37 미니게임용이다. `tools/build-ui-icons.cjs`의 `names`에 추가하고 `lucide@1.8.0`으로 다시 만든다. 다시 만들어도 기존 26개의 SVG는 한 글자도 바뀌지 않는다.
   - QR 스캔 버튼은 `scan`, 승인 완료는 `check`, 계정 삭제 버튼은 `close`, 인증키 확인은 `ticket`.
 - `icon(name)`이 SVG 문자열을 돌려준다. 파일이 없으면 글자 기호(⌂, ★ 등)로 대체한다.
 - 아이콘은 장식이다(`aria-hidden="true"`). 아이콘만 있는 버튼에는 `aria-label`과 `title`을 단다.
@@ -926,7 +959,8 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - 날짜·시각은 한국 시간(Asia/Seoul)으로 쓴다. 목록은 24시간제("10월 31일 17:39"), 승인 팝업은 `ko-KR` 기본 형식("2026년 11월 1일 오후 01:03").
 - 버튼은 "명사 + 동사"("부스 정보 저장"). 확인 질문은 "~할까요?"로 끝낸다.
 - 화면 이름(바꾸지 않는다)
-  - 학생 메뉴: "홈 / 부스 지도 / 스탬프 / MY".
+  - 학생 메뉴: "홈 / 부스 지도 / 스탬프 / 미니게임 / MY".
+  - 미니게임 화면: "미니게임", "가상주식"(목록 이름 "동아리 가상주식"), "블랙잭"(목록 이름 "1대1 블랙잭"). 포인트 이름은 **"가상 포인트"**다. 축제 "보유 포인트"와 섞어 부르지 않는다.
   - 운영자 영역: "관리 마법사", 그 안의 "현황 / 관리 도구 / 기록". 권한 도구: "권한 관리".
   - 담당자 화면: "부스 관리", "바우처 사용 승인".
   - 역할: "부스 담당자", "푸드트럭 바우처 담당자", "포토부스 바우처 담당자".
@@ -952,6 +986,10 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | 참여자 | 검색 → 참여자 표 → 페이지 → [띠] 리뷰 실명·소속 확인 → [띠] 학생 계정 삭제 |
 | 부스 관리 | 머리 → 부스 이름·메타 → 프로필 사진 → 운영 상태 → 운영 시간 → 위치 → 소개 → 프로그램 안내 → 결과 줄 → 저장 → [띠] 스탬프 수동 승인 → [띠] 바우처 사용 승인(바우처 담당자일 때) |
 | 바우처 사용 승인(바우처 담당자만) | 머리 "바우처 사용 승인" → 맡은 종류 → QR 스캔으로 승인 → 인증키 입력 → 인증키로 확인 |
+| 미니게임 | 머리 "미니게임" → 가상 포인트 줄 → 안내 → [띠] 게임 2행(동아리 가상주식, 1대1 블랙잭) → 추가 예정 안내 |
+| 가상주식 | 머리(새로고침) → 시장 상태 + 카운트다운 → 자산 3줄 → 탭(종목·관심·보유·거래 내역) → 검색·정렬 → 종목 행 → [띠] 소식 → 이전 거래 결과 확인 |
+| 종목 상세 | 머리(관심 별) → 이미지 + 이름 23px → 상태 배지 → 가격 32px → 시작가 대비 → [띠] 2시간 시세 → 보유 3줄 → 결과 줄 → 매수·매도 |
+| 블랙잭 | 머리 → 가상 포인트 → 안내 → (지난 판 결과) → 상대 찾기 → [띠] 규칙·카드 점수·용어. 진행 중이면 상대 자리 → 차례·남은 시간 → 내 자리 → 히트·스탠드 |
 
 ---
 
@@ -1026,7 +1064,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | 입력 포커스 | `.input:focus` | 테두리 `#087652`, 바깥선 `2px rgba(11,140,99,.314)` |
 | 버튼 포커스 | `button:focus-visible` | `3px solid #168877`, 3px |
 | 비활성 버튼 | `.primary-btn:disabled` | 불투명도 0.5, `not-allowed` |
-| 하단 내비 | `.bottom-nav` | 높이 72, 위 1px `#e1ebe5`, 4열 |
+| 하단 내비 | `.bottom-nav` | 높이 72, 위 1px `#e1ebe5`, 5열(칸 75.6px) |
 | 내비 칸 | `.nav-btn` | 높이 67, 12px/800, `#60736b` |
 | 활성 내비 아이콘 | `.nav-btn[aria-current] span` | 42×30, 모서리 10, 바탕 `#d9faea` |
 | 일반 머리 | `.web-header` | 높이 70, `44px 1fr 44px`, 아래 1px 선 |
@@ -1079,7 +1117,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 | 역할 | 누가 | 보이는 것 |
 | --- | --- | --- |
-| 학생 | 학교 Google 계정으로 가입한 모든 참여자 | 홈, 부스 지도, 스탬프, MY, 바우처, 리뷰, 공지, 소속 확인 |
+| 학생 | 학교 Google 계정으로 가입한 모든 참여자 | 홈, 부스 지도, 스탬프, 미니게임, MY, 바우처, 리뷰, 공지, 소속 확인 |
 | 부스 담당자 | 운영자가 지정한, 소속 확인이 끝난 학생 | 학생 화면 + MY의 "부스 관리 · {부스}" 버튼 → 부스 관리 |
 | 바우처 담당자 | 운영자가 지정한 학생(푸드트럭 / 포토부스) | 학생 화면 + MY의 "바우처 사용 승인 · {종류}" 버튼 → 바우처 사용 승인 |
 | 운영자 | `admin` 계정 | 학생 화면 + MY의 "관리 마법사 열기" → 관리 마법사 |
@@ -1106,6 +1144,10 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | `notice` | `/notices/{id}` | 공지 상세 | 홈 | `notices` |
 | `manage` | `/manage` | 부스 관리 / 바우처 사용 승인 | MY | `profile` |
 | `admin` | `/admin` | 관리 마법사 | MY | 홈 아이콘 버튼 |
+| `games` | `/games` | 미니게임 허브 | 미니게임 | (뒤로 없음) |
+| `gamesStock` | `/games/stock` | 동아리 가상주식 | 미니게임 | `games` |
+| `gamesStockDetail` | `/games/stock/{종목 번호}` | 종목 상세 (번호는 1 이상의 정수만) | 미니게임 | `gamesStock` |
+| `gamesBlackjack` | `/games/blackjack` | 1대1 블랙잭 | 미니게임 | `games` |
 
 - 예전 주소(`/index.html`, `/home`, `/stamps`, `/vouchers`, `/profile`, `/scan`)도 같은 화면으로 연다.
 - 로그인하지 않은 사용자가 다른 주소로 들어오면 로그인 화면을 보여 주고, 로그인 뒤 원래 주소로 돌려보낸다.
@@ -1165,6 +1207,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
         <button class="nav-btn" type="button" data-route="home"><span>{icon:home}</span><span>홈</span></button>
         <button class="nav-btn" type="button" data-route="map"><span>{icon:map}</span><span>부스 지도</span></button>
         <button class="nav-btn active" type="button" data-route="stamps" aria-current="page"><span>{icon:stamp}</span><span>스탬프</span></button>
+        <button class="nav-btn" type="button" data-route="games"><span>{icon:game}</span><span>미니게임</span></button>
         <button class="nav-btn" type="button" data-route="profile"><span>{icon:user}</span><span>MY</span></button>
       </nav>
     </main>
@@ -1721,7 +1764,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 .pf .top-bar { min-height: 64px; }
 .pf .top-bar h1 { font-size: 18px; font-weight: 700; }
 .pf .bottom-nav { position: fixed; bottom: 0; left: max(0px, calc(50% - 240px)); right: max(0px, calc(50% - 240px));
-  display: grid; grid-template-columns: repeat(4, 1fr); height: calc(72px + env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(5, 1fr); height: calc(72px + env(safe-area-inset-bottom));
   padding: 4px 6px env(safe-area-inset-bottom); background: #fff; border-top: 1px solid var(--line); }
 .pf .nav-btn { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 48px; border-radius: 8px;
   font-size: 12px; font-weight: 800; color: var(--muted); }
