@@ -19,6 +19,11 @@
 .design-web .festival-games .game-row-copy strong { font-size: 15px; font-weight: 700; }
 .design-web .festival-games .game-row-copy small { font-size: 12px; color: var(--muted); font-weight: 500; overflow-wrap: anywhere; }
 .design-web .festival-games .game-list .shortcut-symbol { width: 40px; height: 40px; border-radius: 8px; }
+/* 1.38: "n명 매칭중" box beside 1대1 블랙잭 (status-badge, a little shorter to fit the 76px row). */
+.design-web .festival-games .game-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.design-web .festival-games .game-matching { min-height: 22px; padding: 0 7px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-matching b { font-weight: 750; }
+.design-web .festival-games .game-matching[hidden] { display: none; }
 .design-web .festival-games .game-coming { margin: 16px 0 0; font-size: 13px; text-align: center; }
 
 /* 가상주식 list */
@@ -118,6 +123,9 @@
 .design-web .festival-games :is(.game-bj-result, .game-bj-outcome).lose { background: var(--surface-2); color: var(--text); }
 .design-web .festival-games :is(.game-bj-result, .game-bj-outcome).draw { background: var(--festival-sky); color: var(--festival-blue); }
 .design-web .festival-games .game-bj-result-hands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; text-align: left; }
+/* 1.38: the last opponent's rematch answer, centred above "한 판 더 하기". */
+.design-web .festival-games .game-bj-rematch { display: flex; justify-content: center; margin: 0 0 10px; }
+.design-web .festival-games .game-bj-rematch .status-badge { font-size: 13px; }
 .design-web .festival-games .game-bj-result-hands small { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
 .design-web .festival-games .game-rules ul { margin: 0; padding-left: 18px; }
 .design-web .festival-games .game-rules li { margin: 4px 0; font-size: 14px; line-height: 1.6; word-break: keep-all; }

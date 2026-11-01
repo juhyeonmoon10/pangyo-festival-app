@@ -1,4 +1,4 @@
-// 미니게임 (1.37) browser check. Harness copied from voucher-manager-browser.mjs; orbit_* calls are stubbed.
+// 미니게임 (1.37, 1.38 matching count and rematch) browser check. Harness copied from voucher-manager-browser.mjs; orbit_* calls are stubbed.
 // Real browser and festival operations SQL in local PGlite. ORBIT's orbit_* functions and the stock_price_history
 // and news tables are answered by a synthetic market and a scripted blackjack opponent (gameStub).
 // Covers: 5-tab bottom navigation, games reachable only from it, 가상주식 list/search/favorites/detail/trade/retry, 블랙잭 flow.
@@ -153,11 +153,22 @@ const market={eventId:'orbit-event',status:'open',eventStatus:'open',startsAt:ne
 const stockRows=NAMES.map((name,i)=>({id:String(i+1),eventId:'orbit-event',boothId:name,name,price:3000+i*300,previousPrice:3000+i*300+(i%3-1)*60,priceVersion:5,updatedAt:new Date(t0-60000).toISOString(),tradingStatus:i===4?'halted':'open',recentNfcCount:0,purchaseRate:0,minPrice:1,maxPrice:100000}));
 const wallet={money:100000,holdings:[],trades:[],receipts:new Map()};
 const calls=[];
-let bjGame=null, bjVersion=0;
+let bjGame=null, bjVersion=0, lobbyWaiting=2, rmMe='waiting', rmOpp='waiting';
+const rmChoices=[];
 const bjView=()=>bjGame&&JSON.parse(JSON.stringify(bjGame));
 globalThis.gameStub=async(url,p)=>{
   const name=url.pathname.replace('/rest/v1/rpc/','');
-  if(url.pathname.startsWith('/rest/v1/rpc/orbit_')) calls.push(name);
+  if(/^(orbit_|festival_blackjack_)/.test(name)) calls.push(name);
+  if(name==='festival_blackjack_lobby') return {json:{waiting:lobbyWaiting}};
+  if(name==='festival_blackjack_rematch') {
+    rmChoices.push(p.p_choice);
+    if(p.p_choice==='accept') {
+      rmMe='accept';
+      if(rmOpp==='accept') { wallet.money-=300; bjGame={id:randomUUID(),status:'playing',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[1,2],myTotal:5,myDone:false,opponentName:'가ㅇ방',opponentCards:[30,null],opponentTotal:null,opponentDone:false,turn:'opponent',turnDeadline:new Date(Date.now()+10000).toISOString(),result:null,payout:null}; return {json:{me:'accept',opponent:'accept',game:bjView()}}; }
+    } else if(p.p_choice==='decline') rmMe='decline';
+    else if(rmMe==='decline') rmMe='waiting';
+    return {json:{me:rmMe,opponent:rmOpp,game:null}};
+  }
   if(name==='orbit_stock_snapshot') return {json:{userId:'7',pointBalance:wallet.money,active:true,market,stocks:stockRows,holdings:wallet.holdings,trades:wallet.trades}};
   if(name==='orbit_trade_stock') {
     if(wallet.receipts.has(p.p_idempotency_key)) return {json:wallet.receipts.get(p.p_idempotency_key)};
@@ -212,6 +223,13 @@ try {
   await page.waitForSelector('.game-list'); await page.waitForFunction(()=>/100,000P/.test(document.querySelector('.game-wallet').textContent));
   await navCheck(page,'games');
   assert.equal(await page.locator('.game-list button').count(),2);
+  // 1.38: matching count beside 1대1 블랙잭, refreshed without a re-render
+  await page.waitForFunction(()=>document.querySelector('[data-game-matching]:not([hidden])')?.textContent.trim()==='2명 매칭중');
+  assert.equal(await page.locator('[data-game-matching]').evaluate(e=>e.classList.contains('success')),true);
+  lobbyWaiting=0;
+  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='0명 매칭중',null,{timeout:8000});
+  assert.equal(await page.locator('[data-game-matching]').evaluate(e=>e.closest('[data-route]')?.dataset.route),'gamesBlackjack');
+  lobbyWaiting=3;
   await shot(page,'games-hub');
   // Stock list, tabs, search (DOM filter keeps focus), sort
   await page.locator('[data-route="gamesStock"]').click();
@@ -278,8 +296,36 @@ try {
   await shot(page,'bj-outcome');
   await page.locator('[data-bj-ok]').click();
   await page.waitForSelector('.game-bj-result.win');
-  assert.match(await page.locator('[data-bj="join"]').textContent(),/한 판 더 하기/);
+  // 1.38: the last opponent's rematch answer above "한 판 더 하기"
+  await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 대기중');
+  assert.match(await page.locator('[data-bj="rematch"]').textContent(),/한 판 더 하기/);
+  assert.ok(await page.evaluate(()=>document.querySelector('.game-bj-rematch').compareDocumentPosition(document.querySelector('[data-bj="rematch"]'))&Node.DOCUMENT_POSITION_FOLLOWING),'status sits above the button');
   await shot(page,'bj-result');
+  rmOpp='decline';
+  await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 거부');
+  assert.match(await page.locator('[data-bj="join"]').textContent(),/한 판 더 하기/,'declined opponent: the button finds a new random opponent');
+  await shot(page,'bj-rematch-declined');
+  rmOpp='waiting';
+  await page.waitForSelector('[data-bj="rematch"]');
+  await page.locator('[data-bj="rematch"]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-bj="rematch"]')?.disabled===true && /같은 상대와 바로 시작/.test(document.body.textContent));
+  rmOpp='accept';
+  await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 수락');
+  await shot(page,'bj-rematch-accepted');
+  // Leaving the blackjack screen tells the opponent "거부"
+  await page.evaluate(()=>navigateTo('games')); await page.waitForSelector('.game-list');
+  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='3명 매칭중');
+  assert.equal(rmChoices.at(-1),'decline');
+  // Coming back and both accepting starts a new game with the same opponent
+  rmMe='decline';
+  await page.evaluate(()=>navigateTo('gamesBlackjack'));
+  await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 수락' && document.querySelector('[data-bj="rematch"]')?.disabled===false);
+  const before=wallet.money;
+  await page.locator('[data-bj="rematch"]').click();
+  await page.waitForSelector('.game-bj-table');
+  assert.equal(wallet.money,before-300);
+  assert.match(await page.locator('.game-bj-turn').textContent(),/상대가 고르는 중/);
+  await shot(page,'bj-rematch-table');
   // Narrow and wide screens
   for(const width of [320,1024]) {
     const narrow=await pageFor(visitor,width);
@@ -288,7 +334,7 @@ try {
     await narrow.context.close();
   }
   // Demo (local) mode explains instead of calling the server
-  assert.ok(calls.includes('orbit_trade_stock') && calls.includes('orbit_blackjack_join'));
+  assert.ok(calls.includes('orbit_trade_stock') && calls.includes('orbit_blackjack_join') && calls.includes('festival_blackjack_lobby') && calls.includes('festival_blackjack_rematch'));
   console.log(JSON.stringify({calls:[...new Set(calls)],errors:pages.map(p=>p.errors).flat(),artifacts:path.relative(root,output)}));
   assert.deepEqual(pages.map(p=>p.errors).flat(),[]);
 } finally { await browser.close(); }

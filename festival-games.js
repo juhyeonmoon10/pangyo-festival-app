@@ -2,9 +2,11 @@
    functions (orbit_stock_snapshot, orbit_trade_stock, orbit_blackjack_*) through the signed-in festival account.
    They move ORBIT virtual points (가상 포인트), which are separate from festival points, stamps and vouchers.
    The only way in is the bottom navigation tab '미니게임' (route 'games'); no other screen links here.
-   Results are shown next to the button that was pressed (spotMarkup/showSpot). */
+   Results are shown next to the button that was pressed (spotMarkup/showSpot).
+   1.38: the hub shows how many players wait for a blackjack opponent (festival_blackjack_lobby), and the
+   result screen shows whether the last opponent waits, accepts or declines a rematch (festival_blackjack_rematch). */
 const festivalGames = (() => {
-  const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
+  const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
   const api = () => festivalAccount?.games;
   const point = value => `${Math.round(Number(value) || 0).toLocaleString('ko-KR')}P`;
@@ -32,6 +34,7 @@ const festivalGames = (() => {
     GAME_NOT_FOUND: '게임을 찾지 못했어요. 화면을 새로고침해 주세요.',
     NOT_YOUR_TURN: '지금은 내 차례가 아니에요.',
     INVALID_ACTION: '지금은 할 수 없는 행동이에요.',
+    REMATCH_EXPIRED: '다시 하기 시간이 지났어요. 새 상대를 찾아 주세요.',
     SERVER_NOT_READY: '미니게임을 준비하고 있어요. 잠시 후 다시 시도해 주세요.',
     NETWORK_ERROR: '연결이 불안정해요. 잠시 후 다시 시도해 주세요.',
   };
@@ -50,9 +53,13 @@ const festivalGames = (() => {
   let chart = { key: '', status: 'idle', points: [], opening: null };
   let trade = null, tradeBusy = false;
   let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0 };
-  let pollTimer = 0, tickTimer = 0, revealTimer = 0;
+  let lobby = { status: 'idle', waiting: null };
+  let rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
+  let pollTimer = 0, tickTimer = 0, revealTimer = 0, lobbyTimer = 0;
 
   function reset() {
+    lobby = { status: 'idle', waiting: null };
+    rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
     owner = state.user?.id || null;
     market = { status: 'idle', data: null, code: '' };
     news = { status: 'idle', items: [] };
@@ -250,6 +257,36 @@ const festivalGames = (() => {
     return `<div class="festival-empty"><span>${icon('game')}</span><strong>${h(title)}은 실제 로그인에서 이용할 수 있어요</strong><p>체험 모드에는 가상 포인트가 없어요.</p></div>`;
   }
 
+  // "n명 매칭중" next to 1대1 블랙잭. Refreshed every 5 s by changing only this box (no re-render).
+  const matchingBadge = () => `<span class="status-badge game-matching${lobby.waiting ? ' success' : ' muted'}" data-game-matching ${lobby.waiting === null ? 'hidden' : ''}><i aria-hidden="true"></i><span><b>${lobby.waiting ?? 0}</b>명 매칭중</span></span>`;
+  function paintLobby() {
+    const badge = document.querySelector('[data-game-matching]');
+    if (!badge) return;
+    badge.hidden = lobby.waiting === null;
+    badge.classList.toggle('success', lobby.waiting > 0);
+    badge.classList.toggle('muted', !(lobby.waiting > 0));
+    badge.querySelector('b').textContent = lobby.waiting ?? 0;
+  }
+  async function loadLobby() {
+    if (!api() || lobby.status === 'loading') return;
+    const actor = state.user?.id;
+    lobby.status = 'loading';
+    const response = await api().call('festival_blackjack_lobby');
+    if (state.user?.id !== actor) return;
+    lobby.status = 'ready';
+    if (response.ok && Number.isInteger(response.data?.waiting) && response.data.waiting >= 0) lobby.waiting = response.data.waiting;
+    paintLobby();
+    scheduleLobby();
+  }
+  function scheduleLobby() {
+    clearTimeout(lobbyTimer);
+    if (state.route !== 'games' || !isServerMode()) return;
+    lobbyTimer = setTimeout(() => {
+      if (state.route !== 'games') return;
+      if (document.visibilityState === 'visible') loadLobby(); else scheduleLobby();
+    }, LOBBY_MS);
+  }
+
   function hubView() {
     const list = stocks(), held = list.filter(stock => stock.quantity > 0).length;
     const stockLine = market.data ? `${marketOpen() ? '거래 중' : '거래 준비·마감'} · 종목 ${list.length}개${held ? ` · 보유 ${held}개` : ''}` : market.status === 'error' ? '정보를 불러오지 못했어요' : '불러오는 중...';
@@ -262,7 +299,7 @@ const festivalGames = (() => {
       ${market.status === 'error' && !market.data ? `<p class="ops-alert" role="alert">${h(message(market.code))}</p>` : ''}
       <nav class="profile-shortcuts game-list" aria-label="미니게임 목록">
         <button type="button" data-route="gamesStock"><span class="shortcut-symbol map">${icon('trend')}</span><span class="game-row-copy"><strong>동아리 가상주식</strong><small>${h(stockLine)}</small></span>${icon('arrow')}</button>
-        <button type="button" data-route="gamesBlackjack"><span class="shortcut-symbol reviews">${icon('spade')}</span><span class="game-row-copy"><strong>1대1 블랙잭</strong><small>판돈 ${point(STAKE)} · 이기면 ${point(STAKE * 2)}</small></span>${icon('arrow')}</button>
+        <button type="button" data-route="gamesBlackjack"><span class="shortcut-symbol reviews">${icon('spade')}</span><span class="game-row-copy"><span class="game-row-title"><strong>1대1 블랙잭</strong>${matchingBadge()}</span><small>판돈 ${point(STAKE)} · 이기면 ${point(STAKE * 2)}</small></span>${icon('arrow')}</button>
       </nav>
       <p class="web-muted game-coming">새 미니게임이 열리면 이곳에 추가돼요.</p>` : demoOnly('미니게임')}
       ${bottomNav('games')}</main>`;
@@ -517,6 +554,9 @@ const festivalGames = (() => {
     if (next?.status === 'playing' && prior?.id !== next.id) { bj.announcement = ''; bj.badges = {}; }
     const changed = JSON.stringify(prior) !== JSON.stringify(next);
     bj.game = next;
+    if (next?.status === 'finished' && rematch.gameId !== next.id) {
+      rematch = { gameId: next.id, me: null, opponent: null, expired: false, busy: false, loading: false };
+    }
     if (next && ['finished', 'cancelled'].includes(next.status) && bj.settled !== next.id) {
       bj.settled = next.id;
       loadMarket({ quiet: true });
@@ -554,7 +594,53 @@ const festivalGames = (() => {
     if ((applyGame(game) || first) && state.route === 'gamesBlackjack') renderKeepingFocus();
     schedulePoll();
   }
+  // Rematch with the same opponent. 'watch' is the 1 s heartbeat while the finished game is on screen,
+  // 'accept' is "한 판 더 하기", 'decline' is sent once when the player leaves the blackjack screen.
+  const REMATCH_STATES = ['waiting', 'accept', 'decline'];
+  const rematchOpen = () => bj.game?.status === 'finished' && rematch.gameId === bj.game.id && !rematch.expired;
+  async function loadRematch(choice) {
+    const game = bj.game, r = rematch;
+    if (!api() || !rematchOpen() || (choice === 'watch' && r.loading) || (choice === 'accept' && r.busy)) { schedulePoll(); return; }
+    const actor = state.user?.id;
+    r.loading = true;
+    if (choice === 'accept') { r.busy = true; report('bj', '다시 하기를 보내는 중...', 'info', true); }
+    const response = await api().call('festival_blackjack_rematch', { p_game_id: game.id, p_choice: choice });
+    r.loading = false;
+    if (choice === 'accept') r.busy = false;
+    if (state.user?.id !== actor || rematch !== r) return;
+    if (!response.ok) {
+      if (['REMATCH_EXPIRED', 'GAME_NOT_FOUND'].includes(response.code)) { r.expired = true; r.opponent = null; }
+      if (choice === 'accept') report('bj', message(response.code, 'blackjack'), 'error', true);
+      else if (r.expired && state.route === 'gamesBlackjack') renderKeepingFocus();
+      schedulePoll();
+      return;
+    }
+    const next = validGame(response.data?.game) ? response.data.game : null;
+    if (next && next.id !== game.id) {
+      // Both accepted: the new game with the same opponent starts here.
+      note = null;
+      applyGame(next);
+      loadMarket({ quiet: true });
+      if (state.route === 'gamesBlackjack') renderKeepingFocus();
+      schedulePoll();
+      return;
+    }
+    const me = REMATCH_STATES.includes(response.data?.me) ? response.data.me : null;
+    const opponent = REMATCH_STATES.includes(response.data?.opponent) ? response.data.opponent : null;
+    const changed = r.me !== me || r.opponent !== opponent;
+    r.me = me; r.opponent = opponent;
+    if (choice === 'accept') note = null;
+    if ((changed || choice === 'accept') && state.route === 'gamesBlackjack') renderKeepingFocus();
+    schedulePoll();
+  }
+  function leaveRematch() {
+    if (!rematchOpen() || rematch.me === null || rematch.me === 'decline') return;
+    rematch.me = 'decline';
+    api()?.call('festival_blackjack_rematch', { p_game_id: rematch.gameId, p_choice: 'decline' });
+  }
+
   async function sendBlackjack(action) {
+    if (action === 'rematch') { loadRematch('accept'); return; }
     if (bj.busy) return;
     const game = bj.game;
     bj.busy = true;
@@ -583,10 +669,13 @@ const festivalGames = (() => {
   }
   function schedulePoll() {
     clearTimeout(pollTimer);
-    if (state.route !== 'gamesBlackjack' || !active()) return;
+    // A game in progress reloads its state; a finished game keeps the rematch heartbeat going.
+    if (state.route !== 'gamesBlackjack' || (!active() && !rematchOpen())) return;
     pollTimer = setTimeout(() => {
       if (state.route !== 'gamesBlackjack') return;
-      if (document.visibilityState === 'visible') loadBlackjack(); else schedulePoll();
+      if (document.visibilityState !== 'visible') schedulePoll();
+      else if (active()) loadBlackjack();
+      else loadRematch('watch');
     }, POLL_MS);
   }
   function tick() {
@@ -666,9 +755,15 @@ const festivalGames = (() => {
     </section>`;
   }
 
+  const REMATCH_LABEL = { waiting: '대기중', accept: '수락', decline: '거부' };
+  const REMATCH_TONE = { waiting: 'warning', accept: 'success', decline: 'muted' };
   function lobbyView() {
     const game = bj.game, money = balance();
     const enough = money !== null && money >= STAKE;
+    // "한 판 더 하기" asks the same opponent unless they declined; then it looks for a new random opponent.
+    const r = rematchOpen() ? rematch : null;
+    const sameOpponent = !!r && r.opponent !== 'decline';
+    const waitingForThem = sameOpponent && r.me === 'accept';
     if (game?.status === 'waiting') {
       const waited = Math.max(0, Math.floor((Date.now() - Date.parse(game.createdAt)) / 1000));
       return `<section class="game-bj-waiting" aria-live="polite"><span>${icon('spade')}</span><h2>상대를 찾고 있어요</h2>
@@ -679,8 +774,10 @@ const festivalGames = (() => {
         <div class="game-bj-result-hands"><div><small>나 · ${game.myTotal}${game.myTotal > 21 ? ' · 버스트' : ''}</small>${hand(game.myCards, null, null, true)}</div>
         <div><small>${h(game.opponentName || '상대')} · ${game.opponentTotal ?? '—'}${(game.opponentTotal ?? 0) > 21 ? ' · 버스트' : ''}</small>${hand(game.opponentCards, null, null, true)}</div></div></section>` : ''}
       ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">대기를 취소하고 ${point(game.stake)}를 돌려받았어요.</p>` : ''}
+      ${r?.opponent ? `<p class="game-bj-rematch" role="status"><span class="status-badge ${REMATCH_TONE[r.opponent]}" data-bj-rematch="${r.opponent}"><i aria-hidden="true"></i>상대 : ${REMATCH_LABEL[r.opponent]}</span></p>` : ''}
       ${slot('bj')}
-      <button type="button" class="primary-btn full-action" data-bj="join" ${bj.busy || !enough ? 'disabled' : ''}>${icon('spade')} ${game?.status === 'finished' ? '한 판 더 하기' : `${point(STAKE)} 걸고 상대 찾기`}</button>
+      <button type="button" class="primary-btn full-action" data-bj="${sameOpponent ? 'rematch' : 'join'}" ${bj.busy || r?.busy || waitingForThem || !enough ? 'disabled' : ''}>${icon('spade')} ${game?.status === 'finished' ? '한 판 더 하기' : `${point(STAKE)} 걸고 상대 찾기`}</button>
+      ${waitingForThem && r.opponent !== 'accept' ? '<p class="web-muted game-trade-hint">상대도 수락하면 같은 상대와 바로 시작해요.</p>' : ''}
       ${money !== null && !enough ? `<p class="web-muted game-trade-hint">가상 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
       <section class="ops-section game-rules" aria-labelledby="gameRulesTitle"><h2 id="gameRulesTitle">규칙</h2>
         <ul>
@@ -719,15 +816,19 @@ const festivalGames = (() => {
     if (state.route === 'gamesStock') { if (isServerMode() && news.status === 'idle') setTimeout(loadNews, 0); return stockListView(); }
     if (state.route === 'gamesStockDetail') return stockDetailView();
     if (state.route === 'gamesBlackjack') { if (isServerMode() && bj.status === 'idle') setTimeout(loadBlackjack, 0); return blackjackView(); }
+    if (isServerMode() && lobby.status === 'idle') setTimeout(loadLobby, 0);
     return hubView();
   }
 
   // Called when the route changes to a games screen (fresh data each visit) or away from one.
   function load() {
+    if (state.route !== 'gamesBlackjack') leaveRematch();
+    if (state.route !== 'games') clearTimeout(lobbyTimer);
     if (!isGameRoute(state.route)) { clearTimeout(pollTimer); clearInterval(tickTimer); closeTrade(); return; }
     if (!isServerMode()) return;
     if (owner !== (state.user?.id || null)) reset();
     loadMarket({ quiet: market.status === 'ready' });
+    if (state.route === 'games') loadLobby();
     if (state.route === 'gamesBlackjack') loadBlackjack();
   }
 
@@ -794,7 +895,7 @@ const festivalGames = (() => {
     document.querySelector('[data-bj-reload]')?.addEventListener('click', () => { bj.status = 'idle'; render(); });
     document.querySelector('[data-bj-ok]')?.addEventListener('click', () => {
       clearTimeout(revealTimer); bj.reveal = null; render();
-      document.querySelector('[data-bj="join"]')?.focus();
+      document.querySelector('[data-bj="join"], [data-bj="rematch"]')?.focus();
     });
     bindChart();
     if (state.route === 'gamesBlackjack') schedulePoll();
