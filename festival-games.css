@@ -97,8 +97,6 @@
 .design-web .festival-games .game-holding strong { font-variant-numeric: tabular-nums; }
 .design-web .festival-games .game-trade-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .design-web .festival-games .game-trade-actions button { width: 100%; }
-/* 1.42: 히트 · 스탠드 stay side by side; 차례 넘기기 takes the row below. */
-.design-web .festival-games .game-trade-actions.has-pass [data-bj="pass"] { grid-column: 1 / -1; order: 1; }
 .design-web .festival-games .game-trade-hint { margin: 8px 0 0; font-size: 13px; text-align: center; }
 
 /* Trade dialog (an .ops-dialog) */

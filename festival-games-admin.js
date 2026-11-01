@@ -215,7 +215,7 @@ const festivalGamesAdmin = (() => {
         ${tile('오늘 끝난 판', `${Number(b.finishedToday) || 0}판`)}${tile('오늘 오간 판돈', point(b.stakedToday))}
       </div>
       <section class="ops-section"><h2>카드 제한</h2>
-        <p class="games-admin-hint">진행 중인 판에도 바로 적용돼요. 히트 한 번에 카드 한 장을 받고, 한 차례에 정한 장수를 다 받으면 상대 차례로 넘어가요. 덜 받은 학생은 '차례 넘기기'로 넘길 수 있어요. 21이나 버스트여도 자동으로 멈추지 않으니(1.40), 한 판에 받을 수 있는 카드 수로 판이 너무 길어지지 않게 할 수 있어요.</p>
+        <p class="games-admin-hint">진행 중인 판에도 바로 적용돼요. 히트 한 번에 카드 한 장을 받고, 한 차례에 정한 장수를 다 받으면 상대 차례로 넘어가요. 덜 받고 넘기려면 스탠드를 눌러요(카드를 받은 뒤 스탠드하면 차례만 넘기고, 받지 않고 스탠드하면 그 판에서 멈춰요). 21이나 버스트여도 자동으로 멈추지 않으니(1.40), 한 판에 받을 수 있는 카드 수로 판이 너무 길어지지 않게 할 수 있어요.</p>
         <form class="ops-form" data-bj-limits>
           <div class="games-admin-grid">
             <label>한 차례에 받을 수 있는 카드<select class="select" name="maxPerTurn">${options(1, 5, per)}</select></label>

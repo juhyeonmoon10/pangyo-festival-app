@@ -225,9 +225,10 @@ globalThis.gameStub=async(url,p)=>{
   if(name==='festival_blackjack_action') {
     bjActions.push(p.p_action);
     if('p_count' in p) return {status:400,json:{code:'P0001',message:'INVALID_ACTION'}};
-    // One card per hit; the turn passes after maxPerTurn cards or a pass (1.42).
+    // One card per hit; the turn passes after maxPerTurn cards (1.42) or a stand after a card this turn (1.44).
+    const standPasses=p.p_action==='stand' && (bjGame.turnDrawn||0)>0 && !bjGame.opponentDone && (bjRules.maxDraws===null || bjGame.myCards.length-2<bjRules.maxDraws);
     if(p.p_action==='hit') { const drawn=(bjGame.turnDrawn||0)+1, stays=drawn<bjRules.maxPerTurn; Object.assign(bjGame,{myCards:[...bjGame.myCards,2],myTotal:bjGame.myTotal+3,turnDrawn:stays?drawn:0,turn:stays?'me':'opponent',version:++bjVersion}); }
-    else if(p.p_action==='pass') Object.assign(bjGame,{turnDrawn:0,turn:'opponent',version:++bjVersion});
+    else if(standPasses) Object.assign(bjGame,{turnDrawn:0,turn:'opponent',version:++bjVersion});
     else { wallet.money+=600; Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[12,6],opponentTotal:17,result:'win',payout:600,turn:null,turnDeadline:null,version:++bjVersion}); }
     return {json:bjView()};
   }
@@ -357,15 +358,15 @@ try {
   assert.match(await page.locator('.game-bj-draw').textContent(),/이번 차례에 받을 수 있는 카드 2장/);
   assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 4장/);
   assert.equal(await page.locator('[data-bj-count]').count(),0);
-  assert.equal(await page.locator('[data-bj="pass"]').isEnabled(),false,'no pass before a hit');
+  assert.equal(await page.locator('[data-bj="pass"]').count(),0,'no 차례 넘기기 button (1.44)');
+  assert.deepEqual(await page.locator('.game-trade-actions button').allTextContents().then(t=>t.map(x=>x.trim())),['히트','스탠드']);
   await shot(page,'bj-table');
   // 1.40: going bust does not stand; the player can keep hitting until they stand
   await page.locator('[data-bj="hit"]').click();
   await page.waitForFunction(()=>/22/.test(document.querySelectorAll('.game-bj-total')[0]?.textContent||'') && /버스트/.test(document.querySelector('.game-bj-badge')?.textContent||''));
-  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트예요. 카드를 더 받거나, 차례를 넘기거나, 스탠드할 수 있어요/);
+  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트예요. 카드를 더 받거나, 스탠드로 차례를 넘길 수 있어요/);
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true,'hit stays available after a bust (the turn allows 2)');
   assert.equal(await page.locator('[data-bj="stand"]').isEnabled(),true);
-  assert.equal(await page.locator('[data-bj="pass"]').isEnabled(),true,'pass after a hit');
   assert.equal((await page.locator('[data-bj="hit"]').textContent()).trim(),'히트');
   assert.match(await page.locator('.game-bj-draw').textContent(),/이번 차례에 받을 수 있는 카드 1장/);
   await shot(page,'bj-bust-keep-hitting');
@@ -378,19 +379,20 @@ try {
   Object.assign(bjGame,{turn:'me',turnDrawn:0,version:++bjVersion});
   await page.waitForFunction(()=>document.querySelector('[data-bj="hit"]')?.disabled===false);
   await page.locator('[data-bj="hit"]').click();
-  await page.waitForFunction(()=>document.querySelector('[data-bj="pass"]')?.disabled===false);
-  assert.match(await page.locator('.game-bj-turn').textContent(),/차례를 넘기거나/);
-  await shot(page,'bj-pass');
-  await page.locator('[data-bj="pass"]').click();
+  await page.waitForFunction(()=>/스탠드로 차례를 넘길 수 있어요/.test(document.querySelector('.game-bj-turn')?.textContent||''));
+  await shot(page,'bj-stand-passes');
+  // 1.44: a stand after a card this turn only passes the turn
+  await page.locator('[data-bj="stand"]').click();
   await page.waitForFunction(()=>/상대가 고르는 중/.test(document.querySelector('.game-bj-turn')?.textContent||''));
+  assert.equal(await page.locator('.game-bj-table').count(),1,'the game goes on');
+  assert.match(await page.locator('.game-bj-badge').last().textContent(),/차례 넘김/);
   // Back to me: the last card of the game, then only stand is left
   Object.assign(bjGame,{turn:'me',turnDrawn:0,version:++bjVersion});
   await page.waitForFunction(()=>document.querySelector('[data-bj="hit"]')?.disabled===false);
   await page.locator('[data-bj="hit"]').click();
   await page.waitForFunction(()=>document.querySelectorAll('.game-bj-seat')[1]?.querySelectorAll('.game-card').length===6);
-  assert.deepEqual(bjActions,['hit','hit','hit','pass','hit']);
+  assert.deepEqual(bjActions,['hit','hit','hit','stand','hit']);
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),false,'no more cards after the per-game limit');
-  assert.equal(await page.locator('[data-bj="pass"]').isEnabled(),false);
   assert.match(await page.locator('.game-bj-turn').textContent(),/더 받을 수 있는 카드가 없어요/);
   assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 0장/);
   await shot(page,'bj-card-limit');
