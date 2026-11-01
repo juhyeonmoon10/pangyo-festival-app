@@ -1003,7 +1003,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | 홈 | 브랜드 줄 → (중요 공지 띠) → 인사 27px → (소속 확인 요청) → 내 스탬프(개수 + 내 바우처 + 펀치 6칸) → 지도 바로가기 민트 카드 → [띠] 이어서 남기기 → [띠] 축제 바로가기(바우처·리뷰) → 최근 내 기록 → 축제 소식(공지 열 전체 너비) → 바닥글 "PANGYO HIGH SCHOOL" |
 | 부스 지도 | 머리(뒤로·"부스 지도"·위치 안내) → 검색 → 필터 줄 → 지도(층 버튼·줌) → 아래 시트 |
 | 부스 상세 | 머리 → 상태 배지 + 운영 시간 → 이미지 + 이름 23px → 스탬프 여부 → 통계 3칸 → 리뷰 보기 → 지도에서 위치 보기 → [띠] 부스 소개 → 프로그램 안내 → [띠] 방문 인증 → [띠] 리뷰 쓰기 |
-| 스탬프 | 큰 제목 + 바우처 → 모은 스탬프 40px + 진행 막대 6px → 방문 기록(평가할 부스 먼저) → 지그재그 스탬프 판 → 완료한 방문(접기) |
+| 스탬프 | 큰 제목 + 바우처 → 모은 스탬프 40px + 진행 막대 6px → 지그재그 스탬프 판 → 방문 기록(평가할 부스 먼저, 1.45부터 스탬프 판 아래) → 완료한 방문(접기) |
 | 바우처 | 머리 → 탭(받기·보유·사용·종료) → 선택지 또는 티켓 |
 | 축제 소식 | 머리 → 공지 목록(중요 먼저) → 상세(사진 포함) |
 | MY | 머리 "MY" → 아바타 + 이름 + 이메일 → 이름 변경 → 통계 3칸 → 포인트 줄 → 바로가기 3행(스탬프·바우처·리뷰) → 역할 버튼(관리 마법사 열기·부스 관리·바우처 사용 승인) → 방문 기록 → 로그아웃 |
@@ -1326,7 +1326,6 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
     <div class="stamp-progress-copy"><b>다음 바우처까지 2개</b><span>3개·6개 혜택</span></div>
     <progress class="stamp-path-progress" max="6" value="1" aria-label="3개·6개 바우처 진행">1 / 6</progress>
   </section>
-  <section class="stamp-visits"> <!-- 방문 기록: 평가할 부스 먼저, .web-visit --> </section>
   <section class="stamp-path-track" aria-label="누적 스탬프">
     <ol class="stamp-path-list">
       <li class="stamp-path-step is-earned"><span class="stamp-path-link" aria-hidden="true"></span>
@@ -1342,6 +1341,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
       <li class="stamp-path-step is-upcoming is-reverse">…4…</li> …
     </ol>
   </section>
+  <section class="stamp-visits"> <!-- 방문 기록(1.45부터 스탬프 판 아래): 평가할 부스 먼저, .web-visit --> </section>
   <details class="stamp-visit-history"><summary><span>완료한 방문</span><span>1개 {icon:arrow}</span></summary>
     <div class="stamp-history-body">…</div></details>
 </main>

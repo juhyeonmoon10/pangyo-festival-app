@@ -301,8 +301,8 @@ const festivalWeb = (() => {
         <div class="stamp-progress-copy"><b>${rewards.ready && rewards.secondIssued?'바우처 2장 지급 완료':claimable?'바우처 받기 가능':!rewards.ready && earned.length>=3?'바우처 발급 상태 확인 대기':`다음 바우처까지 ${Math.max(0,goal-earned.length)}개`}</b><span>3개·6개 혜택</span></div>
         <progress class="stamp-path-progress" max="6" value="${cycleProgress}" aria-label="3개·6개 바우처 진행">${cycleProgress} / 6</progress>
       </section>
-      ${pending.length + restricted.length ? `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${pending.length + restricted.length}</span></h2></div>${[...pending, ...restricted].map(waitingRow).join("")}</section>` : ""}
       ${stampPath(earned, pending, rewards)}
+      ${/* 1.45: 방문 기록 sits under the stamp board */ ""}${pending.length + restricted.length ? `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${pending.length + restricted.length}</span></h2></div>${[...pending, ...restricted].map(waitingRow).join("")}</section>` : ""}
       <details class="stamp-visit-history"><summary><span>완료한 방문</span><span>${earned.length}개 ${icon("arrow")}</span></summary><div class="stamp-history-body"><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>${earned.length ? earned.slice().reverse().map(v => visitRow(v)).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</div></details>
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
