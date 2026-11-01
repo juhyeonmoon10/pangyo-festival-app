@@ -1,0 +1,169 @@
+/* 미니게임 (1.37): loaded after festival-bright.css. Only the bottom navigation rule touches an existing
+   class; everything else is scoped to .festival-games / .game-* so the five earlier files keep their look.
+   Values follow DESIGN.md (tokens 4장, 12px buttons, 7px section bands, 44px touch targets, 12px minimum text). */
+
+/* Bottom navigation gains a fifth tab: 홈 · 부스 지도 · 스탬프 · 미니게임 · MY. */
+.design-web .bottom-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.design-web .bottom-nav .nav-btn { min-width: 0; white-space: nowrap; }
+
+.design-web .festival-games .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.design-web .festival-games .web-muted { color: var(--muted); }
+/* Section bands run to the screen edge, like the MY shortcut band. */
+.design-web .festival-games .ops-section { margin-inline: -24px; padding-inline: 24px; }
+
+/* Hub: point row, then the game list in the MY shortcut style. */
+.design-web .festival-games .game-wallet strong { font-size: 15px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-wallet-note { margin: 0 0 4px; font-size: 13px; line-height: 1.6; word-break: keep-all; }
+.design-web .festival-games .game-list button { min-height: 76px; }
+.design-web .festival-games .game-row-copy { display: grid; gap: 2px; min-width: 0; }
+.design-web .festival-games .game-row-copy strong { font-size: 15px; font-weight: 700; }
+.design-web .festival-games .game-row-copy small { font-size: 12px; color: var(--muted); font-weight: 500; overflow-wrap: anywhere; }
+.design-web .festival-games .game-list .shortcut-symbol { width: 40px; height: 40px; border-radius: 8px; }
+.design-web .festival-games .game-coming { margin: 16px 0 0; font-size: 13px; text-align: center; }
+
+/* 가상주식 list */
+.design-web .festival-games .game-market,
+.design-web .festival-games .game-quote-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-summary span small { display: block; margin-top: 2px; font-size: 12px; }
+.design-web .festival-games .game-summary strong { font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-summary + .festival-view-tabs,
+.design-web .festival-games .game-market + .festival-view-tabs { margin-top: 8px; }
+.design-web .festival-games .game-controls { display: grid; grid-template-columns: minmax(0, 1fr) 118px; gap: 8px; margin: 16px 0 4px; }
+.design-web .festival-games .game-search { position: relative; display: block; min-width: 0; }
+.design-web .festival-games .game-search .ui-icon { position: absolute; left: 14px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--primary); pointer-events: none; }
+.design-web .festival-games .game-search .input { width: 100%; min-width: 0; padding-left: 44px; font-weight: 400; }
+.design-web .festival-games .game-sort .select { width: 100%; font-weight: 400; }
+.design-web .festival-games .game-stock-list,
+.design-web .festival-games .game-trade-list,
+.design-web .festival-games .game-news-list { list-style: none; margin: 0; padding: 0; }
+.design-web .festival-games .game-stock-list li { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.design-web .festival-games .game-stock-list li[hidden] { display: none; }
+.design-web .festival-games .game-favorite { width: 44px; height: 44px; min-height: 44px; color: #9aa8a1; }
+.design-web .festival-games .game-favorite[aria-pressed="true"] { color: var(--primary); }
+.design-web .festival-games .game-favorite[aria-pressed="true"] .ui-icon { fill: currentColor; }
+.design-web .festival-games .game-stock-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 12px 0; background: transparent; color: var(--text); text-align: left; }
+.design-web .festival-games .game-stock-row .club-visual { width: 36px; height: 36px; border-radius: 8px; }
+.design-web .festival-games .game-stock-name { display: grid; gap: 2px; min-width: 0; }
+.design-web .festival-games .game-stock-name strong { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.design-web .festival-games .game-stock-name small { font-size: 12px; color: var(--muted); }
+.design-web .festival-games .game-stock-price { display: grid; gap: 2px; text-align: right; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-stock-price strong { font-size: 15px; font-weight: 700; }
+.design-web .festival-games .game-stock-price small { font-size: 12px; font-weight: 650; }
+.design-web .festival-games .game-no-match { margin: 16px 0 0; font-size: 14px; text-align: center; }
+/* Prices follow the Korean market convention (rise red, fall blue) and always carry ▲/▼ and a sign. */
+.design-web .festival-games .game-up { color: var(--festival-red); }
+.design-web .festival-games .game-down { color: var(--festival-blue); }
+.design-web .festival-games .game-flat { color: var(--muted); }
+.design-web .festival-games .game-trade-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 64px; padding: 12px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-trade-list li > strong { font-size: 15px; font-weight: 700; }
+.design-web .festival-games .game-news-list { display: grid; gap: 12px; }
+.design-web .festival-games .game-news-list li + li { padding-top: 12px; border-top: 1px solid var(--line); }
+.design-web .festival-games .game-news-list strong { display: block; font-size: 14px; font-weight: 700; word-break: keep-all; overflow-wrap: anywhere; }
+.design-web .festival-games .game-news-list small { display: block; margin-top: 4px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.design-web .festival-games .game-news-list time { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.design-web .festival-games .game-news .web-muted { margin: 0; font-size: 14px; }
+.design-web .festival-games .game-retry { margin-top: 24px; }
+.design-web .festival-games .game-retry .web-muted { margin: 8px 0 0; font-size: 13px; line-height: 1.6; }
+
+/* 가상주식 detail */
+.design-web .festival-games .game-quote-head { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 14px; }
+.design-web .festival-games .game-quote-head .club-visual { width: 56px; height: 56px; border-radius: 16px; }
+.design-web .festival-games .game-quote-head p { margin: 0 0 2px; font-size: 13px; }
+.design-web .festival-games .game-quote-head h2 { margin: 0; font-size: 23px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.design-web .festival-games .game-price { margin: 4px 0 0; font-size: 32px; font-weight: 750; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-price small { margin-left: 2px; font-size: 18px; font-weight: 650; }
+.design-web .festival-games .game-change { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-change .web-muted { font-weight: 500; }
+.design-web .festival-games .game-chart-section { margin: 24px -24px 0; padding: 24px 24px 0; border-top: 7px solid var(--surface-2); }
+.design-web .festival-games .game-chart-section h2 { margin: 0 0 12px; font-size: 17px; font-weight: 700; }
+.design-web .festival-games .game-chart { position: relative; margin: 0; color: var(--festival-red); }
+.design-web .festival-games .game-chart.is-down { color: var(--festival-blue); }
+.design-web .festival-games .game-chart svg { display: block; width: 100%; height: 168px; touch-action: pan-y; }
+.design-web .festival-games .game-chart .grid { stroke: var(--line); stroke-dasharray: 4 5; }
+.design-web .festival-games .game-chart .line { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.design-web .festival-games .game-chart .area { fill: currentColor; opacity: .1; }
+.design-web .festival-games .game-chart .dot { fill: currentColor; }
+.design-web .festival-games .game-chart .cursor { stroke: #a9b4c2; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.design-web .festival-games .game-chart-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-chart figcaption { padding: 8px 0 0; font-size: 13px; color: var(--muted); text-align: center; }
+.design-web .festival-games .game-chart-tip { position: absolute; top: -6px; right: 0; margin: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--text); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-time { margin: 8px 0 0; font-size: 12px; }
+.design-web .festival-games .game-holding { margin-top: 20px; }
+.design-web .festival-games .game-holding strong { font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-trade-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.design-web .festival-games .game-trade-actions button { width: 100%; }
+.design-web .festival-games .game-trade-hint { margin: 8px 0 0; font-size: 13px; text-align: center; }
+
+/* Trade dialog (an .ops-dialog) */
+.design-web .game-trade-dialog .game-trade-sheet { margin: 0; border-top: 1px solid var(--line); }
+.design-web .game-trade-dialog .game-trade-sheet div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+.design-web .game-trade-dialog .game-trade-sheet dt { font-size: 14px; color: var(--muted); }
+.design-web .game-trade-dialog .game-trade-sheet dd { margin: 0; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.design-web .game-trade-dialog .game-stepper { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 8px; }
+.design-web .game-trade-dialog .game-stepper .icon-btn { width: 44px; height: 44px; min-height: 44px; background: var(--surface-2); }
+.design-web .game-trade-dialog .game-stepper output { font-size: 20px; font-weight: 750; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* 블랙잭 */
+.design-web .festival-games .game-bj-waiting { padding: 36px 0 12px; text-align: center; }
+.design-web .festival-games .game-bj-waiting > span { display: flex; justify-content: center; margin-bottom: 14px; color: var(--primary); }
+.design-web .festival-games .game-bj-waiting h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.design-web .festival-games .game-bj-waiting p { margin: 8px 0 20px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-bj-result,
+.design-web .festival-games .game-bj-outcome { padding: 20px 16px; border-radius: 8px; text-align: center; }
+.design-web .festival-games .game-bj-result { margin: 8px 0 16px; }
+.design-web .festival-games :is(.game-bj-result, .game-bj-outcome) > strong { display: block; font-size: 24px; font-weight: 750; }
+.design-web .festival-games :is(.game-bj-result, .game-bj-outcome) > span { display: block; margin: 4px 0 0; font-size: 14px; font-weight: 650; }
+.design-web .festival-games .game-bj-outcome > span { margin-bottom: 14px; }
+.design-web .festival-games :is(.game-bj-result, .game-bj-outcome).win { background: var(--festival-mint); color: var(--primary); }
+.design-web .festival-games :is(.game-bj-result, .game-bj-outcome).lose { background: var(--surface-2); color: var(--text); }
+.design-web .festival-games :is(.game-bj-result, .game-bj-outcome).draw { background: var(--festival-sky); color: var(--festival-blue); }
+.design-web .festival-games .game-bj-result-hands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; text-align: left; }
+.design-web .festival-games .game-bj-result-hands small { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.design-web .festival-games .game-rules ul { margin: 0; padding-left: 18px; }
+.design-web .festival-games .game-rules li { margin: 4px 0; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+.design-web .festival-games .game-rules h3 { margin: 18px 0 6px; font-size: 15px; font-weight: 700; }
+.design-web .festival-games .game-terms { margin: 0; }
+.design-web .festival-games .game-terms div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.design-web .festival-games .game-terms dt { font-size: 14px; font-weight: 700; }
+.design-web .festival-games .game-terms dd { margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted); word-break: keep-all; }
+.design-web .festival-games .game-bj-table { display: grid; gap: 12px; }
+.design-web .festival-games .game-bj-seat { padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.design-web .festival-games .game-bj-seat.is-turn { border-color: var(--primary); background: var(--festival-mint); }
+.design-web .festival-games .game-bj-seat-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.design-web .festival-games .game-bj-seat-head strong { font-size: 15px; font-weight: 700; }
+.design-web .festival-games .game-bj-seat-head small { font-size: 12px; color: var(--muted); }
+.design-web .festival-games .game-bj-total { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-bj-total.bust { color: #a62936; }
+.design-web .festival-games .game-hand { display: flex; flex-wrap: wrap; gap: 6px; }
+.design-web .festival-games .game-card { display: grid; place-items: center; align-content: center; width: 48px; height: 68px; border: 1px solid #c3d0cb; border-radius: 8px; background: #fff; color: var(--text); line-height: 1.1; }
+.design-web .festival-games .game-card b { font-size: 18px; font-weight: 750; }
+.design-web .festival-games .game-card i { font-size: 20px; font-style: normal; }
+.design-web .festival-games .game-card.red { color: var(--festival-red); }
+.design-web .festival-games .game-card.back { border-color: var(--primary); background: var(--primary) repeating-linear-gradient(45deg, transparent 0 6px, #ffffff2e 6px 8px); box-shadow: inset 0 0 0 3px #fff; }
+.design-web .festival-games .game-card.flip { animation: game-card-flip .25s ease-out; }
+.design-web .festival-games .game-hand.small .game-card { width: 34px; height: 48px; border-radius: 6px; }
+.design-web .festival-games .game-hand.small .game-card b { font-size: 14px; }
+.design-web .festival-games .game-hand.small .game-card i { font-size: 15px; }
+.design-web .festival-games .game-bj-badge { display: inline-block; margin-top: 10px; padding: 2px 10px; border-radius: 999px; background: #fff; color: var(--primary); font-size: 12px; font-weight: 700; }
+.design-web .festival-games .game-bj-badge:is([data-kind="bust"], [data-kind="timeout"]) { background: #fff0ed; color: #a62936; }
+.design-web .festival-games .game-bj-center { padding: 4px 0; }
+.design-web .festival-games .game-bj-turn { margin: 0; font-size: 14px; font-weight: 650; text-align: center; color: var(--muted); }
+.design-web .festival-games .game-bj-turn.mine { color: var(--primary); }
+.design-web .festival-games .game-bj-timer { position: relative; display: block; height: 6px; margin: 10px 0 22px; border-radius: 999px; background: var(--line); }
+.design-web .festival-games .game-bj-timer i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s linear; }
+.design-web .festival-games .game-bj-timer b { position: absolute; right: 0; top: 10px; font-size: 12px; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
+.design-web .festival-games.at-table .game-trade-actions { margin-top: 0; }
+@keyframes game-card-flip { from { transform: rotateY(90deg); } to { transform: none; } }
+@media (max-width: 350px) {
+  .design-web .festival-games :is(.game-chart-section, .ops-section) { margin-inline: -20px; padding-inline: 20px; }
+  .design-web .festival-games .game-controls { grid-template-columns: minmax(0, 1fr) 104px; }
+  .design-web .festival-games .game-card { width: 42px; height: 60px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .design-web .festival-games .game-card.flip { animation: none; }
+  .design-web .festival-games .game-bj-timer i { transition: none; }
+}
+.design-web .festival-games .festival-view-tabs button { white-space: nowrap; padding-inline: 2px; }
+@media (max-width: 350px) {
+  .design-web .festival-games .festival-view-tabs button { font-size: 13px; }
+}
