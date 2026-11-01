@@ -187,9 +187,9 @@ globalThis.gameStub=async(url,p)=>{
   }
   if(url.pathname==='/rest/v1/news') return {json:[{id:1,title:'창업특허연구소 시제품 공개',content:'오후 2시에 시제품을 공개해요.',stock_id:1,created_at:new Date(t0-600000).toISOString()}]};
   if(name==='orbit_blackjack_state') return {json:bjView()};
-  if(name==='orbit_blackjack_join') { wallet.money-=300; bjGame={id:randomUUID(),status:'waiting',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[],myTotal:0,myDone:false,opponentName:'가ㅇ방',opponentCards:[],opponentTotal:null,opponentDone:false,turn:null,turnDeadline:null,result:null,payout:null}; return {json:bjView()}; }
+  if(name==='festival_blackjack_join') { wallet.money-=300; bjGame={id:randomUUID(),status:'waiting',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[],myTotal:0,myDone:false,opponentName:'가ㅇ방',opponentCards:[],opponentTotal:null,opponentDone:false,turn:null,turnDeadline:null,result:null,payout:null}; return {json:bjView()}; }
   if(name==='orbit_blackjack_cancel') { wallet.money+=300; Object.assign(bjGame,{status:'cancelled',version:++bjVersion}); return {json:bjView()}; }
-  if(name==='orbit_blackjack_action') {
+  if(name==='festival_blackjack_action') {
     if(p.p_action==='hit') Object.assign(bjGame,{myCards:[...bjGame.myCards,2],myTotal:bjGame.myTotal+3,version:++bjVersion});
     else { wallet.money+=600; Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[12,6],opponentTotal:17,result:'win',payout:600,turn:null,turnDeadline:null,version:++bjVersion}); }
     return {json:bjView()};
@@ -291,11 +291,21 @@ try {
   await page.waitForSelector('.game-bj-waiting');
   await shot(page,'bj-waiting');
   Object.assign(bjGame,{status:'playing',myCards:[0,9],myTotal:21-10,opponentCards:[25,null],turn:'me',turnDeadline:new Date(Date.now()+10000).toISOString(),version:++bjVersion});
-  bjGame.myTotal=21; bjGame.myCards=[0,8]; bjGame.myTotal=20;
+  bjGame.myCards=[9,8]; bjGame.myTotal=19;
   await page.waitForSelector('.game-bj-table', {timeout:5000});
   await page.waitForSelector('[data-bj-timer]');
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true);
   await shot(page,'bj-table');
+  // 1.40: going bust does not stand; the player can keep hitting until they stand
+  await page.locator('[data-bj="hit"]').click();
+  await page.waitForFunction(()=>/22/.test(document.querySelectorAll('.game-bj-total')[0]?.textContent||'') && /버스트/.test(document.querySelector('.game-bj-badge')?.textContent||''));
+  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트예요. 카드를 더 받거나 스탠드할 수 있어요/);
+  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true,'hit stays available after a bust');
+  assert.equal(await page.locator('[data-bj="stand"]').isEnabled(),true);
+  await shot(page,'bj-bust-keep-hitting');
+  await page.locator('[data-bj="hit"]').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.game-bj-seat')[1]?.querySelectorAll('.game-card').length===4);
+  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true);
   // 1.39: during the final reveal only the card just turned over animates (at most one .flip at a time)
   await page.evaluate(()=>{ window.__flips=[]; new MutationObserver(()=>window.__flips.push(document.querySelectorAll('.game-card.flip').length)).observe(document.body,{childList:true,subtree:true}); });
   await page.locator('[data-bj="stand"]').click();
@@ -345,7 +355,7 @@ try {
     await narrow.context.close();
   }
   // Demo (local) mode explains instead of calling the server
-  assert.ok(calls.includes('orbit_trade_stock') && calls.includes('orbit_blackjack_join') && calls.includes('festival_blackjack_lobby') && calls.includes('festival_blackjack_rematch'));
+  assert.ok(calls.includes('orbit_trade_stock') && calls.includes('festival_blackjack_join') && calls.includes('festival_blackjack_action') && !calls.includes('orbit_blackjack_join') && !calls.includes('orbit_blackjack_action') && calls.includes('festival_blackjack_lobby') && calls.includes('festival_blackjack_rematch'));
   console.log(JSON.stringify({calls:[...new Set(calls)],errors:pages.map(p=>p.errors).flat(),artifacts:path.relative(root,output)}));
   assert.deepEqual(pages.map(p=>p.errors).flat(),[]);
 } finally { await browser.close(); }

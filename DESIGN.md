@@ -107,7 +107,7 @@ components:
 
 # 판교고 축제 웹 디자인 가이드 (Bright Festival Pass)
 
-작성: 2026-11-01. 버전 1.36 화면을 측정했다. 예전 `DESIGN.md`(디자인 의도)와 `UI_DESIGN_GUIDE.md`(1.28 실측)를 이 파일 하나로 합쳤다. 1.37에서 미니게임(하단 내비 5번째 칸, 11.7)을 더했고, 1.38에서 블랙잭 매칭 인원과 다시 하기 상태를, 1.39에서 블랙잭 화면의 매칭 인원을 더했다.
+작성: 2026-11-01. 버전 1.36 화면을 측정했다. 예전 `DESIGN.md`(디자인 의도)와 `UI_DESIGN_GUIDE.md`(1.28 실측)를 이 파일 하나로 합쳤다. 1.37에서 미니게임(하단 내비 5번째 칸, 11.7)을 더했고, 1.38에서 블랙잭 매칭 인원과 다시 하기 상태를, 1.39에서 블랙잭 화면의 매칭 인원을, 1.40에서 블랙잭 자동 스탠드 없애기를 더했다.
 
 **이 문서의 목적.** 다른 UI를 가진 브랜치나 사이트와 병합한 뒤에도 지금 화면과 사용감이 그대로 남게 하는 것이다. 그래서 "어떻게 보이길 원하는가"보다 **"지금 실제로 어떻게 그려지는가"**를 기준으로 적었다.
 
@@ -319,7 +319,7 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
    - 결과 문구 위치: `error-placement-browser.mjs`
    - 보안 헤더 안에서 동작: `csp-browser.cjs`, `xss-sweep-browser.mjs`
    - 1.31~1.36 화면: `voucher-manager-browser.mjs`, `account-delete-browser.mjs`, `school-account-browser.cjs`, `operations-hotfix-browser.mjs`
-   - 1.37 미니게임과 5칸 하단 내비, 1.38·1.39 매칭 인원·다시 하기·공개 애니메이션: `minigames-browser.mjs`(ORBIT 함수와 `festival_blackjack_*`는 가짜 응답으로 대신한다)
+   - 1.37 미니게임과 5칸 하단 내비, 1.38~1.40 매칭 인원·다시 하기·공개 애니메이션·버스트 뒤 히트: `minigames-browser.mjs`(ORBIT 함수와 `festival_blackjack_*`는 가짜 응답으로 대신한다)
 3. 18장 측정표의 값과 비교한다. 320px, 390px, 1024px에서 같은 화면을 캡처해 이 문서와 비교한다.
 4. 가로 스크롤이 생기지 않는지 확인한다(`document.documentElement.scrollWidth <= innerWidth`). 1.36에서 측정한 49개 화면은 모두 가로 스크롤이 없다.
 
@@ -873,12 +873,12 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - 누르면 `confirm()` 창에 이름·학번과 **Google 이메일**(같은 학번 계정이 여럿일 때)이 나온다.
 - 성공하면 결과 줄에 지운 방문·바우처·리뷰 수를 보여 주고 폼을 비운다.
 
-### 11.7 미니게임 (1.37~1.39)
+### 11.7 미니게임 (1.37~1.40)
 
 ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)를 이 앱의 모양으로 다시 만든 화면이다. 새 부품을 만들지 않고 **기존 부품을 그대로 쓴다**: 머리 `.web-header`, 포인트 줄 `.profile-list`, 게임 목록 `.profile-shortcuts`, 탭 `.festival-view-tabs`, 섹션 `.ops-section`, 빈 상태 `.festival-empty`, 상태 `.status-badge`, 대화상자 `.ops-dialog`, 결과 줄 `spotMarkup`/`showSpot`(8.9).
 
 - **데이터와 포인트**
-  - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_state/join/cancel/action`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 8개만). 1.37은 DB를 바꾸지 않았다. 1.38에서 축제 함수 2개(`festival_blackjack_lobby`, `festival_blackjack_rematch`)와 표 `festival_ops.blackjack_rematch`를 더했다(`operations-server/blackjack-lobby-and-rematch.sql`). ORBIT `orbit_*` 함수는 바꾸지 않는다.
+  - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_state/cancel`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 8개만). 1.37은 DB를 바꾸지 않았다. 1.38에서 축제 함수 2개(`festival_blackjack_lobby`, `festival_blackjack_rematch`)와 표 `festival_ops.blackjack_rematch`를 더했다(`operations-server/blackjack-lobby-and-rematch.sql`). 1.40에서 참가와 히트·스탠드를 축제 함수 `festival_blackjack_join`, `festival_blackjack_action`으로 바꿨다(`operations-server/blackjack-no-auto-stand.sql`, ORBIT 함수에서 자동 스탠드만 뺀 사본). ORBIT `orbit_*` 함수는 바꾸지 않는다.
   - 쓰는 돈은 ORBIT의 **가상 포인트**(`public.users.money`)다. 축제 포인트·스탬프·바우처와 섞이지 않는다. 허브와 블랙잭 첫 화면에 "미니게임에서만 쓰는 포인트예요. 부스 스탬프·바우처와는 따로 계산돼요."를 둔다.
   - 체험(로컬) 모드에서는 서버를 부르지 않고 `.festival-empty`로 "실제 로그인에서 이용할 수 있어요"만 보여 준다.
 - **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root`) → 가상 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
@@ -894,10 +894,11 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 - **블랙잭** `/games/blackjack`
   - 첫 화면: 가상 포인트 줄 → 안내 → (지난 판 결과 상자) → 결과 줄 → "300P 걸고 상대 찾기"(지난 판이 있으면 "한 판 더 하기") 주 버튼 → [띠] 규칙(목록 14px/1.6) → 카드 점수·용어 표(`84px 1fr`, 아래 1px 선). 포인트가 300P보다 적으면 버튼을 끄고 이유를 13px로 쓴다.
   - 기다리는 중: `spade` 아이콘(초록) → "상대를 찾고 있어요" 17px/700 → 경과 시간 + "3분 안에 상대가 없으면 판돈을 돌려받아요." 14px → "취소하고 300P 돌려받기" 보조 버튼.
+  - **자동 스탠드 없음(1.40)**: 처음 두 장이 21이어도, 히트해서 21이 되거나 버스트돼도 차례가 끝나지 않는다. 스탠드를 누르거나 10초가 지나야 멈춘다. 내 차례 안내는 21점이면 "21점이에요. 카드를 더 받거나 스탠드할 수 있어요.", 버스트면 "버스트예요. 카드를 더 받거나 스탠드할 수 있어요." 덱 52장을 다 쓰면 히트는 스탠드로 처리한다. ORBIT 앱의 상대는 ORBIT 함수를 쓰므로 그 사람은 예전처럼 자동으로 멈춘다.
   - 테이블: 상대 자리 → 차례 안내(14px/650, 내 차례면 `--primary`) + 남은 시간 막대(6px, `--line` 위 `--primary`, 아래 오른쪽 "9초" 12px) → 내 자리 → 결과 줄 → 히트(주, `plus`)·스탠드(보조, `hand`) 2열.
     - 자리: 안쪽 14px, 1px `--line`, 모서리 8px, 흰 바탕. **차례인 자리**는 민트 바탕 + `--primary` 테두리. 머리: 이름 15px/700 + "카드 n장" 12px, 오른쪽 합계 20px/750(21 초과는 `#a62936`).
     - 카드 48×68, 모서리 8px, 흰 바탕, 테두리 `#c3d0cb`, 숫자 18px/750 + 무늬 20px. ♥♦는 `--festival-red`. 뒤집힌 카드는 `--primary` 바탕에 흰 사선 무늬와 흰 안쪽 테두리 3px. 320px 화면 이하는 42×60.
-    - 동작 꼬리표(히트!, 스탠드, 21!, 멈춤)는 흰 알약 12px/700 초록, 버스트·시간 초과는 `#fff0ed`/`#a62936`.
+    - 동작 꼬리표(히트!, 스탠드, 21!, 멈춤. 1.40부터 21!·버스트!는 그 카드를 받은 히트에 붙고 차례는 이어진다)는 흰 알약 12px/700 초록, 버스트·시간 초과는 `#fff0ed`/`#a62936`.
   - 끝나면 카드를 상대 첫 장 → 내 첫 장 → … 순서로 0.7초마다 한 장씩 뒤집고(동작 줄이기면 뒤집는 효과 없이 순서만). 뒤집는 효과는 방금 뒤집은 한 장에만 준다(1.39: 이미 공개된 카드가 매번 다시 뒤집히지 않게), 가운데에 결과 상자를 띄운다. 승리 민트/`--primary`, 패배 `--surface-2`, 무승부 `--festival-sky`/`--festival-blue`. 제목 24px/750 + "+300P" 14px/650 + "확인" 주 버튼.
   - **다시 하기 상태(1.38)**: 결과 화면에서 "한 판 더 하기" 바로 위 가운데에 `.status-badge`(13px)로 지난 상대의 상태를 쓴다. "상대 : 대기중"(warning 노랑, 상대가 같은 결과 화면에 있음) · "상대 : 수락"(success 초록) · "상대 : 거부"(회색, 상대가 화면을 떠났거나 10초 넘게 응답이 없거나 다른 판에 들어감).
     - 결과 화면이 열려 있는 동안 1초마다 내 상태를 서버에 알리고 상대 상태를 받는다(화면이 보일 때만). 블랙잭 화면을 떠나면 "거부"를 한 번 보낸다.

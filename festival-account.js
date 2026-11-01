@@ -465,8 +465,9 @@
     // Point minigames (가상주식, 블랙잭) run on ORBIT's own functions and tables in the same project.
     // They move ORBIT virtual points (public.users.money), never the festival point or voucher ledgers.
     // Errors keep the server's code (e.g. INSUFFICIENT_POINTS) so the games screen can word them.
+    // 1.40: blackjack join and hit/stand go through festival copies that never stand automatically.
     const GAME_RPCS = new Set(["orbit_stock_snapshot", "orbit_trade_stock", "orbit_blackjack_state",
-      "orbit_blackjack_join", "orbit_blackjack_cancel", "orbit_blackjack_action",
+      "orbit_blackjack_cancel", "festival_blackjack_join", "festival_blackjack_action",
       "festival_blackjack_lobby", "festival_blackjack_rematch"]);
     const gameError = error => {
       const code = String(error?.message || "").match(/^[A-Z][A-Z0-9_]+$/)?.[0]

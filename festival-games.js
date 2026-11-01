@@ -6,7 +6,9 @@
    1.38: the hub shows how many players wait for a blackjack opponent (festival_blackjack_lobby), and the
    result screen shows whether the last opponent waits, accepts or declines a rematch (festival_blackjack_rematch).
    1.39: the blackjack lobby shows the same count above its button, and the final reveal animates only the card
-   that was just turned over. */
+   that was just turned over.
+   1.40: reaching 21 or going bust no longer stands automatically; the player hits until they stand
+   (festival_blackjack_join/action, copies of ORBIT's functions without the automatic stand). */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -515,9 +517,15 @@ const festivalGames = (() => {
     if (previous.id !== next.id || previous.status !== 'playing') return [];
     const events = [];
     const myHits = next.myCards.length - previous.myCards.length;
-    for (let i = 0; i < myHits; i++) events.push({ side: 'me', kind: 'hit', total: handTotal(next.myCards.slice(0, previous.myCards.length + i + 1)) });
+    // A hit never ends the turn (1.40): it is marked when it makes 21 or goes bust.
+    for (let i = 0; i < myHits; i++) {
+      const before = handTotal(next.myCards.slice(0, previous.myCards.length + i));
+      const total = handTotal(next.myCards.slice(0, previous.myCards.length + i + 1));
+      events.push({ side: 'me', kind: total > 21 && before <= 21 ? 'bust' : total === 21 ? 'twentyOne' : 'hit', total });
+    }
     if (!previous.myDone && next.myDone) {
-      const kind = next.myTotal > 21 ? 'bust' : myHits > 0 && next.myTotal === 21 ? 'twentyOne' : myHits > 0 ? 'done' : bj.sent === 'stand' ? 'stand' : 'timeout';
+      // A hit with no card left in the deck stands instead ('done').
+      const kind = bj.sent === 'stand' ? 'stand' : bj.sent === 'hit' ? 'done' : 'timeout';
       events.push({ side: 'me', kind, total: next.myTotal });
     }
     const theirHits = next.opponentCards.length - previous.opponentCards.length;
@@ -531,7 +539,7 @@ const festivalGames = (() => {
     return ({ hit: event.side === 'me' ? `내가 히트했어요 · ${event.total}점` : '상대가 히트했어요',
       stand: event.side === 'me' ? `내가 스탠드했어요 · ${event.total}점` : '상대가 스탠드했어요',
       timeout: `시간 초과로 스탠드됐어요 · ${event.total}점`, bust: `버스트! ${event.total}점`,
-      twentyOne: '21점! 자동으로 멈췄어요', done: `${who}의 차례가 끝났어요` })[event.kind];
+      twentyOne: '21점!', done: `${who}의 차례가 끝났어요` })[event.kind];
   }
   // Final reveal flips one card per side in turn: opponent's first card, mine, opponent's second, ...
   function revealOrder(game) {
@@ -658,9 +666,9 @@ const festivalGames = (() => {
     bj.busy = true;
     if (['hit', 'stand'].includes(action)) bj.sent = action;
     report('bj', action === 'join' ? '상대를 찾는 중...' : action === 'cancel' ? '대기를 취소하는 중...' : '보내는 중...', 'info');
-    const response = action === 'join' ? await api().call('orbit_blackjack_join')
+    const response = action === 'join' ? await api().call('festival_blackjack_join')
       : action === 'cancel' ? await api().call('orbit_blackjack_cancel')
-      : await api().call('orbit_blackjack_action', { p_game_id: game?.id, p_action: action, p_version: game?.version });
+      : await api().call('festival_blackjack_action', { p_game_id: game?.id, p_action: action, p_version: game?.version });
     bj.busy = false;
     if (!response.ok) {
       bj.sent = null;
@@ -752,7 +760,7 @@ const festivalGames = (() => {
         ${done ? `<div class="game-bj-outcome ${h(shown.result || 'draw')}" role="alert"><strong>${outcomeText(shown.result)}</strong><span>${outcomeLine(shown.result, shown.stake)}</span>
             <button type="button" class="primary-btn full-action" data-bj-ok>확인</button></div>`
           : reveal ? '<p class="game-bj-turn" role="status">카드를 한 장씩 공개해요...</p>'
-          : `<p class="game-bj-turn${myTurn ? ' mine' : ''}" role="status">${myTurn ? '내 차례예요. 히트나 스탠드를 골라 주세요.' : shown.myDone ? '나는 멈췄어요. 상대를 기다려요.' : '상대가 고르는 중이에요.'}</p>
+          : `<p class="game-bj-turn${myTurn ? ' mine' : ''}" role="status">${myTurn ? (shown.myTotal > 21 ? '버스트예요. 카드를 더 받거나 스탠드할 수 있어요.' : shown.myTotal === 21 ? '21점이에요. 카드를 더 받거나 스탠드할 수 있어요.' : '내 차례예요. 히트나 스탠드를 골라 주세요.') : shown.myDone ? '나는 멈췄어요. 상대를 기다려요.' : '상대가 고르는 중이에요.'}</p>
             ${left !== null ? `<span class="game-bj-timer" data-bj-timer role="timer" aria-label="남은 시간 ${Math.ceil(left / 1000)}초"><i style="width:${Math.min(100, left / (TURN_SECONDS * 10))}%"></i><b>${Math.ceil(left / 1000)}초</b></span>` : ''}`}
       </div>
       <div class="game-bj-seat${myTurn ? ' is-turn' : ''}">
@@ -796,7 +804,8 @@ const festivalGames = (() => {
         <ul>
           <li>둘 다 카드 2장으로 시작해 번갈아 히트(한 장 더)나 스탠드를 골라요.</li>
           <li>먼저 스탠드한 사람은 그대로 멈추고, 남은 사람만 계속 골라요.</li>
-          <li>둘 다 멈추거나 버스트되면 모든 카드를 공개하고 승부를 가려요.</li>
+          <li>21이 되거나 버스트돼도 자동으로 멈추지 않아요. 스탠드를 눌러야 멈춰요.</li>
+          <li>둘 다 스탠드하면 모든 카드를 공개하고 승부를 가려요.</li>
           <li>상대 카드는 첫 장만 보여요. 21에 더 가까운 사람이 판돈 ${point(STAKE * 2)}를 가져가요.</li>
           <li>둘 다 버스트이거나 점수가 같으면 판돈을 돌려받아요.</li>
           <li>${TURN_SECONDS}초 안에 고르지 않으면 스탠드로 처리돼요.</li>
