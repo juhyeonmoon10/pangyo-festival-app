@@ -3093,6 +3093,7 @@ function bindEvents() {
   festivalOpsUI.bind();
   if (typeof festivalStampSimulator !== "undefined") festivalStampSimulator.bind();
   if (typeof festivalSunCards !== "undefined") festivalSunCards.bind();
+  if (typeof festivalGamesAdmin !== "undefined") festivalGamesAdmin.bind();
   if (typeof festivalNotices !== "undefined") festivalNotices.bind();
   if (typeof festivalBoothManager !== "undefined") festivalBoothManager.bind();
   if (typeof festivalVoucherManager !== "undefined") festivalVoucherManager.bind();
@@ -4156,7 +4157,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.40";
+const APP_RELEASE = "1.41";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

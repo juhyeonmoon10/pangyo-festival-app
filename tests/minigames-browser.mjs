@@ -153,19 +153,48 @@ const market={eventId:'orbit-event',status:'open',eventStatus:'open',startsAt:ne
 const stockRows=NAMES.map((name,i)=>({id:String(i+1),eventId:'orbit-event',boothId:name,name,price:3000+i*300,previousPrice:3000+i*300+(i%3-1)*60,priceVersion:5,updatedAt:new Date(t0-60000).toISOString(),tradingStatus:i===4?'halted':'open',recentNfcCount:0,purchaseRate:0,minPrice:1,maxPrice:100000}));
 const wallet={money:100000,holdings:[],trades:[],receipts:new Map()};
 const calls=[];
-let bjGame=null, bjVersion=0, lobbyWaiting=2, rmMe='waiting', rmOpp='waiting';
+let bjGame=null, bjVersion=0, lobbyWaiting=2, rmMe='waiting', rmOpp='waiting', rmStart=false, bjRules={maxPerHit:1,maxDraws:null}, hitCounts=[];
+// 관리 마법사 → 미니게임 관리 (1.41): ORBIT's stock admin functions and festival_blackjack_admin, answered in memory.
+const adminCalls=[], auditLogs=[], adminEvents=[], adminNews=[]; let failNextMutate=false;
+const adminDashboard=()=>({market:{...market,updatedAt:new Date(t0).toISOString()},
+  instruments:stockRows.map(s=>({stockId:s.id,stockName:s.name,status:s.tradingStatus,price:s.price,eventId:'orbit-event'})),events:adminEvents,news:adminNews});
+const bjAdmin={settings:{maxPerHit:1,maxDraws:null,updatedAt:null,updatedBy:null},waiting:1,playing:2,finishedToday:5,stakedToday:3000,
+  recent:[{id:randomUUID(),status:'playing',stake:300,result:null,playerA:'10101홍길동',playerB:'10102김철수',cardsA:3,cardsB:2,totalA:null,totalB:null,createdAt:new Date(t0).toISOString(),finishedAt:null},
+    {id:randomUUID(),status:'finished',stake:300,result:'a',playerA:'10103이영희',playerB:'10104박민수',cardsA:4,cardsB:3,totalA:20,totalB:23,createdAt:new Date(t0-60000).toISOString(),finishedAt:new Date(t0-30000).toISOString()}]};
+const startRematch=()=>{ wallet.money-=300; rmStart=false; bjGame={id:randomUUID(),status:'playing',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[1,2],myTotal:5,myDone:false,opponentName:'21001가상방',opponentCards:[30,null],opponentTotal:null,opponentDone:false,turn:'opponent',turnDeadline:new Date(Date.now()+10000).toISOString(),result:null,payout:null}; return {json:{me:'accept',opponent:'accept',game:bjView()}}; };
 const rmChoices=[];
 const bjView=()=>bjGame&&JSON.parse(JSON.stringify(bjGame));
 globalThis.gameStub=async(url,p)=>{
   const name=url.pathname.replace('/rest/v1/rpc/','');
   if(/^(orbit_|festival_blackjack_)/.test(name)) calls.push(name);
-  if(name==='festival_blackjack_lobby') return {json:{waiting:lobbyWaiting}};
+  if(name==='festival_blackjack_lobby') return {json:{waiting:lobbyWaiting,...bjRules}};
+  if(name==='orbit_admin_stock_dashboard') { adminCalls.push([name]); return {json:adminDashboard()}; }
+  if(name==='orbit_admin_stock_audit_log') { adminCalls.push([name]); return {json:auditLogs}; }
+  if(name==='orbit_admin_stock_mutate') {
+    adminCalls.push([name,p]);
+    if(failNextMutate) { failNextMutate=false; return {status:504,json:{message:'upstream timeout'}}; }
+    if(auditLogs.some(l=>l.requestId===p.p_idempotency_key)) return {json:{ok:true,reason:null,replayed:true}};
+    const q=p.p_payload;
+    if(p.p_action==='MARKET_SET') market.status=q.status;
+    if(p.p_action==='INSTRUMENT_SET') stockRows.find(s=>s.id===q.stockId).tradingStatus=q.status;
+    if(p.p_action==='CREATE_EVENT') adminEvents.unshift({id:randomUUID(),...q,stockName:q.stockId?stockRows.find(s=>s.id===q.stockId).name:null,createdAt:new Date().toISOString()});
+    if(p.p_action==='CREATE_NEWS') adminNews.unshift({id:String(adminNews.length+1),...q,stockName:null,createdAt:new Date().toISOString()});
+    auditLogs.unshift({id:randomUUID(),actorId:'1',action:p.p_action,target:'MARKET',requestId:p.p_idempotency_key,previousState:{},newState:{},result:'SUCCESS',failureReason:null,createdAt:new Date().toISOString()});
+    return {json:{ok:true,reason:null,replayed:false}};
+  }
+  if(name==='orbit_admin_publish_stock_price') { adminCalls.push([name,p]); const s=stockRows.find(x=>x.id===String(p.p_stock_id)); s.price=p.p_price; return {json:{stockId:s.id,price:s.price,priceVersion:6}}; }
+  if(name==='festival_blackjack_admin') {
+    adminCalls.push([name,p]);
+    if(p.p_action==='save') bjAdmin.settings={...p.p_payload,updatedAt:new Date().toISOString(),updatedBy:'격리 운영자'};
+    return {json:bjAdmin};
+  }
   if(name==='festival_blackjack_rematch') {
     rmChoices.push(p.p_choice);
     if(p.p_choice==='accept') {
       rmMe='accept';
-      if(rmOpp==='accept') { wallet.money-=300; bjGame={id:randomUUID(),status:'playing',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[1,2],myTotal:5,myDone:false,opponentName:'가ㅇ방',opponentCards:[30,null],opponentTotal:null,opponentDone:false,turn:'opponent',turnDeadline:new Date(Date.now()+10000).toISOString(),result:null,payout:null}; return {json:{me:'accept',opponent:'accept',game:bjView()}}; }
+      if(rmOpp==='accept') return startRematch();
     } else if(p.p_choice==='decline') rmMe='decline';
+    else if(rmStart && rmMe==='accept') return startRematch(); // the opponent's accept started the game
     else if(rmMe==='decline') rmMe='waiting';
     return {json:{me:rmMe,opponent:rmOpp,game:null}};
   }
@@ -186,11 +215,11 @@ globalThis.gameStub=async(url,p)=>{
     return {json:Array.from({length:7},(_,i)=>({created_at:new Date(t0-30*60000+i*5*60000).toISOString(),price:2800+i*40,version:i+1})).reverse()};
   }
   if(url.pathname==='/rest/v1/news') return {json:[{id:1,title:'창업특허연구소 시제품 공개',content:'오후 2시에 시제품을 공개해요.',stock_id:1,created_at:new Date(t0-600000).toISOString()}]};
-  if(name==='orbit_blackjack_state') return {json:bjView()};
-  if(name==='festival_blackjack_join') { wallet.money-=300; bjGame={id:randomUUID(),status:'waiting',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[],myTotal:0,myDone:false,opponentName:'가ㅇ방',opponentCards:[],opponentTotal:null,opponentDone:false,turn:null,turnDeadline:null,result:null,payout:null}; return {json:bjView()}; }
+  if(name==='festival_blackjack_state') return {json:bjView()};
+  if(name==='festival_blackjack_join') { wallet.money-=300; bjGame={id:randomUUID(),status:'waiting',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[],myTotal:0,myDone:false,opponentName:'21001가상방',opponentCards:[],opponentTotal:null,opponentDone:false,turn:null,turnDeadline:null,result:null,payout:null}; return {json:bjView()}; }
   if(name==='orbit_blackjack_cancel') { wallet.money+=300; Object.assign(bjGame,{status:'cancelled',version:++bjVersion}); return {json:bjView()}; }
   if(name==='festival_blackjack_action') {
-    if(p.p_action==='hit') Object.assign(bjGame,{myCards:[...bjGame.myCards,2],myTotal:bjGame.myTotal+3,version:++bjVersion});
+    if(p.p_action==='hit') { const n=p.p_count||1; hitCounts.push(n); Object.assign(bjGame,{myCards:[...bjGame.myCards,...Array(n).fill(2)],myTotal:bjGame.myTotal+3*n,version:++bjVersion}); }
     else { wallet.money+=600; Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[12,6],opponentTotal:17,result:'win',payout:600,turn:null,turnDeadline:null,version:++bjVersion}); }
     return {json:bjView()};
   }
@@ -279,8 +308,10 @@ try {
   await page.waitForFunction(()=>/확인할 이전 거래가 없어요/.test(document.querySelector('[data-spot="game-retry"]')?.textContent||''));
   await shot(page,'stock-history');
   // Blackjack: lobby, waiting, table, reveal, result
+  bjRules={maxPerHit:2,maxDraws:3}; // 1.41 card limits from 관리 마법사
   await page.evaluate(()=>navigateTo('gamesBlackjack'));
   await page.waitForSelector('.game-rules'); await navCheck(page,'games');
+  await page.waitForFunction(()=>/히트 한 번에 최대 2장까지/.test(document.querySelector('.game-rules').textContent) && /처음 2장 외에 최대 3장까지/.test(document.querySelector('.game-rules').textContent));
   // 1.39: the lobby shows the matching count above "300P 걸고 상대 찾기" and keeps it fresh
   await page.waitForFunction(()=>document.querySelector('.game-blackjack [data-game-matching]:not([hidden])')?.textContent.trim()==='3명 매칭중');
   assert.ok(await page.evaluate(()=>document.querySelector('[data-game-matching]').compareDocumentPosition(document.querySelector('[data-bj="join"]'))&Node.DOCUMENT_POSITION_FOLLOWING),'count sits above the button');
@@ -295,6 +326,10 @@ try {
   await page.waitForSelector('.game-bj-table', {timeout:5000});
   await page.waitForSelector('[data-bj-timer]');
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true);
+  // 1.41: the opponent's whole name, and the cards left to draw with a per-hit choice
+  assert.equal(await page.locator('.game-bj-seat-head strong').first().textContent(),'21001가상방');
+  assert.match(await page.locator('.game-bj-draw').textContent(),/더 받을 수 있는 카드 3장/);
+  assert.deepEqual(await page.locator('[data-bj-count] option').allTextContents(),['1장','2장']);
   await shot(page,'bj-table');
   // 1.40: going bust does not stand; the player can keep hitting until they stand
   await page.locator('[data-bj="hit"]').click();
@@ -303,9 +338,15 @@ try {
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true,'hit stays available after a bust');
   assert.equal(await page.locator('[data-bj="stand"]').isEnabled(),true);
   await shot(page,'bj-bust-keep-hitting');
+  await page.locator('[data-bj-count]').selectOption('2');
+  await page.waitForFunction(()=>document.querySelector('[data-bj="hit"]')?.textContent.trim()==='히트 2장');
   await page.locator('[data-bj="hit"]').click();
-  await page.waitForFunction(()=>document.querySelectorAll('.game-bj-seat')[1]?.querySelectorAll('.game-card').length===4);
-  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true);
+  await page.waitForFunction(()=>document.querySelectorAll('.game-bj-seat')[1]?.querySelectorAll('.game-card').length===5);
+  assert.deepEqual(hitCounts,[1,2],'the second hit asked for two cards');
+  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),false,'no more cards after the per-game limit');
+  assert.match(await page.locator('.game-bj-turn').textContent(),/더 받을 수 있는 카드가 없어요/);
+  assert.match(await page.locator('.game-bj-draw').textContent(),/더 받을 수 있는 카드 0장/);
+  await shot(page,'bj-card-limit');
   // 1.39: during the final reveal only the card just turned over animates (at most one .flip at a time)
   await page.evaluate(()=>{ window.__flips=[]; new MutationObserver(()=>window.__flips.push(document.querySelectorAll('.game-card.flip').length)).observe(document.body,{childList:true,subtree:true}); });
   await page.locator('[data-bj="stand"]').click();
@@ -333,20 +374,115 @@ try {
   rmOpp='accept';
   await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 수락');
   await shot(page,'bj-rematch-accepted');
-  // Leaving the blackjack screen tells the opponent "거부"
-  await page.evaluate(()=>navigateTo('games')); await page.waitForSelector('.game-list');
-  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='1명 매칭중');
-  assert.equal(rmChoices.at(-1),'decline');
-  // Coming back and both accepting starts a new game with the same opponent
-  rmMe='decline';
-  await page.evaluate(()=>navigateTo('gamesBlackjack'));
-  await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 수락' && document.querySelector('[data-bj="rematch"]')?.disabled===false);
+  // The opponent accepts second: the new game with the same opponent starts on this screen
   const before=wallet.money;
-  await page.locator('[data-bj="rematch"]').click();
+  rmStart=true;
   await page.waitForSelector('.game-bj-table');
   assert.equal(wallet.money,before-300);
   assert.match(await page.locator('.game-bj-turn').textContent(),/상대가 고르는 중/);
   await shot(page,'bj-rematch-table');
+  // 1.41: after the game ends, leaving and coming back shows the first screen, not the result
+  rmMe='waiting'; rmOpp='waiting';
+  Object.assign(bjGame,{turn:'me',version:++bjVersion});
+  await page.waitForFunction(()=>document.querySelector('[data-bj="stand"]')?.disabled===false);
+  await page.locator('[data-bj="stand"]').click();
+  await page.waitForSelector('[data-bj-ok]',{timeout:10000});
+  await page.locator('[data-bj-ok]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 대기중');
+  // Leaving the blackjack screen tells the opponent "거부"
+  await page.evaluate(()=>navigateTo('games')); await page.waitForSelector('.game-list');
+  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='1명 매칭중');
+  assert.equal(rmChoices.at(-1),'decline');
+  await page.evaluate(()=>navigateTo('gamesBlackjack'));
+  await page.waitForSelector('.game-rules');
+  await page.waitForTimeout(1500);
+  assert.equal(await page.locator('.game-bj-result').count(),0,'the last result is not shown again');
+  assert.equal(await page.locator('[data-bj-rematch]').count(),0);
+  assert.match(await page.locator('[data-bj="join"]').textContent(),/300P 걸고 상대 찾기/);
+  assert.equal(await page.locator('.game-blackjack [data-game-matching]').count(),1);
+  await shot(page,'bj-return-first-screen');
+  // 1.41 관리 마법사 → 미니게임 관리
+  const ops=await pageFor(admin);
+  await routeTo(ops.page,'admin'); await openOperatorTool(ops.page,'minigames');
+  await ops.page.waitForSelector('.games-admin-tiles');
+  assert.match(await ops.page.locator('.games-admin-tiles').textContent(),/개장/);
+  await shot(ops.page,'admin-minigames-stock');
+  // halt one stock (the confirm dialog is accepted by the harness)
+  await ops.page.locator('[data-instrument="1"]').click();
+  await ops.page.waitForFunction(()=>/거래를 정지했어요/.test(document.querySelector('[data-games-admin]').textContent));
+  assert.deepEqual(adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').map(c=>[c[1].p_action,c[1].p_payload]),[['INSTRUMENT_SET',{stockId:'1',status:'halted'}]]);
+  assert.equal(stockRows[0].tradingStatus,'halted');
+  // publish a new price
+  await ops.page.locator('[data-price="2"]').evaluate(f=>{ f.closest('details').open=true; });
+  await ops.page.locator('[data-price="2"] input[name="price"]').fill('4321');
+  await ops.page.locator('[data-price="2"] button[type="submit"]').click();
+  await ops.page.waitForFunction(()=>/4,321P로 발행했어요/.test(document.querySelector('[data-games-admin]').textContent));
+  const published=adminCalls.find(c=>c[0]==='orbit_admin_publish_stock_price')[1];
+  assert.equal(published.p_stock_id,2); assert.equal(published.p_price,4321); assert.ok(published.p_idempotency_key.length>=8);
+  // a lost answer is asked again with the same request key
+  failNextMutate=true;
+  await ops.page.locator('[data-market="paused"]').click();
+  await ops.page.waitForSelector('[data-games-pending]');
+  const lost=adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1];
+  await shot(ops.page,'admin-minigames-pending');
+  await ops.page.locator('[data-games-pending]').click();
+  await ops.page.waitForFunction(()=>!document.querySelector('[data-games-pending]') && /일시정지 상태로 바꿨어요/.test(document.querySelector('[data-games-admin]').textContent));
+  assert.equal(adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1].p_idempotency_key,lost.p_idempotency_key);
+  assert.equal(market.status,'paused');
+  // 호재·악재 for one stock
+  await ops.page.locator('[data-games-view="event"]').click();
+  await ops.page.waitForSelector('[data-stock-event]');
+  assert.equal(await ops.page.locator('[data-stock-event] [data-stock-field]').isHidden(),true);
+  await ops.page.locator('[data-stock-event] select[name="eventType"]').selectOption('BAD');
+  await ops.page.locator('[data-stock-event] select[name="targetScope"]').selectOption('STOCK');
+  await ops.page.locator('[data-stock-event] select[name="stockId"]').selectOption('3');
+  await ops.page.locator('[data-stock-event] input[name="title"]').fill('심장박동 부스 일시 휴식');
+  await ops.page.locator('[data-stock-event] textarea[name="description"]').fill('30분 동안 운영을 쉬어요.');
+  await ops.page.locator('[data-stock-event] button[type="submit"]').click();
+  await ops.page.waitForFunction(()=>/이벤트를 등록했어요/.test(document.querySelector('[data-games-admin]').textContent));
+  const ev=adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1];
+  assert.equal(ev.p_action,'CREATE_EVENT'); assert.equal(ev.p_payload.stockId,'3'); assert.equal(ev.p_payload.eventType,'BAD'); assert.equal(ev.p_payload.impact,10);
+  assert.equal(Date.parse(ev.p_payload.endsAt)-Date.parse(ev.p_payload.startsAt),3600000);
+  assert.match(await ops.page.locator('.games-admin-list').textContent(),/심장박동 부스 일시 휴식/);
+  await shot(ops.page,'admin-minigames-event');
+  // 뉴스 without a linked event sends no effect fields
+  await ops.page.locator('[data-games-view="news"]').click();
+  await ops.page.waitForSelector('[data-stock-news]');
+  assert.equal(await ops.page.locator('[data-stock-news] [data-effect]').isHidden(),true);
+  await ops.page.locator('[data-stock-news] select[name="priority"]').selectOption('URGENT');
+  await ops.page.locator('[data-stock-news] input[name="title"]').fill('거래 일시 중단 안내');
+  await ops.page.locator('[data-stock-news] textarea[name="content"]').fill('점검으로 잠시 거래를 멈춰요.');
+  await ops.page.locator('[data-stock-news] button[type="submit"]').click();
+  await ops.page.waitForFunction(()=>/뉴스를 등록했어요/.test(document.querySelector('[data-games-admin]').textContent));
+  const nw=adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1];
+  assert.deepEqual([nw.p_action,nw.p_payload.priority,nw.p_payload.effectType,nw.p_payload.targetScope,nw.p_payload.impact],['CREATE_NEWS','URGENT','NONE',null,null]);
+  await shot(ops.page,'admin-minigames-news');
+  await ops.page.locator('[data-games-view="audit"]').click();
+  await ops.page.waitForFunction(()=>document.querySelectorAll('.games-admin-list li').length===4);
+  assert.match(await ops.page.locator('.games-admin-list').textContent(),/뉴스·공지 등록/);
+  await shot(ops.page,'admin-minigames-audit');
+  // 블랙잭: tables and card limits
+  await ops.page.locator('[data-games-section="blackjack"]').click();
+  await ops.page.waitForSelector('[data-bj-limits]');
+  assert.match(await ops.page.locator('.games-admin-list').textContent(),/10101홍길동 vs 10102김철수/);
+  await ops.page.locator('[data-bj-limits] select[name="maxPerHit"]').selectOption('3');
+  await ops.page.locator('[data-bj-limits] select[name="maxDraws"]').selectOption('2');
+  await ops.page.locator('[data-bj-limits] button[type="submit"]').click();
+  await ops.page.waitForFunction(()=>/한 판에 받을 수 있는 카드보다 많을 수 없어요/.test(document.querySelector('[data-games-admin]').textContent));
+  assert.equal(adminCalls.filter(c=>c[0]==='festival_blackjack_admin' && c[1].p_action==='save').length,0);
+  await ops.page.locator('[data-bj-limits] select[name="maxDraws"]').selectOption('6');
+  await ops.page.locator('[data-bj-limits] button[type="submit"]').click();
+  await ops.page.waitForFunction(()=>/카드 제한을 저장했어요/.test(document.querySelector('[data-games-admin]').textContent));
+  assert.deepEqual(adminCalls.filter(c=>c[0]==='festival_blackjack_admin' && c[1].p_action==='save').map(c=>c[1].p_payload),[{maxPerHit:3,maxDraws:6}]);
+  assert.match(await ops.page.locator('[data-bj-limits]').textContent(),/지금: 한 번에 3장 · 한 판에 6장/);
+  await shot(ops.page,'admin-minigames-blackjack');
+  for(const width of [320]) {
+    const narrow=await pageFor(admin,width);
+    await routeTo(narrow.page,'admin'); await openOperatorTool(narrow.page,'minigames');
+    await narrow.page.waitForSelector('.games-admin-tiles'); await shot(narrow.page,'admin-minigames-stock',width);
+    await narrow.page.locator('[data-games-section="blackjack"]').click(); await narrow.page.waitForSelector('[data-bj-limits]'); await shot(narrow.page,'admin-minigames-blackjack',width);
+    await narrow.context.close();
+  }
   // Narrow and wide screens
   for(const width of [320,1024]) {
     const narrow=await pageFor(visitor,width);

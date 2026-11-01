@@ -466,9 +466,13 @@
     // They move ORBIT virtual points (public.users.money), never the festival point or voucher ledgers.
     // Errors keep the server's code (e.g. INSUFFICIENT_POINTS) so the games screen can word them.
     // 1.40: blackjack join and hit/stand go through festival copies that never stand automatically.
-    const GAME_RPCS = new Set(["orbit_stock_snapshot", "orbit_trade_stock", "orbit_blackjack_state",
+    // 1.41: festival_blackjack_state shows the opponent's whole name. 관리 마법사 → 미니게임 관리 calls the
+    // admin functions below; each one rejects anyone who is not an operator (public.users.admin).
+    const GAME_RPCS = new Set(["orbit_stock_snapshot", "orbit_trade_stock", "festival_blackjack_state",
       "orbit_blackjack_cancel", "festival_blackjack_join", "festival_blackjack_action",
-      "festival_blackjack_lobby", "festival_blackjack_rematch"]);
+      "festival_blackjack_lobby", "festival_blackjack_rematch",
+      "orbit_admin_stock_dashboard", "orbit_admin_stock_audit_log", "orbit_admin_stock_mutate",
+      "orbit_admin_publish_stock_price", "festival_blackjack_admin"]);
     const gameError = error => {
       const code = String(error?.message || "").match(/^[A-Z][A-Z0-9_]+$/)?.[0]
         || (error?.code === "PGRST202" ? "SERVER_NOT_READY" : error?.status === 401 ? "UNAUTHENTICATED" : "NETWORK_ERROR");

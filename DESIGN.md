@@ -107,7 +107,7 @@ components:
 
 # 판교고 축제 웹 디자인 가이드 (Bright Festival Pass)
 
-작성: 2026-11-01. 버전 1.36 화면을 측정했다. 예전 `DESIGN.md`(디자인 의도)와 `UI_DESIGN_GUIDE.md`(1.28 실측)를 이 파일 하나로 합쳤다. 1.37에서 미니게임(하단 내비 5번째 칸, 11.7)을 더했고, 1.38에서 블랙잭 매칭 인원과 다시 하기 상태를, 1.39에서 블랙잭 화면의 매칭 인원을, 1.40에서 블랙잭 자동 스탠드 없애기를 더했다.
+작성: 2026-11-01. 버전 1.36 화면을 측정했다. 예전 `DESIGN.md`(디자인 의도)와 `UI_DESIGN_GUIDE.md`(1.28 실측)를 이 파일 하나로 합쳤다. 1.37에서 미니게임(하단 내비 5번째 칸, 11.7)을 더했고, 1.38에서 블랙잭 매칭 인원과 다시 하기 상태를, 1.39에서 블랙잭 화면의 매칭 인원을, 1.40에서 블랙잭 자동 스탠드 없애기를, 1.41에서 관리 마법사의 미니게임 관리와 블랙잭 카드 제한을 더했다.
 
 **이 문서의 목적.** 다른 UI를 가진 브랜치나 사이트와 병합한 뒤에도 지금 화면과 사용감이 그대로 남게 하는 것이다. 그래서 "어떻게 보이길 원하는가"보다 **"지금 실제로 어떻게 그려지는가"**를 기준으로 적었다.
 
@@ -217,6 +217,7 @@ components:
 | `programs.js` | 부스 프로그램 |
 | `web-experience.js` | 홈, 스탬프, 바우처(로컬), 리뷰 |
 | `stamp-simulator.js` | 스탬프 모의 발급 |
+| `festival-games-admin.js` | 관리 마법사 → 미니게임 관리 (1.41) |
 | `sun-cards.js` | 카드 관리 |
 | `festival-notices.js` | 공지 목록·상세·편집 |
 | `booth-manager.js` | 부스 관리 화면 |
@@ -319,7 +320,7 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
    - 결과 문구 위치: `error-placement-browser.mjs`
    - 보안 헤더 안에서 동작: `csp-browser.cjs`, `xss-sweep-browser.mjs`
    - 1.31~1.36 화면: `voucher-manager-browser.mjs`, `account-delete-browser.mjs`, `school-account-browser.cjs`, `operations-hotfix-browser.mjs`
-   - 1.37 미니게임과 5칸 하단 내비, 1.38~1.40 매칭 인원·다시 하기·공개 애니메이션·버스트 뒤 히트: `minigames-browser.mjs`(ORBIT 함수와 `festival_blackjack_*`는 가짜 응답으로 대신한다)
+   - 1.37 미니게임과 5칸 하단 내비, 1.38~1.41 매칭 인원·다시 하기·공개 애니메이션·버스트 뒤 히트·카드 제한·미니게임 관리: `minigames-browser.mjs`(ORBIT 함수와 `festival_blackjack_*`는 가짜 응답으로 대신한다)
 3. 18장 측정표의 값과 비교한다. 320px, 390px, 1024px에서 같은 화면을 캡처해 이 문서와 비교한다.
 4. 가로 스크롤이 생기지 않는지 확인한다(`document.documentElement.scrollWidth <= innerWidth`). 1.36에서 측정한 49개 화면은 모두 가로 스크롤이 없다.
 
@@ -873,12 +874,12 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - 누르면 `confirm()` 창에 이름·학번과 **Google 이메일**(같은 학번 계정이 여럿일 때)이 나온다.
 - 성공하면 결과 줄에 지운 방문·바우처·리뷰 수를 보여 주고 폼을 비운다.
 
-### 11.7 미니게임 (1.37~1.40)
+### 11.7 미니게임 (1.37~1.41)
 
 ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)를 이 앱의 모양으로 다시 만든 화면이다. 새 부품을 만들지 않고 **기존 부품을 그대로 쓴다**: 머리 `.web-header`, 포인트 줄 `.profile-list`, 게임 목록 `.profile-shortcuts`, 탭 `.festival-view-tabs`, 섹션 `.ops-section`, 빈 상태 `.festival-empty`, 상태 `.status-badge`, 대화상자 `.ops-dialog`, 결과 줄 `spotMarkup`/`showSpot`(8.9).
 
 - **데이터와 포인트**
-  - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_state/cancel`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 8개만). 1.37은 DB를 바꾸지 않았다. 1.38에서 축제 함수 2개(`festival_blackjack_lobby`, `festival_blackjack_rematch`)와 표 `festival_ops.blackjack_rematch`를 더했다(`operations-server/blackjack-lobby-and-rematch.sql`). 1.40에서 참가와 히트·스탠드를 축제 함수 `festival_blackjack_join`, `festival_blackjack_action`으로 바꿨다(`operations-server/blackjack-no-auto-stand.sql`, ORBIT 함수에서 자동 스탠드만 뺀 사본). ORBIT `orbit_*` 함수는 바꾸지 않는다.
+  - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_cancel`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 8개만). 1.37은 DB를 바꾸지 않았다. 1.38에서 축제 함수 2개(`festival_blackjack_lobby`, `festival_blackjack_rematch`)와 표 `festival_ops.blackjack_rematch`를 더했다(`operations-server/blackjack-lobby-and-rematch.sql`). 1.40에서 참가와 히트·스탠드를 축제 함수 `festival_blackjack_join`, `festival_blackjack_action`으로 바꿨다(`operations-server/blackjack-no-auto-stand.sql`, ORBIT 함수에서 자동 스탠드만 뺀 사본). 1.41에서 상태 조회를 `festival_blackjack_state`로 바꾸고 카드 제한 표 `festival_ops.blackjack_settings`와 관리 함수 `festival_blackjack_admin`을 더했다(`operations-server/minigames-admin.sql`). ORBIT `orbit_*` 함수는 바꾸지 않는다.
   - 쓰는 돈은 ORBIT의 **가상 포인트**(`public.users.money`)다. 축제 포인트·스탬프·바우처와 섞이지 않는다. 허브와 블랙잭 첫 화면에 "미니게임에서만 쓰는 포인트예요. 부스 스탬프·바우처와는 따로 계산돼요."를 둔다.
   - 체험(로컬) 모드에서는 서버를 부르지 않고 `.festival-empty`로 "실제 로그인에서 이용할 수 있어요"만 보여 준다.
 - **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root`) → 가상 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
@@ -900,6 +901,20 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
     - 카드 48×68, 모서리 8px, 흰 바탕, 테두리 `#c3d0cb`, 숫자 18px/750 + 무늬 20px. ♥♦는 `--festival-red`. 뒤집힌 카드는 `--primary` 바탕에 흰 사선 무늬와 흰 안쪽 테두리 3px. 320px 화면 이하는 42×60.
     - 동작 꼬리표(히트!, 스탠드, 21!, 멈춤. 1.40부터 21!·버스트!는 그 카드를 받은 히트에 붙고 차례는 이어진다)는 흰 알약 12px/700 초록, 버스트·시간 초과는 `#fff0ed`/`#a62936`.
   - 끝나면 카드를 상대 첫 장 → 내 첫 장 → … 순서로 0.7초마다 한 장씩 뒤집고(동작 줄이기면 뒤집는 효과 없이 순서만). 뒤집는 효과는 방금 뒤집은 한 장에만 준다(1.39: 이미 공개된 카드가 매번 다시 뒤집히지 않게), 가운데에 결과 상자를 띄운다. 승리 민트/`--primary`, 패배 `--surface-2`, 무승부 `--festival-sky`/`--festival-blue`. 제목 24px/750 + "+300P" 14px/650 + "확인" 주 버튼.
+  - **상대 이름(1.41)**: 테이블과 결과 화면에 상대의 이름을 가리지 않고 그대로 쓴다(예: "10101홍길동"). ORBIT의 `private.blackjack_view`는 첫 글자와 끝 글자만 남기므로 축제 함수가 `public.users.name` 전체로 바꿔 돌려준다.
+  - **카드 제한(1.41)**: 관리 마법사에서 정한다. "히트 한 번에 받을 수 있는 카드"(1~5장, 기본 1장)와 "한 판에 더 받을 수 있는 카드"(처음 2장 제외 1~20장, 기본 제한 없음). 서버가 넘는 히트를 `CARD_LIMIT`로 거부한다.
+    - 제한이 있으면 히트·스탠드 위에 한 줄(13px, 회색)을 둔다. 왼쪽 "더 받을 수 있는 카드 n장"(제한 없음이면 "히트 한 번에 최대 n장"), 오른쪽 "한 번에 [n장]" 선택(한 번에 2장 이상 받을 수 있을 때만). 2장 이상 고르면 버튼이 "히트 2장"이 된다.
+    - 더 받을 수 없으면 히트를 끄고 안내를 "더 받을 수 있는 카드가 없어요. 스탠드를 눌러 주세요."로 바꾼다. 규칙 목록에도 제한을 한 줄씩 더한다.
+  - **다시 들어오면 첫 화면(1.41)**: 블랙잭 화면을 떠났다가 돌아오면(새로고침 포함) 끝난 판의 결과·공개 애니메이션·다시 하기 상태를 보이지 않고 첫 화면("300P 걸고 상대 찾기")을 보인다. 진행 중이거나 상대를 기다리는 판은 그대로 이어진다.
+- **미니게임 관리(1.41, 관리 마법사 → 관리 도구 → 미니게임 관리)**: ORBIT develop 브랜치의 관리자 메뉴(주식 탭, 설정 탭의 종목 가격)를 참고했다. 운영자(`public.users.admin`)만 쓰고, 모든 동작은 서버가 다시 확인한다.
+  - 위쪽 둥근 전환 버튼 "가상주식" · "1대1 블랙잭"과 새로고침. 현황 칸은 2열 카드(12px 이름 + 17px/750 값).
+  - 가상주식: 현황 4칸(시장 상태, 거래 가능 종목, 진행 중 호재·악재, 긴급 뉴스) → 권한 봉인·가격 설정 배지와 행사 시간 → 둥근 메뉴 "시장·종목" · "호재·악재" · "뉴스·공지" · "감사 기록".
+    - 시장·종목: "거래 재개"(주) · "긴급 일시정지" · "시장 폐장"(위험) 3열. 종목마다 가격·상태와 "거래 정지/재개", 접힌 "가격 변경"(새 가격 → 가격 발행). 바꾸기 전에 확인 창을 띄운다. ORBIT `orbit_admin_stock_mutate`, `orbit_admin_publish_stock_price`를 부른다.
+    - 호재·악재: 종류, 적용 대상(전체/특정 종목), 영향도 1~100, 시작·종료(한국 시간, 기본 지금부터 1시간), 제목 120자, 설명 2000자. 영향도는 기록용이라 주가를 자동으로 바꾸지 않는다. 아래에 등록된 이벤트 목록.
+    - 뉴스·공지: 유형, 우선순위(일반/긴급), 연결 이벤트(없음/호재/악재, 고르면 이벤트 칸이 열린다), 제목 160자, 내용 4000자. 아래에 누적 뉴스.
+    - 감사 기록: ORBIT 감사 로그 최근 100건(작업, 성공/거부됨, 대상, 관리자 번호, 시각, 거부 이유).
+    - 쓰기 요청마다 새 요청 번호를 붙인다. 응답을 받지 못하면 노란 상자 "결과를 확인하지 못한 이전 요청이 있어요."와 "이전 요청 결과 확인" 버튼을 띄우고, 같은 번호로 다시 보내 결과만 확인한다(두 번 처리되지 않음).
+  - 1대1 블랙잭: 현황 4칸(매칭 대기, 진행 중, 오늘 끝난 판, 오늘 오간 판돈) → "카드 제한" 양식(두 선택 + 지금 값과 바꾼 사람·시각 + 저장) → 최근 30판(상태 배지, 시각·판돈, "이름 vs 이름", 카드 수·점수). 한 번에 받는 카드가 한 판 제한보다 많으면 저장하지 않는다. 저장은 처리 기록(`blackjack_settings`)에 남는다.
   - **다시 하기 상태(1.38)**: 결과 화면에서 "한 판 더 하기" 바로 위 가운데에 `.status-badge`(13px)로 지난 상대의 상태를 쓴다. "상대 : 대기중"(warning 노랑, 상대가 같은 결과 화면에 있음) · "상대 : 수락"(success 초록) · "상대 : 거부"(회색, 상대가 화면을 떠났거나 10초 넘게 응답이 없거나 다른 판에 들어감).
     - 결과 화면이 열려 있는 동안 1초마다 내 상태를 서버에 알리고 상대 상태를 받는다(화면이 보일 때만). 블랙잭 화면을 떠나면 "거부"를 한 번 보낸다.
     - 상대가 대기중·수락이면 버튼은 **같은 상대에게** 다시 하기를 요청한다. 누르면 버튼을 끄고 "상대도 수락하면 같은 상대와 바로 시작해요." 13px를 쓴다. 둘 다 수락하면 300P씩 걸고 새 판이 바로 시작된다(먼저 수락한 사람이 먼저 고른다).
@@ -1185,6 +1200,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | `vouchers` | scan | 바우처 발급·사용 | 발급·사용 |
 | `claim_guard` | notice | 부정 적립 감지 | 부정 적립 감지 |
 | `notice_admin` | bell | 공지 관리 | 공지 관리 |
+| `minigames` | game | 미니게임 관리 | 미니게임 관리 |
 | `stamp-simulator` | stamp | 스탬프 모의 발급 | 스탬프 모의 발급 |
 | `settings` | admin | 축제 운영 설정 | 축제 운영 설정 |
 
