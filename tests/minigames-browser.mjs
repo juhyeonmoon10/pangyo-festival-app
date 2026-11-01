@@ -64,7 +64,7 @@ async function pageFor(a,width=390) {
   const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true});
   await context.addInitScript(a=>localStorage.setItem('pangyo-google-session-v1',JSON.stringify({access_token:a.jwt,refresh_token:'fixture',token_type:'bearer',expires_at:4102444800,expires_in:3600,user:{id:a.id}})),a);
   const page=await context.newPage(), errors=[];
-  page.on('pageerror',e=>errors.push(e.message)); page.on('dialog',d=>d.accept());
+  page.on('pageerror',e=>errors.push(e.message)); page.on('dialog',d=>{ dialogs.push(d.message()); return dialogAnswers.length&&!dialogAnswers.shift()?d.dismiss():d.accept(); });
   await page.route('**/*',async route=>{
     const req=route.request(),url=new URL(req.url());
     if(url.protocol==='file:') return route.continue();
@@ -153,14 +153,17 @@ const market={eventId:'orbit-event',status:'open',eventStatus:'open',startsAt:ne
 const stockRows=NAMES.map((name,i)=>({id:String(i+1),eventId:'orbit-event',boothId:name,name,price:3000+i*300,previousPrice:3000+i*300+(i%3-1)*60,priceVersion:5,updatedAt:new Date(t0-60000).toISOString(),tradingStatus:i===4?'halted':'open',recentNfcCount:0,purchaseRate:0,minPrice:1,maxPrice:100000}));
 const wallet={money:100000,holdings:[],trades:[],receipts:new Map()};
 const calls=[];
-let bjGame=null, bjVersion=0, lobbyWaiting=2, rmMe='waiting', rmOpp='waiting', rmStart=false, bjRules={maxPerHit:1,maxDraws:null}, hitCounts=[];
+let bjGame=null, bjVersion=0, lobbyWaiting=2, rmMe='waiting', rmOpp='waiting', rmStart=false, bjRules={maxPerTurn:1,maxDraws:null}, bjActions=[], forfeits=[];
+// Browser dialogs: accepted unless dialogAnswers holds false for the next one (1.42 leaving a game asks first).
+var dialogs=[], dialogAnswers=[];
 // 관리 마법사 → 미니게임 관리 (1.41): ORBIT's stock admin functions and festival_blackjack_admin, answered in memory.
 const adminCalls=[], auditLogs=[], adminEvents=[], adminNews=[]; let failNextMutate=false;
 const adminDashboard=()=>({market:{...market,updatedAt:new Date(t0).toISOString()},
   instruments:stockRows.map(s=>({stockId:s.id,stockName:s.name,status:s.tradingStatus,price:s.price,eventId:'orbit-event'})),events:adminEvents,news:adminNews});
-const bjAdmin={settings:{maxPerHit:1,maxDraws:null,updatedAt:null,updatedBy:null},waiting:1,playing:2,finishedToday:5,stakedToday:3000,
+const bjAdmin={settings:{maxPerTurn:1,maxDraws:null,updatedAt:null,updatedBy:null},waiting:1,playing:2,finishedToday:5,stakedToday:3000,
   recent:[{id:randomUUID(),status:'playing',stake:300,result:null,playerA:'10101홍길동',playerB:'10102김철수',cardsA:3,cardsB:2,totalA:null,totalB:null,createdAt:new Date(t0).toISOString(),finishedAt:null},
-    {id:randomUUID(),status:'finished',stake:300,result:'a',playerA:'10103이영희',playerB:'10104박민수',cardsA:4,cardsB:3,totalA:20,totalB:23,createdAt:new Date(t0-60000).toISOString(),finishedAt:new Date(t0-30000).toISOString()}]};
+    {id:randomUUID(),status:'finished',stake:300,result:'a',playerA:'10103이영희',playerB:'10104박민수',cardsA:4,cardsB:3,totalA:20,totalB:23,createdAt:new Date(t0-60000).toISOString(),finishedAt:new Date(t0-30000).toISOString()},
+    {id:randomUUID(),status:'finished',stake:300,result:'b',forfeit:'a',playerA:'10105최도윤',playerB:'10106정하늘',cardsA:3,cardsB:2,totalA:15,totalB:12,createdAt:new Date(t0-120000).toISOString(),finishedAt:new Date(t0-100000).toISOString()}]};
 const startRematch=()=>{ wallet.money-=300; rmStart=false; bjGame={id:randomUUID(),status:'playing',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[1,2],myTotal:5,myDone:false,opponentName:'21001가상방',opponentCards:[30,null],opponentTotal:null,opponentDone:false,turn:'opponent',turnDeadline:new Date(Date.now()+10000).toISOString(),result:null,payout:null}; return {json:{me:'accept',opponent:'accept',game:bjView()}}; };
 const rmChoices=[];
 const bjView=()=>bjGame&&JSON.parse(JSON.stringify(bjGame));
@@ -218,8 +221,13 @@ globalThis.gameStub=async(url,p)=>{
   if(name==='festival_blackjack_state') return {json:bjView()};
   if(name==='festival_blackjack_join') { wallet.money-=300; bjGame={id:randomUUID(),status:'waiting',stake:300,version:++bjVersion,createdAt:new Date().toISOString(),myCards:[],myTotal:0,myDone:false,opponentName:'21001가상방',opponentCards:[],opponentTotal:null,opponentDone:false,turn:null,turnDeadline:null,result:null,payout:null}; return {json:bjView()}; }
   if(name==='orbit_blackjack_cancel') { wallet.money+=300; Object.assign(bjGame,{status:'cancelled',version:++bjVersion}); return {json:bjView()}; }
+  if(name==='festival_blackjack_forfeit') { forfeits.push(p.p_game_id); Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[12,6],opponentTotal:17,result:'lose',payout:0,forfeit:'me',turn:null,turnDeadline:null,version:++bjVersion}); return {json:bjView()}; }
   if(name==='festival_blackjack_action') {
-    if(p.p_action==='hit') { const n=p.p_count||1; hitCounts.push(n); Object.assign(bjGame,{myCards:[...bjGame.myCards,...Array(n).fill(2)],myTotal:bjGame.myTotal+3*n,version:++bjVersion}); }
+    bjActions.push(p.p_action);
+    if('p_count' in p) return {status:400,json:{code:'P0001',message:'INVALID_ACTION'}};
+    // One card per hit; the turn passes after maxPerTurn cards or a pass (1.42).
+    if(p.p_action==='hit') { const drawn=(bjGame.turnDrawn||0)+1, stays=drawn<bjRules.maxPerTurn; Object.assign(bjGame,{myCards:[...bjGame.myCards,2],myTotal:bjGame.myTotal+3,turnDrawn:stays?drawn:0,turn:stays?'me':'opponent',version:++bjVersion}); }
+    else if(p.p_action==='pass') Object.assign(bjGame,{turnDrawn:0,turn:'opponent',version:++bjVersion});
     else { wallet.money+=600; Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[12,6],opponentTotal:17,result:'win',payout:600,turn:null,turnDeadline:null,version:++bjVersion}); }
     return {json:bjView()};
   }
@@ -308,10 +316,12 @@ try {
   await page.waitForFunction(()=>/확인할 이전 거래가 없어요/.test(document.querySelector('[data-spot="game-retry"]')?.textContent||''));
   await shot(page,'stock-history');
   // Blackjack: lobby, waiting, table, reveal, result
-  bjRules={maxPerHit:2,maxDraws:3}; // 1.41 card limits from 관리 마법사
+  bjRules={maxPerTurn:2,maxDraws:4}; // 1.42 card limits from 관리 마법사: per turn and per game
   await page.evaluate(()=>navigateTo('gamesBlackjack'));
   await page.waitForSelector('.game-rules'); await navCheck(page,'games');
-  await page.waitForFunction(()=>/히트 한 번에 최대 2장까지/.test(document.querySelector('.game-rules').textContent) && /처음 2장 외에 최대 3장까지/.test(document.querySelector('.game-rules').textContent));
+  await page.waitForFunction(()=>/내 차례 한 번에 최대 2장까지 히트할 수 있어요/.test(document.querySelector('.game-rules').textContent) && /처음 2장 외에 최대 4장까지/.test(document.querySelector('.game-rules').textContent));
+  assert.match(await page.locator('.game-rules').textContent(),/게임 도중 화면을 나가면 몰수패/);
+  assert.doesNotMatch(await page.locator('.festival-games').textContent(),/히트 한 번에/);
   // 1.39: the lobby shows the matching count above "300P 걸고 상대 찾기" and keeps it fresh
   await page.waitForFunction(()=>document.querySelector('.game-blackjack [data-game-matching]:not([hidden])')?.textContent.trim()==='3명 매칭중');
   assert.ok(await page.evaluate(()=>document.querySelector('[data-game-matching]').compareDocumentPosition(document.querySelector('[data-bj="join"]'))&Node.DOCUMENT_POSITION_FOLLOWING),'count sits above the button');
@@ -326,26 +336,47 @@ try {
   await page.waitForSelector('.game-bj-table', {timeout:5000});
   await page.waitForSelector('[data-bj-timer]');
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true);
-  // 1.41: the opponent's whole name, and the cards left to draw with a per-hit choice
+  // 1.41: the opponent's whole name. 1.42: cards left in this turn and this game, no per-hit choice
   assert.equal(await page.locator('.game-bj-seat-head strong').first().textContent(),'21001가상방');
-  assert.match(await page.locator('.game-bj-draw').textContent(),/더 받을 수 있는 카드 3장/);
-  assert.deepEqual(await page.locator('[data-bj-count] option').allTextContents(),['1장','2장']);
+  assert.match(await page.locator('.game-bj-draw').textContent(),/이번 차례에 받을 수 있는 카드 2장/);
+  assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 4장/);
+  assert.equal(await page.locator('[data-bj-count]').count(),0);
+  assert.equal(await page.locator('[data-bj="pass"]').isEnabled(),false,'no pass before a hit');
   await shot(page,'bj-table');
   // 1.40: going bust does not stand; the player can keep hitting until they stand
   await page.locator('[data-bj="hit"]').click();
   await page.waitForFunction(()=>/22/.test(document.querySelectorAll('.game-bj-total')[0]?.textContent||'') && /버스트/.test(document.querySelector('.game-bj-badge')?.textContent||''));
-  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트예요. 카드를 더 받거나 스탠드할 수 있어요/);
-  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true,'hit stays available after a bust');
+  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트예요. 카드를 더 받거나, 차례를 넘기거나, 스탠드할 수 있어요/);
+  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true,'hit stays available after a bust (the turn allows 2)');
   assert.equal(await page.locator('[data-bj="stand"]').isEnabled(),true);
+  assert.equal(await page.locator('[data-bj="pass"]').isEnabled(),true,'pass after a hit');
+  assert.equal((await page.locator('[data-bj="hit"]').textContent()).trim(),'히트');
+  assert.match(await page.locator('.game-bj-draw').textContent(),/이번 차례에 받을 수 있는 카드 1장/);
   await shot(page,'bj-bust-keep-hitting');
-  await page.locator('[data-bj-count]').selectOption('2');
-  await page.waitForFunction(()=>document.querySelector('[data-bj="hit"]')?.textContent.trim()==='히트 2장');
+  // The second card of the turn passes the turn to the opponent
   await page.locator('[data-bj="hit"]').click();
-  await page.waitForFunction(()=>document.querySelectorAll('.game-bj-seat')[1]?.querySelectorAll('.game-card').length===5);
-  assert.deepEqual(hitCounts,[1,2],'the second hit asked for two cards');
+  await page.waitForFunction(()=>/상대가 고르는 중/.test(document.querySelector('.game-bj-turn')?.textContent||''));
+  assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),false);
+  assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 2장/);
+  // Back to me: one card, then 차례 넘기기
+  Object.assign(bjGame,{turn:'me',turnDrawn:0,version:++bjVersion});
+  await page.waitForFunction(()=>document.querySelector('[data-bj="hit"]')?.disabled===false);
+  await page.locator('[data-bj="hit"]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-bj="pass"]')?.disabled===false);
+  assert.match(await page.locator('.game-bj-turn').textContent(),/차례를 넘기거나/);
+  await shot(page,'bj-pass');
+  await page.locator('[data-bj="pass"]').click();
+  await page.waitForFunction(()=>/상대가 고르는 중/.test(document.querySelector('.game-bj-turn')?.textContent||''));
+  // Back to me: the last card of the game, then only stand is left
+  Object.assign(bjGame,{turn:'me',turnDrawn:0,version:++bjVersion});
+  await page.waitForFunction(()=>document.querySelector('[data-bj="hit"]')?.disabled===false);
+  await page.locator('[data-bj="hit"]').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.game-bj-seat')[1]?.querySelectorAll('.game-card').length===6);
+  assert.deepEqual(bjActions,['hit','hit','hit','pass','hit']);
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),false,'no more cards after the per-game limit');
+  assert.equal(await page.locator('[data-bj="pass"]').isEnabled(),false);
   assert.match(await page.locator('.game-bj-turn').textContent(),/더 받을 수 있는 카드가 없어요/);
-  assert.match(await page.locator('.game-bj-draw').textContent(),/더 받을 수 있는 카드 0장/);
+  assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 0장/);
   await shot(page,'bj-card-limit');
   // 1.39: during the final reveal only the card just turned over animates (at most one .flip at a time)
   await page.evaluate(()=>{ window.__flips=[]; new MutationObserver(()=>window.__flips.push(document.querySelectorAll('.game-card.flip').length)).observe(document.body,{childList:true,subtree:true}); });
@@ -401,6 +432,56 @@ try {
   assert.match(await page.locator('[data-bj="join"]').textContent(),/300P 걸고 상대 찾기/);
   assert.equal(await page.locator('.game-blackjack [data-game-matching]').count(),1);
   await shot(page,'bj-return-first-screen');
+  // 1.42: a new game shows nothing from the last one (it ended with a "스탠드" badge)
+  await page.locator('[data-bj="join"]').click();
+  await page.waitForSelector('.game-bj-waiting');
+  Object.assign(bjGame,{status:'playing',myCards:[9,8],myTotal:19,opponentCards:[25,null],turn:'me',turnDrawn:0,turnDeadline:new Date(Date.now()+60000).toISOString(),version:++bjVersion});
+  await page.waitForSelector('.game-bj-table',{timeout:5000});
+  assert.equal(await page.locator('.game-bj-badge').count(),0,'no badge from the last game');
+  assert.equal(await page.locator('.festival-games .sr-only[aria-live]').textContent(),'');
+  // 1.42: leaving during a game asks first; staying keeps the table (header back, browser back, bottom tab)
+  dialogAnswers.push(false);
+  await page.locator('.web-header [data-history-back]').click();
+  await page.waitForTimeout(400);
+  assert.match(dialogs.at(-1),/몰수패/);
+  assert.equal(await page.evaluate(()=>state.route),'gamesBlackjack');
+  assert.equal(await page.locator('.game-bj-table').count(),1);
+  dialogAnswers.push(false);
+  await page.evaluate(()=>history.back());
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(()=>state.route),'gamesBlackjack');
+  assert.equal(await page.evaluate(()=>history.state?.route),'gamesBlackjack','the address is put back');
+  dialogAnswers.push(false);
+  await page.locator('.bottom-nav [data-route="home"]').click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(()=>state.route),'gamesBlackjack');
+  assert.equal(forfeits.length,0,'staying does not forfeit');
+  // Leaving with the browser back button forfeits
+  const dialogCount=dialogs.length;
+  await page.evaluate(()=>history.back());
+  await page.waitForFunction(()=>state.route!=='gamesBlackjack');
+  await page.waitForTimeout(400);
+  assert.equal(dialogs.length,dialogCount+1);
+  assert.deepEqual(forfeits,[bjGame.id]);
+  await page.evaluate(()=>navigateTo('gamesBlackjack'));
+  await page.waitForSelector('.game-rules');
+  await page.waitForTimeout(1200);
+  assert.equal(await page.locator('.game-bj-result').count(),0,'the forfeited game is not shown again');
+  assert.equal(await page.locator('.game-bj-table').count(),0);
+  // The other player sees why they won
+  await page.locator('[data-bj="join"]').click();
+  await page.waitForSelector('.game-bj-waiting');
+  Object.assign(bjGame,{status:'playing',myCards:[9,8],myTotal:19,opponentCards:[25,null],turn:'opponent',turnDrawn:0,turnDeadline:new Date(Date.now()+60000).toISOString(),version:++bjVersion});
+  await page.waitForSelector('.game-bj-table',{timeout:5000});
+  wallet.money+=600;
+  Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[25,4],opponentTotal:18,result:'win',payout:600,forfeit:'opponent',turn:null,turnDeadline:null,version:++bjVersion});
+  await page.waitForSelector('.game-bj-outcome.win',{timeout:10000});
+  assert.match(await page.locator('.game-bj-outcome').textContent(),/상대가 게임을 나가 몰수패했어요/);
+  await shot(page,'bj-forfeit-win');
+  await page.locator('[data-bj-ok]').click();
+  await page.waitForSelector('.game-bj-result.win');
+  assert.match(await page.locator('.game-bj-result').textContent(),/상대가 게임을 나가 몰수패했어요/);
+  await page.evaluate(()=>navigateTo('games')); await page.waitForSelector('.game-list');
   // 1.41 관리 마법사 → 미니게임 관리
   const ops=await pageFor(admin);
   await routeTo(ops.page,'admin'); await openOperatorTool(ops.page,'minigames');
@@ -465,7 +546,9 @@ try {
   await ops.page.locator('[data-games-section="blackjack"]').click();
   await ops.page.waitForSelector('[data-bj-limits]');
   assert.match(await ops.page.locator('.games-admin-list').textContent(),/10101홍길동 vs 10102김철수/);
-  await ops.page.locator('[data-bj-limits] select[name="maxPerHit"]').selectOption('3');
+  assert.match(await ops.page.locator('.games-admin-list').textContent(),/뒤 사람 승 · 앞 사람 몰수패/);
+  assert.match(await ops.page.locator('[data-bj-limits]').textContent(),/한 차례에 받을 수 있는 카드/);
+  await ops.page.locator('[data-bj-limits] select[name="maxPerTurn"]').selectOption('3');
   await ops.page.locator('[data-bj-limits] select[name="maxDraws"]').selectOption('2');
   await ops.page.locator('[data-bj-limits] button[type="submit"]').click();
   await ops.page.waitForFunction(()=>/한 판에 받을 수 있는 카드보다 많을 수 없어요/.test(document.querySelector('[data-games-admin]').textContent));
@@ -473,8 +556,8 @@ try {
   await ops.page.locator('[data-bj-limits] select[name="maxDraws"]').selectOption('6');
   await ops.page.locator('[data-bj-limits] button[type="submit"]').click();
   await ops.page.waitForFunction(()=>/카드 제한을 저장했어요/.test(document.querySelector('[data-games-admin]').textContent));
-  assert.deepEqual(adminCalls.filter(c=>c[0]==='festival_blackjack_admin' && c[1].p_action==='save').map(c=>c[1].p_payload),[{maxPerHit:3,maxDraws:6}]);
-  assert.match(await ops.page.locator('[data-bj-limits]').textContent(),/지금: 한 번에 3장 · 한 판에 6장/);
+  assert.deepEqual(adminCalls.filter(c=>c[0]==='festival_blackjack_admin' && c[1].p_action==='save').map(c=>c[1].p_payload),[{maxPerTurn:3,maxDraws:6}]);
+  assert.match(await ops.page.locator('[data-bj-limits]').textContent(),/지금: 한 차례에 3장 · 한 판에 6장/);
   await shot(ops.page,'admin-minigames-blackjack');
   for(const width of [320]) {
     const narrow=await pageFor(admin,width);
@@ -491,7 +574,7 @@ try {
     await narrow.context.close();
   }
   // Demo (local) mode explains instead of calling the server
-  assert.ok(calls.includes('orbit_trade_stock') && calls.includes('festival_blackjack_join') && calls.includes('festival_blackjack_action') && !calls.includes('orbit_blackjack_join') && !calls.includes('orbit_blackjack_action') && calls.includes('festival_blackjack_lobby') && calls.includes('festival_blackjack_rematch'));
+  assert.ok(calls.includes('orbit_trade_stock') && calls.includes('festival_blackjack_join') && calls.includes('festival_blackjack_action') && !calls.includes('orbit_blackjack_join') && !calls.includes('orbit_blackjack_action') && calls.includes('festival_blackjack_lobby') && calls.includes('festival_blackjack_rematch') && calls.includes('festival_blackjack_forfeit'));
   console.log(JSON.stringify({calls:[...new Set(calls)],errors:pages.map(p=>p.errors).flat(),artifacts:path.relative(root,output)}));
   assert.deepEqual(pages.map(p=>p.errors).flat(),[]);
 } finally { await browser.close(); }

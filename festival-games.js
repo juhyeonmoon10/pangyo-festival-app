@@ -11,7 +11,10 @@
    (festival_blackjack_join/action, copies of ORBIT's functions without the automatic stand).
    1.41: leaving the blackjack screen and coming back shows the first screen, not the last result. A hit may draw
    several cards and a game may cap the cards drawn (관리 마법사 → 미니게임 관리; the limits come with
-   festival_blackjack_lobby), and the opponent's whole name is shown (festival_blackjack_state). */
+   festival_blackjack_lobby), and the opponent's whole name is shown (festival_blackjack_state).
+   1.42: the limit is cards per turn, not per hit: one hit draws one card and the turn stays until the player has
+   drawn that many, passes ('차례 넘기기') or stands. Leaving a game in progress (back button, bottom navigation) asks
+   first and forfeits it (festival_blackjack_forfeit). A new game starts without the last game's badges. */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -42,7 +45,7 @@ const festivalGames = (() => {
     NOT_YOUR_TURN: '지금은 내 차례가 아니에요.',
     INVALID_ACTION: '지금은 할 수 없는 행동이에요.',
     REMATCH_EXPIRED: '다시 하기 시간이 지났어요. 새 상대를 찾아 주세요.',
-    CARD_LIMIT: '더 받을 수 있는 카드 수를 넘었어요.',
+    CARD_LIMIT: '이번 차례나 이번 판에 받을 수 있는 카드를 다 받았어요.',
     SERVER_NOT_READY: '미니게임을 준비하고 있어요. 잠시 후 다시 시도해 주세요.',
     NETWORK_ERROR: '연결이 불안정해요. 잠시 후 다시 시도해 주세요.',
   };
@@ -60,13 +63,13 @@ const festivalGames = (() => {
   let tab = 'market', query = '', sort = 'default', favorites = null, note = null;
   let chart = { key: '', status: 'idle', points: [], opening: null };
   let trade = null, tradeBusy = false;
-  let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false, count: 1 };
-  let lobby = { status: 'idle', waiting: null, maxPerHit: 1, maxDraws: null };
+  let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false };
+  let lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null };
   let rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
   let pollTimer = 0, tickTimer = 0, revealTimer = 0, lobbyTimer = 0;
 
   function reset() {
-    lobby = { status: 'idle', waiting: null, maxPerHit: 1, maxDraws: null };
+    lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null };
     rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
     owner = state.user?.id || null;
     market = { status: 'idle', data: null, code: '' };
@@ -75,7 +78,7 @@ const festivalGames = (() => {
     chart = { key: '', status: 'idle', points: [], opening: null };
     closeTrade();
     clearTimeout(revealTimer);
-    bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false, count: 1 };
+    bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false };
   }
   const isGameRoute = route => ['games', 'gamesStock', 'gamesStockDetail', 'gamesBlackjack'].includes(route);
   function report(at, text, tone = 'error', redraw = false) {
@@ -285,11 +288,11 @@ const festivalGames = (() => {
     if (state.user?.id !== actor) return;
     lobby.status = 'ready';
     if (response.ok && Number.isInteger(response.data?.waiting) && response.data.waiting >= 0) lobby.waiting = response.data.waiting;
-    // Card limits set in 관리 마법사: cards per hit (1-5) and cards drawn per game after the first two (null = no limit).
+    // Card limits set in 관리 마법사: cards per turn (1-5) and cards drawn per game after the first two (null = no limit).
     if (response.ok) {
-      const perHit = response.data?.maxPerHit, draws = response.data?.maxDraws;
-      const next = { maxPerHit: Number.isInteger(perHit) && perHit >= 1 && perHit <= 5 ? perHit : 1, maxDraws: Number.isInteger(draws) && draws >= 1 ? draws : null };
-      const changed = next.maxPerHit !== lobby.maxPerHit || next.maxDraws !== lobby.maxDraws;
+      const perTurn = response.data?.maxPerTurn, draws = response.data?.maxDraws;
+      const next = { maxPerTurn: Number.isInteger(perTurn) && perTurn >= 1 && perTurn <= 5 ? perTurn : 1, maxDraws: Number.isInteger(draws) && draws >= 1 ? draws : null };
+      const changed = next.maxPerTurn !== lobby.maxPerTurn || next.maxDraws !== lobby.maxDraws;
       Object.assign(lobby, next);
       if (changed && state.route === 'gamesBlackjack') renderKeepingFocus();
     }
@@ -575,7 +578,8 @@ const festivalGames = (() => {
       }
       if (prior.id === next.id && prior.status === 'playing' && next.status === 'finished' && bj.dismissed !== next.id) startReveal(next);
     }
-    if (next?.status === 'playing' && prior?.id !== next.id) { bj.announcement = ''; bj.badges = {}; }
+    // A new game (also one that starts by waiting for an opponent) shows nothing from the last game.
+    if (next && prior?.id !== next.id) { bj.announcement = ''; bj.badges = {}; bj.sent = null; }
     const changed = JSON.stringify(prior) !== JSON.stringify(next);
     bj.game = next;
     if (next?.status === 'finished' && rematch.gameId !== next.id) {
@@ -683,8 +687,7 @@ const festivalGames = (() => {
     report('bj', action === 'join' ? '상대를 찾는 중...' : action === 'cancel' ? '대기를 취소하는 중...' : '보내는 중...', 'info');
     const response = action === 'join' ? await api().call('festival_blackjack_join')
       : action === 'cancel' ? await api().call('orbit_blackjack_cancel')
-      : await api().call('festival_blackjack_action', { p_game_id: game?.id, p_action: action, p_version: game?.version,
-        ...(action === 'hit' ? { p_count: hitCount(game) } : {}) });
+      : await api().call('festival_blackjack_action', { p_game_id: game?.id, p_action: action, p_version: game?.version });
     bj.busy = false;
     if (!response.ok) {
       bj.sent = null;
@@ -750,11 +753,13 @@ const festivalGames = (() => {
       return position < shownCount ? card(value, !!bj.reveal?.fresh && position === shownCount - 1) : card(null);
     }).join('')}</div>`;
   }
-  // Cards this hit may draw: the per-hit limit, and what is left of the per-game limit.
-  const hitRoom = game => Math.max(0, Math.min(lobby.maxPerHit, lobby.maxDraws === null ? Infinity : lobby.maxDraws - Math.max(0, (game?.myCards.length || 2) - 2)));
-  const hitCount = game => Math.max(1, Math.min(bj.count, hitRoom(game)));
+  // Cards still allowed: in this turn (cards per turn minus the ones drawn) and in this game (after the first two).
+  const turnRoom = game => Math.max(0, lobby.maxPerTurn - (game?.turn === 'me' && Number.isInteger(game.turnDrawn) ? game.turnDrawn : 0));
+  const gameRoom = game => lobby.maxDraws === null ? Infinity : Math.max(0, lobby.maxDraws - Math.max(0, (game?.myCards.length || 2) - 2));
+  const hitRoom = game => Math.min(turnRoom(game), gameRoom(game));
   const outcomeText = result => result === 'win' ? '승리!' : result === 'lose' ? '패배' : '무승부';
   const outcomeLine = (result, stake) => result === 'win' ? `+${point(stake)}` : result === 'lose' ? `−${point(stake)}` : '판돈을 돌려받았어요';
+  const forfeitLine = game => game.forfeit === 'opponent' ? '상대가 게임을 나가 몰수패했어요.' : game.forfeit === 'me' ? '게임을 나가 몰수패했어요.' : '';
 
   function tableView() {
     const reveal = bj.reveal, shown = reveal?.game || bj.game;
@@ -765,7 +770,9 @@ const festivalGames = (() => {
       return handTotal(cards.filter((c, i) => c !== null && order.findIndex(([s, j]) => s === side && j === i) < flipped));
     };
     const myTurn = shown.status === 'playing' && shown.turn === 'me' && !shown.myDone;
-    const room = hitRoom(shown), count = hitCount(shown), limited = lobby.maxPerHit > 1 || lobby.maxDraws !== null;
+    const room = hitRoom(shown), drawn = myTurn && Number.isInteger(shown.turnDrawn) ? shown.turnDrawn : 0;
+    const perTurn = lobby.maxPerTurn > 1, canPass = perTurn && myTurn && drawn > 0 && room > 0;
+    const choices = canPass ? '카드를 더 받거나, 차례를 넘기거나, 스탠드할 수 있어요.' : '카드를 더 받거나 스탠드할 수 있어요.';
     const myTotal = reveal ? visibleTotal('me') : shown.myTotal;
     const theirTotal = reveal ? visibleTotal('opponent') : null;
     const left = shown.turnDeadline ? Math.max(0, Date.parse(shown.turnDeadline) - Date.now()) : null;
@@ -777,10 +784,10 @@ const festivalGames = (() => {
         ${hand(shown.opponentCards, flipped, 'opponent')}${badge('opponent')}
       </div>
       <div class="game-bj-center">
-        ${done ? `<div class="game-bj-outcome ${h(shown.result || 'draw')}" role="alert"><strong>${outcomeText(shown.result)}</strong><span>${outcomeLine(shown.result, shown.stake)}</span>
+        ${done ? `<div class="game-bj-outcome ${h(shown.result || 'draw')}" role="alert"><strong>${outcomeText(shown.result)}</strong><span>${outcomeLine(shown.result, shown.stake)}</span>${forfeitLine(shown) ? `<span>${forfeitLine(shown)}</span>` : ''}
             <button type="button" class="primary-btn full-action" data-bj-ok>확인</button></div>`
           : reveal ? '<p class="game-bj-turn" role="status">카드를 한 장씩 공개해요...</p>'
-          : `<p class="game-bj-turn${myTurn ? ' mine' : ''}" role="status">${myTurn ? (room === 0 ? '더 받을 수 있는 카드가 없어요. 스탠드를 눌러 주세요.' : shown.myTotal > 21 ? '버스트예요. 카드를 더 받거나 스탠드할 수 있어요.' : shown.myTotal === 21 ? '21점이에요. 카드를 더 받거나 스탠드할 수 있어요.' : '내 차례예요. 히트나 스탠드를 골라 주세요.') : shown.myDone ? '나는 멈췄어요. 상대를 기다려요.' : '상대가 고르는 중이에요.'}</p>
+          : `<p class="game-bj-turn${myTurn ? ' mine' : ''}" role="status">${myTurn ? (room === 0 ? '더 받을 수 있는 카드가 없어요. 스탠드를 눌러 주세요.' : shown.myTotal > 21 ? `버스트예요. ${choices}` : shown.myTotal === 21 ? `21점이에요. ${choices}` : canPass ? choices : '내 차례예요. 히트나 스탠드를 골라 주세요.') : shown.myDone ? '나는 멈췄어요. 상대를 기다려요.' : '상대가 고르는 중이에요.'}</p>
             ${left !== null ? `<span class="game-bj-timer" data-bj-timer role="timer" aria-label="남은 시간 ${Math.ceil(left / 1000)}초"><i style="width:${Math.min(100, left / (TURN_SECONDS * 10))}%"></i><b>${Math.ceil(left / 1000)}초</b></span>` : ''}`}
       </div>
       <div class="game-bj-seat${myTurn ? ' is-turn' : ''}">
@@ -788,11 +795,12 @@ const festivalGames = (() => {
           <strong class="game-bj-total${myTotal > 21 ? ' bust' : ''}">${myTotal}${!reveal ? (myTotal > 21 ? ' · 버스트' : shown.myDone ? ' · 스탠드' : '') : ''}</strong></div>
         ${hand(shown.myCards, flipped, 'me')}${badge('me')}
       </div>
-      ${reveal ? '' : `${limited && shown.status === 'playing' ? `<div class="game-bj-draw">
-        <span>${lobby.maxDraws === null ? `히트 한 번에 최대 ${lobby.maxPerHit}장` : `더 받을 수 있는 카드 <b>${Math.max(0, lobby.maxDraws - (shown.myCards.length - 2))}장</b>`}</span>
-        ${lobby.maxPerHit > 1 && room > 1 ? `<label>한 번에 <select class="select" data-bj-count ${!myTurn || bj.busy ? 'disabled' : ''}>${Array.from({ length: room }, (_, i) => `<option value="${i + 1}" ${i + 1 === count ? 'selected' : ''}>${i + 1}장</option>`).join('')}</select></label>` : ''}
-      </div>` : ''}${slot('bj')}<div class="game-trade-actions">
-        <button type="button" class="primary-btn" data-bj="hit" ${!myTurn || bj.busy || room === 0 ? 'disabled' : ''}>${icon('plus')} 히트${count > 1 ? ` ${count}장` : ''}</button>
+      ${reveal ? '' : `${(perTurn || lobby.maxDraws !== null) && shown.status === 'playing' ? `<div class="game-bj-draw">
+        ${perTurn ? `<span>이번 차례에 받을 수 있는 카드 <b>${myTurn ? turnRoom(shown) : lobby.maxPerTurn}장</b></span>` : ''}
+        ${lobby.maxDraws !== null ? `<span>이번 판에 더 받을 수 있는 카드 <b>${gameRoom(shown)}장</b></span>` : ''}
+      </div>` : ''}${slot('bj')}<div class="game-trade-actions${perTurn ? ' has-pass' : ''}">
+        <button type="button" class="primary-btn" data-bj="hit" ${!myTurn || bj.busy || room === 0 ? 'disabled' : ''}>${icon('plus')} 히트</button>
+        ${perTurn ? `<button type="button" class="ghost-btn" data-bj="pass" ${!canPass || bj.busy ? 'disabled' : ''}>${icon('arrow')} 차례 넘기기</button>` : ''}
         <button type="button" class="ghost-btn" data-bj="stand" ${!myTurn || bj.busy ? 'disabled' : ''}>${icon('hand')} 스탠드</button>
       </div>`}
     </section>`;
@@ -813,7 +821,7 @@ const festivalGames = (() => {
         <p><span data-bj-waited>${Math.floor(waited / 60)}:${String(waited % 60).padStart(2, '0')}</span> · 3분 안에 상대가 없으면 판돈을 돌려받아요.</p>
         ${slot('bj')}<button type="button" class="ghost-btn full-action" data-bj="cancel" ${bj.busy ? 'disabled' : ''}>${icon('close')} 취소하고 ${point(STAKE)} 돌려받기</button></section>`;
     }
-    return `${game?.status === 'finished' ? `<section class="game-bj-result ${h(game.result || 'draw')}" aria-live="polite"><strong>${outcomeText(game.result)}</strong><span>${outcomeLine(game.result, game.stake)}</span>
+    return `${game?.status === 'finished' ? `<section class="game-bj-result ${h(game.result || 'draw')}" aria-live="polite"><strong>${outcomeText(game.result)}</strong><span>${outcomeLine(game.result, game.stake)}</span>${forfeitLine(game) ? `<span>${forfeitLine(game)}</span>` : ''}
         <div class="game-bj-result-hands"><div><small>나 · ${game.myTotal}${game.myTotal > 21 ? ' · 버스트' : ''}</small>${hand(game.myCards, null, null, true)}</div>
         <div><small>${h(game.opponentName || '상대')} · ${game.opponentTotal ?? '—'}${(game.opponentTotal ?? 0) > 21 ? ' · 버스트' : ''}</small>${hand(game.opponentCards, null, null, true)}</div></div></section>` : ''}
       ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">대기를 취소하고 ${point(game.stake)}를 돌려받았어요.</p>` : ''}
@@ -832,7 +840,8 @@ const festivalGames = (() => {
           <li>상대 카드는 첫 장만 보여요. 21에 더 가까운 사람이 판돈 ${point(STAKE * 2)}를 가져가요.</li>
           <li>둘 다 버스트이거나 점수가 같으면 판돈을 돌려받아요.</li>
           <li>${TURN_SECONDS}초 안에 고르지 않으면 스탠드로 처리돼요.</li>
-          ${lobby.maxPerHit > 1 ? `<li>히트 한 번에 최대 ${lobby.maxPerHit}장까지 골라 받을 수 있어요.</li>` : ''}
+          <li>게임 도중 화면을 나가면 몰수패가 되고, 상대가 판돈 ${point(STAKE * 2)}를 가져가요.</li>
+          ${lobby.maxPerTurn > 1 ? `<li>내 차례 한 번에 최대 ${lobby.maxPerTurn}장까지 히트할 수 있어요. 다 받으면 차례가 넘어가고, 덜 받고 넘기려면 '차례 넘기기'를 눌러요.</li>` : ''}
           ${lobby.maxDraws !== null ? `<li>한 판에 처음 2장 외에 최대 ${lobby.maxDraws}장까지 더 받을 수 있어요.</li>` : ''}
         </ul>
         <h3>카드 점수</h3>
@@ -874,6 +883,25 @@ const festivalGames = (() => {
     if (['finished', 'cancelled'].includes(bj.game?.status)) bj.dismissed = bj.game.id;
     clearTimeout(revealTimer); bj.reveal = null;
     if (note?.at === 'bj') note = null;
+  }
+
+  // Leaving the blackjack screen during a game forfeits it (1.42). Called by navigateTo and the browser back
+  // button before the route changes; false keeps the player at the table.
+  function allowLeave(route) {
+    const game = bj.game;
+    if (state.route !== 'gamesBlackjack' || route === 'gamesBlackjack' || game?.status !== 'playing' || !api()) return true;
+    if (!confirm(`지금 나가면 이번 판은 몰수패가 돼요.\n판돈 ${point(game.stake)}를 잃고, 상대가 ${point(game.stake * 2)}를 가져가요. 나갈까요?`)) return false;
+    forfeit(game);
+    return true;
+  }
+  async function forfeit(game) {
+    // The forfeited game is not shown again when the player comes back.
+    bj.dismissed = game.id;
+    const actor = state.user?.id;
+    const response = await api().call('festival_blackjack_forfeit', { p_game_id: game.id });
+    if (state.user?.id !== actor) return;
+    if (response.ok && validGame(response.data)) applyGame(response.data);
+    else loadBlackjack();
   }
 
   function load() {
@@ -947,7 +975,6 @@ const festivalGames = (() => {
     document.querySelectorAll('[data-game-trade]').forEach(button => button.addEventListener('click', () => openTrade(button.dataset.gameTrade)));
     document.querySelector('[data-game-retry]')?.addEventListener('click', () => { if (!tradeBusy) retryTrade(); });
     document.querySelectorAll('[data-bj]').forEach(button => button.addEventListener('click', () => sendBlackjack(button.dataset.bj)));
-    document.querySelector('[data-bj-count]')?.addEventListener('change', event => { bj.count = Number(event.currentTarget.value) || 1; renderKeepingFocus(); });
     document.querySelector('[data-bj-reload]')?.addEventListener('click', () => { bj.status = 'idle'; render(); });
     document.querySelector('[data-bj-ok]')?.addEventListener('click', () => {
       clearTimeout(revealTimer); bj.reveal = null; render();
@@ -958,6 +985,6 @@ const festivalGames = (() => {
     tick();
   }
 
-  return { view, bind, load, isGameRoute, handTotal, revealOrder };
+  return { view, bind, load, allowLeave, isGameRoute, handTotal, revealOrder };
 })();
 if (typeof module === 'object' && module.exports) module.exports = festivalGames;

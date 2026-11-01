@@ -203,24 +203,25 @@ const festivalGamesAdmin = (() => {
     if (g.status === 'waiting') return badge('warning', '상대 찾는 중');
     if (g.status === 'playing') return badge('success', '진행 중');
     if (g.status === 'cancelled') return badge('muted', '취소');
+    if (g.forfeit === 'a' || g.forfeit === 'b') return badge('muted', `${OUTCOME[g.result] || '끝남'} · ${g.forfeit === 'a' ? '앞' : '뒤'} 사람 몰수패`);
     return badge('muted', OUTCOME[g.result] || '끝남');
   }
   function blackjackView() {
     const b = blackjack, s = b.settings || {};
-    const per = Number(s.maxPerHit) || 1, draws = Number.isInteger(s.maxDraws) ? s.maxDraws : null;
+    const per = Number(s.maxPerTurn) || 1, draws = Number.isInteger(s.maxDraws) ? s.maxDraws : null;
     const options = (from, to, value) => Array.from({ length: to - from + 1 }, (_, i) => from + i).map(n => `<option value="${n}" ${n === value ? 'selected' : ''}>${n}장</option>`).join('');
     return `<div class="games-admin-tiles">
         ${tile('매칭 대기', `${Number(b.waiting) || 0}명`)}${tile('진행 중', `${Number(b.playing) || 0}판`)}
         ${tile('오늘 끝난 판', `${Number(b.finishedToday) || 0}판`)}${tile('오늘 오간 판돈', point(b.stakedToday))}
       </div>
       <section class="ops-section"><h2>카드 제한</h2>
-        <p class="games-admin-hint">진행 중인 판에도 바로 적용돼요. 21이나 버스트여도 자동으로 멈추지 않으니(1.40), 한 판에 받을 수 있는 카드 수로 판이 너무 길어지지 않게 할 수 있어요.</p>
+        <p class="games-admin-hint">진행 중인 판에도 바로 적용돼요. 히트 한 번에 카드 한 장을 받고, 한 차례에 정한 장수를 다 받으면 상대 차례로 넘어가요. 덜 받은 학생은 '차례 넘기기'로 넘길 수 있어요. 21이나 버스트여도 자동으로 멈추지 않으니(1.40), 한 판에 받을 수 있는 카드 수로 판이 너무 길어지지 않게 할 수 있어요.</p>
         <form class="ops-form" data-bj-limits>
           <div class="games-admin-grid">
-            <label>히트 한 번에 받을 수 있는 카드<select class="select" name="maxPerHit">${options(1, 5, per)}</select></label>
+            <label>한 차례에 받을 수 있는 카드<select class="select" name="maxPerTurn">${options(1, 5, per)}</select></label>
             <label>한 판에 더 받을 수 있는 카드 (처음 2장 제외)<select class="select" name="maxDraws"><option value="" ${draws === null ? 'selected' : ''}>제한 없음</option>${options(1, 20, draws)}</select></label>
           </div>
-          <p class="games-admin-hint">지금: 한 번에 ${per}장 · 한 판에 ${draws === null ? '제한 없음' : `${draws}장`}${s.updatedBy ? ` · ${h(s.updatedBy)}, ${h(time(s.updatedAt))}` : ''}</p>
+          <p class="games-admin-hint">지금: 한 차례에 ${per}장 · 한 판에 ${draws === null ? '제한 없음' : `${draws}장`}${s.updatedBy ? ` · ${h(s.updatedBy)}, ${h(time(s.updatedAt))}` : ''}</p>
           ${slot('limits')}<button class="primary-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('save')} 저장</button>
         </form></section>
       <section class="ops-section"><h2>최근 판 <span>${(b.recent || []).length}판</span></h2>
@@ -334,9 +335,9 @@ const festivalGamesAdmin = (() => {
     });
     root.querySelector('[data-bj-limits]')?.addEventListener('submit', event => {
       event.preventDefault();
-      const f = event.currentTarget.elements, maxPerHit = Number(f.maxPerHit.value), maxDraws = f.maxDraws.value === '' ? null : Number(f.maxDraws.value);
-      if (maxDraws !== null && maxPerHit > maxDraws) { say('limits', '한 번에 받는 카드가 한 판에 받을 수 있는 카드보다 많을 수 없어요.', 'error'); return; }
-      send({ name: 'festival_blackjack_admin', success: '카드 제한을 저장했어요.', args: { p_action: 'save', p_payload: { maxPerHit, maxDraws } } }, 'limits');
+      const f = event.currentTarget.elements, maxPerTurn = Number(f.maxPerTurn.value), maxDraws = f.maxDraws.value === '' ? null : Number(f.maxDraws.value);
+      if (maxDraws !== null && maxPerTurn > maxDraws) { say('limits', '한 차례에 받는 카드가 한 판에 받을 수 있는 카드보다 많을 수 없어요.', 'error'); return; }
+      send({ name: 'festival_blackjack_admin', success: '카드 제한을 저장했어요.', args: { p_action: 'save', p_payload: { maxPerTurn, maxDraws } } }, 'limits');
     });
   }
 

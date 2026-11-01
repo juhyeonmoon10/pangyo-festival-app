@@ -472,7 +472,7 @@
       "orbit_blackjack_cancel", "festival_blackjack_join", "festival_blackjack_action",
       "festival_blackjack_lobby", "festival_blackjack_rematch",
       "orbit_admin_stock_dashboard", "orbit_admin_stock_audit_log", "orbit_admin_stock_mutate",
-      "orbit_admin_publish_stock_price", "festival_blackjack_admin"]);
+      "orbit_admin_publish_stock_price", "festival_blackjack_admin", "festival_blackjack_forfeit"]);
     const gameError = error => {
       const code = String(error?.message || "").match(/^[A-Z][A-Z0-9_]+$/)?.[0]
         || (error?.code === "PGRST202" ? "SERVER_NOT_READY" : error?.status === 401 ? "UNAUTHENTICATED" : "NETWORK_ERROR");

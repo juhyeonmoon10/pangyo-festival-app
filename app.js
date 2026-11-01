@@ -119,6 +119,8 @@ function writeNavigationHistory(mode = "push") {
 }
 
 function navigateTo(route, { replace = false } = {}) {
+  // Leaving a blackjack game in progress asks first and forfeits it (1.42).
+  if (typeof festivalGames !== "undefined" && !festivalGames.allowLeave(route)) return;
   const changed = state.route !== route || (window.FestivalRouter?.isWeb(location)
     && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId,gameStockId:state.gameStockId}) !== location.pathname);
   if (window.FestivalRouter && !state.user && route !== "login") {
@@ -206,6 +208,8 @@ function initializeNavigation() {
     const saved = event.state?.key === HISTORY_KEY ? event.state : null;
     const snapshot = urlTarget ? { ...(saved || {}), ...urlTarget } : saved;
     if (!snapshot) return;
+    // The back button during a blackjack game: staying puts the table's address back.
+    if (typeof festivalGames !== "undefined" && !festivalGames.allowLeave(snapshot.route)) { writeNavigationHistory("push"); return; }
     navigationIndex = Number(saved?.index) || 0;
     if (snapshot.route === "login" && state.user) snapshot.route = "home";
     if (snapshot.route === "login" && router) pendingNavigation = router.safeReturn(new URL(location.href).searchParams.get("next"));
@@ -4157,7 +4161,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.41";
+const APP_RELEASE = "1.42";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;
