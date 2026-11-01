@@ -251,10 +251,10 @@ test('server snapshot drives received indicators without fabricating local rewar
   assert.equal(records.size, 0);
 });
 
-test('completed visit history is collapsed but its detail and review actions remain', () => {
+test('one visit list holds completed visits with their detail and review actions (1.46)', () => {
   const html = setup({ count: 4 }).api.stamps();
-  assert.match(html, /<details class="stamp-visit-history"><summary>/);
-  assert.doesNotMatch(html, /<details[^>]*\bopen\b/);
+  assert.doesNotMatch(html, /stamp-visit-history|완료한 방문/);
+  assert.equal((html.match(/class="stamp-visits"/g) || []).length, 1);
   assert.match(html, /data-route="reviews"/);
   assert.match(html, /data-review-booth="booth-3"/);
 });

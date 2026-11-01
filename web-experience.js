@@ -286,6 +286,16 @@ const festivalWeb = (() => {
     return `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(stamp.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>`;
   }
 
+  // One 방문 기록 list (1.46, was 방문 기록 + a folded 완료한 방문): visits to rate or waiting for a check first,
+  // then the other completed visits, newest first.
+  function visitList(earned, open) {
+    const openBooths = new Set(open.map(s => s.boothId));
+    const done = earned.filter(v => !openBooths.has(v.boothId)).reverse();
+    const total = open.length + done.length;
+    return `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${total}</span></h2>${earned.length ? `<button type="button" class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>` : ""}</div>
+      ${total ? [...open.map(waitingRow), ...done.map(v => visitRow(v))].join("") : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>`;
+  }
+
   function stamps() {
     syncRewards();
     const earned = completed();
@@ -302,8 +312,7 @@ const festivalWeb = (() => {
         <progress class="stamp-path-progress" max="6" value="${cycleProgress}" aria-label="3개·6개 바우처 진행">${cycleProgress} / 6</progress>
       </section>
       ${stampPath(earned, pending, rewards)}
-      ${/* 1.45: 방문 기록 sits under the stamp board */ ""}${pending.length + restricted.length ? `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${pending.length + restricted.length}</span></h2></div>${[...pending, ...restricted].map(waitingRow).join("")}</section>` : ""}
-      <details class="stamp-visit-history"><summary><span>완료한 방문</span><span>${earned.length}개 ${icon("arrow")}</span></summary><div class="stamp-history-body"><button class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>${earned.length ? earned.slice().reverse().map(v => visitRow(v)).join("") : `<p class="web-muted">아직 완성된 스탬프가 없어요.</p>`}</div></details>
+      ${visitList(earned, [...pending, ...restricted])}
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
   }

@@ -20,8 +20,8 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
       assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight));
       assert.equal(await page.locator('.stamp-board-header h1').innerText(),'스탬프');
       await page.screenshot({path:path.join(out,`stamps-${count}-${width}.png`),fullPage:true});
-      await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
-      await page.waitForFunction(()=>scrollY>0);
+      // 1.46: the visit list sits under the board, so scroll to the last stamp rather than the page end
+      await page.locator('.stamp-path-step').nth(14).evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'})); await page.waitForFunction(()=>scrollY>0);
       const last=await page.locator('.stamp-path-step').nth(14).locator('.stamp-path-node').boundingBox();
       const nav=await page.locator('.bottom-nav').boundingBox();
       assert.ok(last.y>=0&&last.y+last.height<nav.y);
