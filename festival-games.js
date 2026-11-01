@@ -14,7 +14,9 @@
    festival_blackjack_lobby), and the opponent's whole name is shown (festival_blackjack_state).
    1.42: the limit is cards per turn, not per hit: one hit draws one card and the turn stays until the player has
    drawn that many, passes ('차례 넘기기') or stands. Leaving a game in progress (back button, bottom navigation) asks
-   first and forfeits it (festival_blackjack_forfeit). A new game starts without the last game's badges. */
+   first and forfeits it (festival_blackjack_forfeit). A new game starts without the last game's badges.
+   1.43: matching ends after 1 minute (the server cancels and refunds; the time comes with festival_blackjack_lobby
+   as matchSeconds), and the matching rules are in the rules list instead of under the waiting timer. */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -63,13 +65,13 @@ const festivalGames = (() => {
   let tab = 'market', query = '', sort = 'default', favorites = null, note = null;
   let chart = { key: '', status: 'idle', points: [], opening: null };
   let trade = null, tradeBusy = false;
-  let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false };
-  let lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null };
+  let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false, cancelled: null };
+  let lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null, matchSeconds: 60 };
   let rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
   let pollTimer = 0, tickTimer = 0, revealTimer = 0, lobbyTimer = 0;
 
   function reset() {
-    lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null };
+    lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null, matchSeconds: 60 };
     rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
     owner = state.user?.id || null;
     market = { status: 'idle', data: null, code: '' };
@@ -78,7 +80,7 @@ const festivalGames = (() => {
     chart = { key: '', status: 'idle', points: [], opening: null };
     closeTrade();
     clearTimeout(revealTimer);
-    bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false };
+    bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false, cancelled: null };
   }
   const isGameRoute = route => ['games', 'gamesStock', 'gamesStockDetail', 'gamesBlackjack'].includes(route);
   function report(at, text, tone = 'error', redraw = false) {
@@ -291,8 +293,10 @@ const festivalGames = (() => {
     // Card limits set in 관리 마법사: cards per turn (1-5) and cards drawn per game after the first two (null = no limit).
     if (response.ok) {
       const perTurn = response.data?.maxPerTurn, draws = response.data?.maxDraws;
-      const next = { maxPerTurn: Number.isInteger(perTurn) && perTurn >= 1 && perTurn <= 5 ? perTurn : 1, maxDraws: Number.isInteger(draws) && draws >= 1 ? draws : null };
-      const changed = next.maxPerTurn !== lobby.maxPerTurn || next.maxDraws !== lobby.maxDraws;
+      const seconds = response.data?.matchSeconds;
+      const next = { maxPerTurn: Number.isInteger(perTurn) && perTurn >= 1 && perTurn <= 5 ? perTurn : 1, maxDraws: Number.isInteger(draws) && draws >= 1 ? draws : null,
+        matchSeconds: Number.isInteger(seconds) && seconds >= 10 && seconds <= 600 ? seconds : 60 };
+      const changed = next.maxPerTurn !== lobby.maxPerTurn || next.maxDraws !== lobby.maxDraws || next.matchSeconds !== lobby.matchSeconds;
       Object.assign(lobby, next);
       if (changed && state.route === 'gamesBlackjack') renderKeepingFocus();
     }
@@ -696,6 +700,8 @@ const festivalGames = (() => {
       return;
     }
     note = null;
+    // A cancelled game says "대기를 취소하고" only when the player cancelled it; otherwise matching timed out.
+    if (action === 'cancel' && validGame(response.data)) bj.cancelled = response.data.id;
     applyGame(validGame(response.data) ? response.data : null);
     if (action === 'join') loadMarket({ quiet: true });
     renderKeepingFocus();
@@ -759,6 +765,7 @@ const festivalGames = (() => {
   const hitRoom = game => Math.min(turnRoom(game), gameRoom(game));
   const outcomeText = result => result === 'win' ? '승리!' : result === 'lose' ? '패배' : '무승부';
   const outcomeLine = (result, stake) => result === 'win' ? `+${point(stake)}` : result === 'lose' ? `−${point(stake)}` : '판돈을 돌려받았어요';
+  const matchTime = () => lobby.matchSeconds % 60 === 0 ? `${lobby.matchSeconds / 60}분` : `${lobby.matchSeconds}초`;
   const forfeitLine = game => game.forfeit === 'opponent' ? '상대가 게임을 나가 몰수패했어요.' : game.forfeit === 'me' ? '게임을 나가 몰수패했어요.' : '';
 
   function tableView() {
@@ -818,13 +825,13 @@ const festivalGames = (() => {
     if (game?.status === 'waiting') {
       const waited = Math.max(0, Math.floor((Date.now() - Date.parse(game.createdAt)) / 1000));
       return `<section class="game-bj-waiting" aria-live="polite"><span>${icon('spade')}</span><h2>상대를 찾고 있어요</h2>
-        <p><span data-bj-waited>${Math.floor(waited / 60)}:${String(waited % 60).padStart(2, '0')}</span> · 3분 안에 상대가 없으면 판돈을 돌려받아요.</p>
+        <p>기다린 시간 <span data-bj-waited>${Math.floor(waited / 60)}:${String(waited % 60).padStart(2, '0')}</span></p>
         ${slot('bj')}<button type="button" class="ghost-btn full-action" data-bj="cancel" ${bj.busy ? 'disabled' : ''}>${icon('close')} 취소하고 ${point(STAKE)} 돌려받기</button></section>`;
     }
     return `${game?.status === 'finished' ? `<section class="game-bj-result ${h(game.result || 'draw')}" aria-live="polite"><strong>${outcomeText(game.result)}</strong><span>${outcomeLine(game.result, game.stake)}</span>${forfeitLine(game) ? `<span>${forfeitLine(game)}</span>` : ''}
         <div class="game-bj-result-hands"><div><small>나 · ${game.myTotal}${game.myTotal > 21 ? ' · 버스트' : ''}</small>${hand(game.myCards, null, null, true)}</div>
         <div><small>${h(game.opponentName || '상대')} · ${game.opponentTotal ?? '—'}${(game.opponentTotal ?? 0) > 21 ? ' · 버스트' : ''}</small>${hand(game.opponentCards, null, null, true)}</div></div></section>` : ''}
-      ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">대기를 취소하고 ${point(game.stake)}를 돌려받았어요.</p>` : ''}
+      ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">${bj.cancelled === game.id ? '대기를 취소하고' : `${matchTime()} 안에 상대를 찾지 못해 매칭이 취소됐어요.`} ${point(game.stake)}를 돌려받았어요.</p>` : ''}
       ${r?.opponent ? `<p class="game-bj-rematch" role="status"><span class="status-badge ${REMATCH_TONE[r.opponent]}" data-bj-rematch="${r.opponent}"><i aria-hidden="true"></i>상대 : ${REMATCH_LABEL[r.opponent]}</span></p>` : ''}
       ${sameOpponent ? '' : `<p class="game-bj-rematch">${matchingBadge()}</p>`}
       ${slot('bj')}
@@ -833,6 +840,9 @@ const festivalGames = (() => {
       ${money !== null && !enough ? `<p class="web-muted game-trade-hint">가상 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
       <section class="ops-section game-rules" aria-labelledby="gameRulesTitle"><h2 id="gameRulesTitle">규칙</h2>
         <ul>
+          <li>"${point(STAKE)} 걸고 상대 찾기"를 누르면 판돈 ${point(STAKE)}를 걸고 기다리는 사람과 무작위로 짝을 지어요. 기다리는 사람이 없으면 내가 기다려요.</li>
+          <li>${matchTime()} 안에 상대를 찾지 못하면 매칭이 취소되고 판돈을 돌려받아요. 기다리는 동안 "취소하고 ${point(STAKE)} 돌려받기"로 언제든 그만둘 수 있어요.</li>
+          <li>판이 끝나면 "한 판 더 하기"로 같은 상대에게 다시 하자고 할 수 있어요. 둘 다 수락하면 바로 시작하고, 상대가 거부하면 새 상대를 찾아요.</li>
           <li>둘 다 카드 2장으로 시작해 번갈아 히트(한 장 더)나 스탠드를 골라요.</li>
           <li>먼저 스탠드한 사람은 그대로 멈추고, 남은 사람만 계속 골라요.</li>
           <li>21이 되거나 버스트돼도 자동으로 멈추지 않아요. 스탠드를 눌러야 멈춰요.</li>

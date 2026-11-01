@@ -170,7 +170,7 @@ const bjView=()=>bjGame&&JSON.parse(JSON.stringify(bjGame));
 globalThis.gameStub=async(url,p)=>{
   const name=url.pathname.replace('/rest/v1/rpc/','');
   if(/^(orbit_|festival_blackjack_)/.test(name)) calls.push(name);
-  if(name==='festival_blackjack_lobby') return {json:{waiting:lobbyWaiting,...bjRules}};
+  if(name==='festival_blackjack_lobby') return {json:{waiting:lobbyWaiting,matchSeconds:60,...bjRules}};
   if(name==='orbit_admin_stock_dashboard') { adminCalls.push([name]); return {json:adminDashboard()}; }
   if(name==='orbit_admin_stock_audit_log') { adminCalls.push([name]); return {json:auditLogs}; }
   if(name==='orbit_admin_stock_mutate') {
@@ -321,6 +321,10 @@ try {
   await page.waitForSelector('.game-rules'); await navCheck(page,'games');
   await page.waitForFunction(()=>/내 차례 한 번에 최대 2장까지 히트할 수 있어요/.test(document.querySelector('.game-rules').textContent) && /처음 2장 외에 최대 4장까지/.test(document.querySelector('.game-rules').textContent));
   assert.match(await page.locator('.game-rules').textContent(),/게임 도중 화면을 나가면 몰수패/);
+  // 1.43: matching rules live in the rules list, with the 1-minute limit
+  assert.match(await page.locator('.game-rules').textContent(),/1분 안에 상대를 찾지 못하면 매칭이 취소되고 판돈을 돌려받아요/);
+  assert.match(await page.locator('.game-rules').textContent(),/같은 상대에게 다시 하자고/);
+  assert.doesNotMatch(await page.locator('.festival-games').textContent(),/3분/);
   assert.doesNotMatch(await page.locator('.festival-games').textContent(),/히트 한 번에/);
   // 1.39: the lobby shows the matching count above "300P 걸고 상대 찾기" and keeps it fresh
   await page.waitForFunction(()=>document.querySelector('.game-blackjack [data-game-matching]:not([hidden])')?.textContent.trim()==='3명 매칭중');
@@ -330,7 +334,19 @@ try {
   await shot(page,'bj-lobby');
   await page.locator('[data-bj="join"]').click();
   await page.waitForSelector('.game-bj-waiting');
+  assert.doesNotMatch(await page.locator('.game-bj-waiting').textContent(),/분 안에|돌려받아요[.]/);
+  assert.match(await page.locator('.game-bj-waiting').textContent(),/기다린 시간 0:0[0-9]/);
   await shot(page,'bj-waiting');
+  // 1.43: cancelling says so; a matching that timed out on the server says it was not matched
+  await page.locator('[data-bj="cancel"]').click();
+  await page.waitForFunction(()=>/대기를 취소하고 300P를 돌려받았어요/.test(document.querySelector('.festival-games').textContent));
+  await page.locator('[data-bj="join"]').click();
+  await page.waitForSelector('.game-bj-waiting');
+  wallet.money+=300; Object.assign(bjGame,{status:'cancelled',version:++bjVersion});
+  await page.waitForFunction(()=>/1분 안에 상대를 찾지 못해 매칭이 취소됐어요[.] 300P를 돌려받았어요/.test(document.querySelector('.festival-games').textContent),null,{timeout:5000});
+  await shot(page,'bj-match-timeout');
+  await page.locator('[data-bj="join"]').click();
+  await page.waitForSelector('.game-bj-waiting');
   Object.assign(bjGame,{status:'playing',myCards:[0,9],myTotal:21-10,opponentCards:[25,null],turn:'me',turnDeadline:new Date(Date.now()+10000).toISOString(),version:++bjVersion});
   bjGame.myCards=[9,8]; bjGame.myTotal=19;
   await page.waitForSelector('.game-bj-table', {timeout:5000});
