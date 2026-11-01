@@ -197,7 +197,7 @@
 ### 25. DESIGN.md 수치가 실제 화면과 다르다
 
 - 버튼 모서리 8px → 실제 12px, 버튼 높이 50px → 실제 44~48px 등이다.
-- 자세한 표는 `UI_DESIGN_GUIDE.md` 14장에 있다.
+- 자세한 표는 `DESIGN.md` 17장(옛 `UI_DESIGN_GUIDE.md` 14장을 합침)에 있다.
 - 다음 작업자가 DESIGN.md만 보고 맞추면 화면이 달라진다.
 
 ---
