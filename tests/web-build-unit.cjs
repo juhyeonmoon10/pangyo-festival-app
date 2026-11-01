@@ -4,7 +4,7 @@ const path = require('node:path');
 const { build, publicFiles, output } = require('../tools/build-web.cjs');
 
 const first = build();
-assert.equal(first.version, '1.47');
+assert.equal(first.version, '1.48');
 // An open page compares its own release with the deployed one to offer a reload.
 assert.ok(fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8').includes(`const APP_RELEASE = "${first.version}";`), 'APP_RELEASE must match the build version');
 assert.equal(fs.existsSync(path.join(output, 'functions')), false);
@@ -15,6 +15,17 @@ for (const forbidden of ['.env', 'api', 'nfc-server', 'operations-server', 'tool
   assert.equal(fs.existsSync(path.join(output, 'static', forbidden)), false, forbidden);
 }
 const html = fs.readFileSync(path.join(output, 'static/index.html'), 'utf8');
+const stampFiles = publicFiles().filter(file => file.startsWith('assets/stamps/'));
+assert.equal(stampFiles.length, 20);
+assert.equal(fs.existsSync(path.join(output, 'static/assets/stamps/SOURCES.json')), false);
+for (const file of stampFiles) {
+  const bytes = fs.readFileSync(path.join(output, 'static', file));
+  assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
+  assert.equal(bytes.readUInt32BE(16), 256);
+  assert.equal(bytes.readUInt32BE(20), 256);
+  assert.equal(bytes[25], 6, 'Stamp must keep transparency');
+  assert.ok(bytes.length < 100000, 'Stamp must be lightweight');
+}
 for (const asset of ['assets/festival-school-1.4.webp', 'assets/festival-map-1.4.webp']) {
   assert.ok(first.files[asset], `Missing home illustration: ${asset}`);
   assert.ok(fs.statSync(path.join(output, 'static', asset)).size < 200000, 'Home artwork must stay lightweight');

@@ -20,7 +20,10 @@ function publicFiles() {
   const logos = fs.readdirSync(path.join(root, 'assets/clubs'))
     .filter(name => /^[a-f0-9-]{36}\.webp$/.test(name))
     .map(name => `assets/clubs/${name}`);
-  return [...entries, ...logos].sort();
+  const stamps = fs.readdirSync(path.join(root, 'assets/stamps'))
+    .filter(name => /^[a-f0-9-]{36}\.png$/.test(name))
+    .map(name => `assets/stamps/${name}`);
+  return [...entries, ...logos, ...stamps].sort();
 }
 
 // Scripts and connections stay on this site and the festival Supabase project; the one inline
@@ -76,7 +79,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.47',
+    version: '1.48',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,

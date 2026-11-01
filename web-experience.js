@@ -328,6 +328,9 @@ const festivalWeb = (() => {
       const row=Math.floor(index/3),position=index%3,reverse=row%2===1,column=reverse?3-position:position+1;
       const visit = earned[index];
       const booth = visit && state.db.booths.find(b => b.id === visit.boothId);
+      const clubId = booth?.officialClubId;
+      const artwork = clubId && typeof OFFICIAL_CLUBS !== "undefined" && OFFICIAL_CLUBS.some(club => club.id === clubId)
+        ? `./assets/stamps/${clubId}.png` : "";
       const current = index === earned.length;
       const tone = visit ? "is-earned" : current ? "is-current" : "is-upcoming";
       const label = booth ? boothName(booth) : visit ? "방문 완료" : current ? "부스 찾기" : `${index + 1}번째 스탬프`;
@@ -336,10 +339,10 @@ const festivalWeb = (() => {
       const issued=reward && rewards.ready && ((target===3 && !!rewards.firstChoice) || (target===6 && rewards.secondIssued));
       const claimable=reward && rewards.ready && !!visit && !issued && target===(rewards.firstChoice?rewards.secondTarget:rewards.firstTarget);
       const rewardLabel=issued?'받음':claimable?'받기 가능':visit?(rewards.ready?'바우처 확인':'확인 대기'):'바우처';
-      const face = `<span class="stamp-path-face">${visit && !claimable ? '<small>판교 축제</small>' : ''}${claimable ? `${icon('ticket')}<small>${target}개</small>` : `<b>${target}</b>${visit ? '<small>방문 완료</small>' : reward ? icon('ticket') : ''}`}</span>`;
+      const face = `<span class="stamp-path-face">${visit && !claimable ? '<small>판교 축제</small>' : ''}${claimable ? `${icon('ticket')}<small>${target}개</small>` : `<b>${target}</b>${visit ? '<small>방문 완료</small>' : reward ? icon('ticket') : ''}`}</span>${artwork ? `<img class="stamp-club-artwork" src="${artwork}" width="256" height="256" alt="" aria-hidden="true" loading="lazy" decoding="async">` : ""}`;
       const action = !interactive ? "" : reward && visit ? 'data-route="vouchers"' : booth ? `data-list-select="${escapeHtml(booth.id)}"` : current ? 'data-route="map"' : "";
       const accessible=reward?`${target}번째 스탬프, ${visit?rewardLabel:'바우처 지급 지점'}`:`${target}번째 스탬프, ${label}${visit?', 날인 완료':''}`;
-      return `<li class="stamp-path-step ${tone}${reverse?' is-reverse':''}${reward?' is-reward':''}${issued?' is-issued':''}${claimable?' is-claimable':''}" style="grid-row:${row+1};grid-column:${column}">
+      return `<li class="stamp-path-step ${tone}${reverse?' is-reverse':''}${reward?' is-reward':''}${issued?' is-issued':''}${claimable?' is-claimable':''}${artwork?' has-club-stamp':''}" style="grid-row:${row+1};grid-column:${column}">
         ${index < nodeCount - 1 ? `<span class="stamp-path-link${position===2?' is-turn':''}" aria-hidden="true"></span>` : ""}
         <div class="stamp-path-stop">
           ${action ? `<button type="button" class="stamp-path-node" ${action} ${current ? 'aria-current="step"' : ""} aria-label="${accessible}">${face}</button>` : `<span class="stamp-path-node" aria-label="${accessible}">${face}</span>`}
@@ -351,6 +354,15 @@ const festivalWeb = (() => {
 
   function previewStamps(visits, rewards) {
     return `<section class="stamp-path-page stamp-sim-board" aria-label="모의 스탬프판"><div class="stamp-count-line"><span>모의 스탬프</span><strong>${visits.length}<small>개</small></strong></div>${stampPath(visits,[],rewards,false)}</section>`;
+  }
+
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("error", event => {
+      const image = event.target;
+      if (!image?.matches?.(".stamp-club-artwork")) return;
+      image.closest(".stamp-path-step")?.classList.remove("has-club-stamp");
+      image.remove();
+    }, true);
   }
 
   function reviews() {

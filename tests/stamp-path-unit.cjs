@@ -3,15 +3,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const stampAssets = require('../assets/stamps/SOURCES.json').assets;
 
-function setup({ count = 0, pending = 0, server = false, rewardProgram = null, name = 'Test booth' } = {}) {
+function setup({ count = 0, pending = 0, server = false, rewardProgram = null, name = 'Test booth', clubStamps = false } = {}) {
   const records = new Map();
   let nextId=0;
   const booths = Array.from({ length: 25 }, (_, i) => ({ id: `booth-${i}`, name: i ? `Booth ${i}` : name, location: '2F' }));
+  if (clubStamps) booths.forEach((booth, i) => { booth.officialClubId = stampAssets[i]?.clubId; });
   const visits = booths.slice(0, count + pending).map(b => ({ boothId: b.id, userId: 'fixture' }));
   const reviews = booths.slice(0, count).map(b => ({ boothId: b.id, userId: 'fixture', rating: 5, content: '' }));
   const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const context = vm.createContext({
+    OFFICIAL_CLUBS: stampAssets.map(asset => ({ id: asset.clubId })),
     state: { user: { id: 'fixture' }, db: { booths, reviews } },
     repo: { stampsForUser: () => visits, hasReview: (_id, boothId) => reviews.some(r => r.boothId === boothId) },
     isServerMode: () => server, festivalOpsUI: { snapshot: () => rewardProgram ? { rewardProgram } : null },
@@ -22,8 +25,37 @@ function setup({ count = 0, pending = 0, server = false, rewardProgram = null, n
     makeId: () => `coupon-${++nextId}`, formatTime: () => '',
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../web-experience.js'), 'utf8'), context);
-  return { api: vm.runInContext('festivalWeb', context), visits, reviews, records };
+  return { api: vm.runInContext('festivalWeb', context), visits, reviews, records, booths };
 }
+
+test('all twenty earned club stamps use stable club IDs without changing voucher actions', () => {
+  const { api } = setup({ count: 20, clubStamps: true });
+  const html = api.stamps();
+  assert.equal((html.match(/class="stamp-club-artwork"/g) || []).length, 20);
+  for (const asset of stampAssets) assert.ok(html.includes(`src="./assets/stamps/${asset.clubId}.png"`));
+  assert.equal((html.match(/class="stamp-reward-marker"/g) || []).length, 2);
+  assert.equal((html.match(/data-route="vouchers"/g) || []).length, 3);
+  assert.equal(api.coupons().length, 0);
+});
+
+test('unvisited and unknown clubs keep numbered stamps and cannot inject an image URL', () => {
+  assert.doesNotMatch(setup({ clubStamps: true }).api.stamps(), /stamp-club-artwork/);
+  const { api, booths } = setup({ count: 2, clubStamps: true });
+  booths[0].officialClubId = '../outside';
+  booths[1].officialClubId = '" onerror="alert(1)';
+  const html = api.stamps();
+  assert.doesNotMatch(html, /stamp-club-artwork|outside|onerror/);
+  assert.match(html, /방문 완료/);
+  assert.match(html, /data-list-select="booth-0"/);
+});
+
+test('operator preview shows club artwork but cannot navigate or grant actual rewards', () => {
+  const { api, visits, records } = setup({ count: 20, clubStamps: true });
+  const html = api.previewStamps(visits, { ready: false });
+  assert.equal((html.match(/class="stamp-club-artwork"/g) || []).length, 20);
+  assert.doesNotMatch(html, /<button|data-route|data-list-select/);
+  assert.equal(records.size, 0);
+});
 
 test('empty scrollable board has one next stamp, numbered slots and zero progress', () => {
   const { api } = setup();
