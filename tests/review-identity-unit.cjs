@@ -99,7 +99,8 @@ test('own-club visits earn stamps but never become pending reviews',()=>{
   const a=app();a.state.db.reviewIdentities[0].boothIds=[a.state.selectedBoothId];
   assert.equal(a.web.waiting().length,0);assert.equal(a.web.completed().length,1);
   assert.equal(a.web.reviewPending(a.state.db.booths[0]),false);
-  assert.match(a.web.stamps(),/소속 동아리 · 리뷰 제외/);
+  // 1.47: the stamp tab shows no status for a visit that cannot be rated
+  assert.doesNotMatch(a.web.stamps(),/소속 동아리|리뷰 제외|확인 대기|평가하기/);
   assert.doesNotThrow(()=>a.web.reviews());
 });
 test('old anonymous names stay anonymous and new author markup is escaped',()=>{

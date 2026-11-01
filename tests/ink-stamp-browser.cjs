@@ -47,6 +47,7 @@ fs.mkdirSync(output, { recursive: true });
       const history = page.locator('.stamp-visits');
       assert.equal(await page.locator('.stamp-visits').count(), 1);
       assert.equal(await history.locator('.web-visit').count(), 9);
+      assert.equal(await history.locator('.web-visit em').count(), 0, '1.47: rated visits show no status');
       assert.match(await history.locator('h2').textContent(), /방문 기록\s*9/);
       assert.equal(await history.locator('[data-route=reviews]').count(), 1);
       await history.scrollIntoViewIfNeeded();
@@ -99,6 +100,9 @@ fs.mkdirSync(output, { recursive: true });
       for(const target of [3,6]) assert.equal(await page.locator(`.stamp-path-node[aria-label="${target}번째 스탬프, 확인 대기"]`).count(),1);
       assert.equal(await page.locator('.stamp-progress-copy').innerText(),'바우처 발급 상태 확인 대기\n3개·6개 혜택');
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      // 1.47: the stamp tab loads each booth's review status; unrated booths read "평가하기", other rows no status
+      await page.waitForFunction(()=>document.querySelectorAll('.stamp-visits .web-visit em.pending').length===9);
+      assert.doesNotMatch(await page.locator('.stamp-visits').innerText(),/확인 대기|리뷰 제외|적립 완료/);
       await page.screenshot({path:path.join(output,`server-milestones-${width}.png`),fullPage:true});
       await page.locator('.stamp-path-node[aria-label="3번째 스탬프, 확인 대기"]').click();
       await page.locator('.reward-choice-section [data-ops-refresh]').waitFor();

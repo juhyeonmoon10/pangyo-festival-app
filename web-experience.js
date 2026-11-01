@@ -273,34 +273,39 @@ const festivalWeb = (() => {
     dialog.showModal();
   }
 
-  function visitRow(visit, toRate = false) {
+  const visitText = (booth, visit) => `${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(typeof boothPlaceText === "function" ? boothPlaceText(booth) : booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span>`;
+  // plain: no "적립 완료" (the stamp tab list, 1.47).
+  function visitRow(visit, toRate = false, plain = false) {
     const booth = state.db.booths.find(b => b.id === visit.boothId);
     if (!booth) return "";
-    return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${clubVisual(booth)}<span><strong>${boothName(booth)}</strong><small>${escapeHtml(typeof boothPlaceText === "function" ? boothPlaceText(booth) : booth.location)}${visit.createdAt ? ` · ${formatTime(visit.createdAt)}` : ""}</small></span>${toRate ? '<em class="pending">평가하기</em>' : '<em class="done">적립 완료</em>'}${icon("arrow")}</button>`;
+    return `<button type="button" class="web-visit" data-review-booth="${booth.id}">${visitText(booth, visit)}${toRate ? '<em class="pending">평가하기</em>' : plain ? '' : '<em class="done">적립 완료</em>'}${icon("arrow")}</button>`;
   }
-  // Stamps not rated yet, rateable or not, in one 방문 기록 list.
-  function waitingRow(stamp) {
-    const b = state.db.booths.find(x => x.id === stamp.boothId);
-    if (!b) return "";
-    if (reviewEligibility(stamp.boothId).allowed) return visitRow(stamp, true);
-    return `<button class="web-visit" data-list-select="${escapeHtml(b.id)}">${clubVisual(b)}<span><strong>${boothName(b)}</strong><small>${reviewEligibility(stamp.boothId).reason === "OWN_CLUB_REVIEW" ? "소속 동아리 · 리뷰 제외" : "이름·소속 확인 대기"}</small></span>${icon("arrow")}</button>`;
+  const toRate = visit => !repo.hasReview(state.user.id, visit.boothId) && reviewEligibility(visit.boothId).allowed;
+  // A visit that cannot be rated (own club, review status not loaded yet) opens the booth instead.
+  function plainRow(visit) {
+    const booth = state.db.booths.find(b => b.id === visit.boothId);
+    if (!booth) return "";
+    if (repo.hasReview(state.user.id, visit.boothId) || reviewEligibility(visit.boothId).allowed) return visitRow(visit, false, true);
+    return `<button type="button" class="web-visit" data-list-select="${escapeHtml(booth.id)}">${visitText(booth, visit)}${icon("arrow")}</button>`;
   }
 
-  // One 방문 기록 list (1.46, was 방문 기록 + a folded 완료한 방문): visits to rate or waiting for a check first,
-  // then the other completed visits, newest first.
-  function visitList(earned, open) {
-    const openBooths = new Set(open.map(s => s.boothId));
-    const done = earned.filter(v => !openBooths.has(v.boothId)).reverse();
-    const total = open.length + done.length;
-    return `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${total}</span></h2>${earned.length ? `<button type="button" class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>` : ""}</div>
-      ${total ? [...open.map(waitingRow), ...done.map(v => visitRow(v))].join("") : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>`;
+  const reviewAsked = new Set();
+  // One 방문 기록 list (1.46): visits still to rate first with "평가하기", then every other visit, newest first,
+  // without a status (1.47). Review status comes from the server per booth (loadReviewContents on this tab).
+  function visitList(earned) {
+    // Visits can arrive after the tab opens, so ask for any booth whose review status was never requested.
+    // Each booth is asked once per user, so a booth that gets no status cannot make this repeat.
+    const ask = isServerMode() && typeof serverReviewState === "function" ? earned.filter(v => !serverReviewState(v.boothId) && !reviewAsked.has(`${state.user.id}:${v.boothId}`)) : [];
+    if (ask.length) { ask.forEach(v => reviewAsked.add(`${state.user.id}:${v.boothId}`)); setTimeout(loadReviewContents, 0); }
+    const rate = earned.filter(toRate), rest = earned.filter(v => !toRate(v)).reverse();
+    return `<section class="stamp-visits"><div class="section-heading"><h2>방문 기록 <span>${earned.length}</span></h2>${earned.length ? `<button type="button" class="text-link" data-route="reviews">후기 쓰기 ${icon("arrow")}</button>` : ""}</div>
+      ${earned.length ? [...rate.map(v => visitRow(v, true)), ...rest.map(plainRow)].join("") : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>`;
   }
 
   function stamps() {
     syncRewards();
     const earned = completed();
     const pending = waiting();
-    const restricted = repo.stampsForUser(state.user.id).filter(s => !repo.hasReview(state.user.id, s.boothId) && !reviewEligibility(s.boothId).allowed);
     const goal = earned.length<3?3:6;
     const rewards=rewardState(), claimable=rewards.ready && !rewards.secondIssued && rewards.count>= (rewards.firstChoice?6:3);
     const cycleProgress = Math.min(6,earned.length);
@@ -312,7 +317,7 @@ const festivalWeb = (() => {
         <progress class="stamp-path-progress" max="6" value="${cycleProgress}" aria-label="3개·6개 바우처 진행">${cycleProgress} / 6</progress>
       </section>
       ${stampPath(earned, pending, rewards)}
-      ${visitList(earned, [...pending, ...restricted])}
+      ${visitList(earned)}
       ${older.length ? `<section class="web-section"><h2>이전 방문 기록</h2><p class="web-muted">현재 행사 보상 집계 전의 기록</p>${older.map(b=>`<div class="web-visit"><strong>${boothName(b)}</strong><small>시각 미기록</small></div>`).join('')}</section>` : ''}
       ${bottomNav("stamps")}</main>`;
   }
@@ -480,7 +485,7 @@ const festivalWeb = (() => {
       await Promise.all(queue.slice(i, i + 3).map(id => loadBoothReviews(id)));
       if (state.user?.id !== user) return;
     }
-    if (state.route === "reviews") render();
+    if (["reviews", "stamps"].includes(state.route)) render();
   }
 
   function scanControls() {
