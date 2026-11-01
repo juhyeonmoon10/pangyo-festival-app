@@ -4,7 +4,9 @@
    The only way in is the bottom navigation tab '미니게임' (route 'games'); no other screen links here.
    Results are shown next to the button that was pressed (spotMarkup/showSpot).
    1.38: the hub shows how many players wait for a blackjack opponent (festival_blackjack_lobby), and the
-   result screen shows whether the last opponent waits, accepts or declines a rematch (festival_blackjack_rematch). */
+   result screen shows whether the last opponent waits, accepts or declines a rematch (festival_blackjack_rematch).
+   1.39: the blackjack lobby shows the same count above its button, and the final reveal animates only the card
+   that was just turned over. */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -257,8 +259,10 @@ const festivalGames = (() => {
     return `<div class="festival-empty"><span>${icon('game')}</span><strong>${h(title)}은 실제 로그인에서 이용할 수 있어요</strong><p>체험 모드에는 가상 포인트가 없어요.</p></div>`;
   }
 
-  // "n명 매칭중" next to 1대1 블랙잭. Refreshed every 5 s by changing only this box (no re-render).
-  const matchingBadge = () => `<span class="status-badge game-matching${lobby.waiting ? ' success' : ' muted'}" data-game-matching ${lobby.waiting === null ? 'hidden' : ''}><i aria-hidden="true"></i><span><b>${lobby.waiting ?? 0}</b>명 매칭중</span></span>`;
+  // "n명 매칭중" next to 1대1 블랙잭 and above the blackjack lobby button. Refreshed every 5 s while the box is on
+  // screen by changing only this box (no re-render).
+  const lobbyRoute = () => state.route === 'games' || state.route === 'gamesBlackjack';
+  const matchingBadge =() => `<span class="status-badge game-matching${lobby.waiting ? ' success' : ' muted'}" data-game-matching ${lobby.waiting === null ? 'hidden' : ''}><i aria-hidden="true"></i><span><b>${lobby.waiting ?? 0}</b>명 매칭중</span></span>`;
   function paintLobby() {
     const badge = document.querySelector('[data-game-matching]');
     if (!badge) return;
@@ -280,10 +284,10 @@ const festivalGames = (() => {
   }
   function scheduleLobby() {
     clearTimeout(lobbyTimer);
-    if (state.route !== 'games' || !isServerMode()) return;
+    if (!lobbyRoute() || !isServerMode()) return;
     lobbyTimer = setTimeout(() => {
-      if (state.route !== 'games') return;
-      if (document.visibilityState === 'visible') loadLobby(); else scheduleLobby();
+      if (!lobbyRoute()) return;
+      if (document.visibilityState === 'visible' && document.querySelector('[data-game-matching]')) loadLobby(); else scheduleLobby();
     }, LOBBY_MS);
   }
 
@@ -568,7 +572,15 @@ const festivalGames = (() => {
     bj.reveal = { game, flipped: 0, total: revealOrder(game).length };
     const step = () => {
       if (!bj.reveal || bj.reveal.flipped >= bj.reveal.total) return;
-      revealTimer = setTimeout(() => { if (!bj.reveal) return; bj.reveal.flipped += 1; if (state.route === 'gamesBlackjack') render(); step(); }, bj.reveal.flipped === 0 ? 400 : FLIP_MS);
+      revealTimer = setTimeout(() => {
+        if (!bj.reveal) return;
+        bj.reveal.flipped += 1;
+        // Only this render animates the new card; later renders (polls) show every turned card still.
+        bj.reveal.fresh = true;
+        if (state.route === 'gamesBlackjack') render();
+        bj.reveal.fresh = false;
+        step();
+      }, bj.reveal.flipped === 0 ? 400 : FLIP_MS);
     };
     step();
   }
@@ -711,7 +723,7 @@ const festivalGames = (() => {
     return `<div class="game-hand${small ? ' small' : ''}">${cards.map((value, index) => {
       if (shownCount === null) return card(value);
       const position = order.findIndex(([s, i]) => s === side && i === index);
-      return position < shownCount ? card(value, true) : card(null);
+      return position < shownCount ? card(value, !!bj.reveal?.fresh && position === shownCount - 1) : card(null);
     }).join('')}</div>`;
   }
   const outcomeText = result => result === 'win' ? '승리!' : result === 'lose' ? '패배' : '무승부';
@@ -775,6 +787,7 @@ const festivalGames = (() => {
         <div><small>${h(game.opponentName || '상대')} · ${game.opponentTotal ?? '—'}${(game.opponentTotal ?? 0) > 21 ? ' · 버스트' : ''}</small>${hand(game.opponentCards, null, null, true)}</div></div></section>` : ''}
       ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">대기를 취소하고 ${point(game.stake)}를 돌려받았어요.</p>` : ''}
       ${r?.opponent ? `<p class="game-bj-rematch" role="status"><span class="status-badge ${REMATCH_TONE[r.opponent]}" data-bj-rematch="${r.opponent}"><i aria-hidden="true"></i>상대 : ${REMATCH_LABEL[r.opponent]}</span></p>` : ''}
+      ${sameOpponent ? '' : `<p class="game-bj-rematch">${matchingBadge()}</p>`}
       ${slot('bj')}
       <button type="button" class="primary-btn full-action" data-bj="${sameOpponent ? 'rematch' : 'join'}" ${bj.busy || r?.busy || waitingForThem || !enough ? 'disabled' : ''}>${icon('spade')} ${game?.status === 'finished' ? '한 판 더 하기' : `${point(STAKE)} 걸고 상대 찾기`}</button>
       ${waitingForThem && r.opponent !== 'accept' ? '<p class="web-muted game-trade-hint">상대도 수락하면 같은 상대와 바로 시작해요.</p>' : ''}
@@ -815,20 +828,20 @@ const festivalGames = (() => {
     if (isServerMode() && market.status === 'idle') setTimeout(() => loadMarket({ quiet: true }), 0);
     if (state.route === 'gamesStock') { if (isServerMode() && news.status === 'idle') setTimeout(loadNews, 0); return stockListView(); }
     if (state.route === 'gamesStockDetail') return stockDetailView();
-    if (state.route === 'gamesBlackjack') { if (isServerMode() && bj.status === 'idle') setTimeout(loadBlackjack, 0); return blackjackView(); }
     if (isServerMode() && lobby.status === 'idle') setTimeout(loadLobby, 0);
+    if (state.route === 'gamesBlackjack') { if (isServerMode() && bj.status === 'idle') setTimeout(loadBlackjack, 0); return blackjackView(); }
     return hubView();
   }
 
   // Called when the route changes to a games screen (fresh data each visit) or away from one.
   function load() {
     if (state.route !== 'gamesBlackjack') leaveRematch();
-    if (state.route !== 'games') clearTimeout(lobbyTimer);
+    if (!lobbyRoute()) clearTimeout(lobbyTimer);
     if (!isGameRoute(state.route)) { clearTimeout(pollTimer); clearInterval(tickTimer); closeTrade(); return; }
     if (!isServerMode()) return;
     if (owner !== (state.user?.id || null)) reset();
     loadMarket({ quiet: market.status === 'ready' });
-    if (state.route === 'games') loadLobby();
+    if (lobbyRoute()) loadLobby();
     if (state.route === 'gamesBlackjack') loadBlackjack();
   }
 

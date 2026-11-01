@@ -279,8 +279,13 @@ try {
   await page.waitForFunction(()=>/확인할 이전 거래가 없어요/.test(document.querySelector('[data-spot="game-retry"]')?.textContent||''));
   await shot(page,'stock-history');
   // Blackjack: lobby, waiting, table, reveal, result
-  await page.evaluate(()=>{state.route='gamesBlackjack';render();});
+  await page.evaluate(()=>navigateTo('gamesBlackjack'));
   await page.waitForSelector('.game-rules'); await navCheck(page,'games');
+  // 1.39: the lobby shows the matching count above "300P 걸고 상대 찾기" and keeps it fresh
+  await page.waitForFunction(()=>document.querySelector('.game-blackjack [data-game-matching]:not([hidden])')?.textContent.trim()==='3명 매칭중');
+  assert.ok(await page.evaluate(()=>document.querySelector('[data-game-matching]').compareDocumentPosition(document.querySelector('[data-bj="join"]'))&Node.DOCUMENT_POSITION_FOLLOWING),'count sits above the button');
+  lobbyWaiting=1;
+  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='1명 매칭중',null,{timeout:8000});
   await shot(page,'bj-lobby');
   await page.locator('[data-bj="join"]').click();
   await page.waitForSelector('.game-bj-waiting');
@@ -291,8 +296,12 @@ try {
   await page.waitForSelector('[data-bj-timer]');
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true);
   await shot(page,'bj-table');
+  // 1.39: during the final reveal only the card just turned over animates (at most one .flip at a time)
+  await page.evaluate(()=>{ window.__flips=[]; new MutationObserver(()=>window.__flips.push(document.querySelectorAll('.game-card.flip').length)).observe(document.body,{childList:true,subtree:true}); });
   await page.locator('[data-bj="stand"]').click();
   await page.waitForSelector('.game-bj-outcome.win',{timeout:8000});
+  const flips=await page.evaluate(()=>window.__flips);
+  assert.ok(Math.max(...flips)===1,`one flipping card at a time: ${JSON.stringify(flips)}`);
   await shot(page,'bj-outcome');
   await page.locator('[data-bj-ok]').click();
   await page.waitForSelector('.game-bj-result.win');
@@ -300,10 +309,12 @@ try {
   await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 대기중');
   assert.match(await page.locator('[data-bj="rematch"]').textContent(),/한 판 더 하기/);
   assert.ok(await page.evaluate(()=>document.querySelector('.game-bj-rematch').compareDocumentPosition(document.querySelector('[data-bj="rematch"]'))&Node.DOCUMENT_POSITION_FOLLOWING),'status sits above the button');
+  assert.equal(await page.locator('[data-game-matching]').count(),0,'same-opponent rematch hides the random matching count');
   await shot(page,'bj-result');
   rmOpp='decline';
   await page.waitForFunction(()=>document.querySelector('[data-bj-rematch]')?.textContent.trim()==='상대 : 거부');
   assert.match(await page.locator('[data-bj="join"]').textContent(),/한 판 더 하기/,'declined opponent: the button finds a new random opponent');
+  assert.equal(await page.locator('.game-blackjack [data-game-matching]').count(),1,'random matching shows the count');
   await shot(page,'bj-rematch-declined');
   rmOpp='waiting';
   await page.waitForSelector('[data-bj="rematch"]');
@@ -314,7 +325,7 @@ try {
   await shot(page,'bj-rematch-accepted');
   // Leaving the blackjack screen tells the opponent "거부"
   await page.evaluate(()=>navigateTo('games')); await page.waitForSelector('.game-list');
-  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='3명 매칭중');
+  await page.waitForFunction(()=>document.querySelector('[data-game-matching]')?.textContent.trim()==='1명 매칭중');
   assert.equal(rmChoices.at(-1),'decline');
   // Coming back and both accepting starts a new game with the same opponent
   rmMe='decline';
