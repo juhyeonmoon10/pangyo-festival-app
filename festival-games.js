@@ -22,7 +22,10 @@
    1.49: simultaneous rounds (MINIGAME_RULES.md 3). Both players choose hit or stand in the same round; the
    opponent only shows "선택 완료" until both have chosen (or 10 s pass), then the server reveals both choices
    together (game.lastRound) and each hit draws one card. A stand stops the player; no choice is a stand.
-   Matching uses the festival queue (festival_blackjack_cancel) and takes the stake only at a match. */
+   Matching uses the festival queue (festival_blackjack_cancel) and takes the stake only at a match.
+   1.50: 가상주식 visit rules (MINIGAME_RULES.md 2.3, 2.4). Only clubs whose booth the student visited can be
+   bought or sold (stock.visited; the server refuses others with STOCK_NOT_VISITED). Prices fall a little every
+   minute and rise once for every visitStep visitors; the list and detail show visitors and the rule line. */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -42,6 +45,7 @@ const festivalGames = (() => {
     STOCK_NOT_FOUND: '거래할 수 있는 종목을 찾지 못했어요.',
     MARKET_CLOSED: '지금은 주식시장이 열려 있지 않아요.',
     STOCK_HALTED: '이 종목은 거래가 중지됐어요.',
+    STOCK_NOT_VISITED: '이 동아리 부스를 방문해야 사고팔 수 있어요.',
     PRICE_STALE: '가격이 오래되어 거래할 수 없어요. 새로고침한 뒤 다시 시도해 주세요.',
     PRICE_CONFIG_PENDING: '주식시장을 준비하고 있어요.',
     STOCK_SECURITY_PENDING: '주식시장을 준비하고 있어요.',
@@ -62,7 +66,7 @@ const festivalGames = (() => {
     : MESSAGES[code] || MESSAGES.NETWORK_ERROR;
   // A trade the server answered with one of these is settled; anything else may still have run.
   const FINAL_TRADE_ERRORS = new Set(['INVALID_TRADE', 'IDEMPOTENCY_CONFLICT', 'INSUFFICIENT_POINTS', 'INSUFFICIENT_HOLDINGS',
-    'STOCK_NOT_FOUND', 'MARKET_CLOSED', 'STOCK_HALTED', 'PRICE_STALE', 'PRICE_CONFIG_PENDING', 'STOCK_SECURITY_PENDING',
+    'STOCK_NOT_FOUND', 'MARKET_CLOSED', 'STOCK_HALTED', 'STOCK_NOT_VISITED', 'PRICE_STALE', 'PRICE_CONFIG_PENDING', 'STOCK_SECURITY_PENDING',
     'HOLDING_SCOPE_PENDING', 'INVALID_PRICE_CONFIG', 'ASSET_LIMIT', 'ACCOUNT_DISABLED']);
 
   let owner = null;
@@ -112,16 +116,26 @@ const festivalGames = (() => {
       const stale = !stock.updatedAt || !m?.maxPriceAgeSeconds || stock.priceVersion === 0 || stock.priceVersion !== m.priceVersion
         || now - updated > m.maxPriceAgeSeconds * 1000 || updated > now;
       const previous = stock.previousPrice || stock.price;
+      // 1.50: only clubs whose booth this student visited can be traded (a server without the rule sends no flag).
+      const visited = stock.visited !== false;
       return {
         id: String(stock.id), eventId: stock.eventId, name: String(stock.name || ''), price: stock.price, previous,
         change: stock.price - previous, rate: previous ? (stock.price - previous) / previous * 100 : 0,
         updatedAt: stock.updatedAt, stale, tradingStatus: stock.tradingStatus,
         quantity: holding?.quantity || 0, averageBuyPrice: holding ? holding.averageBuyPrice : 0,
-        canTrade: Boolean(open && !stale && stock.tradingStatus === 'open' && stock.eventId === m?.eventId
+        visited, visitors: Number.isInteger(stock.visitors) && stock.visitors >= 0 ? stock.visitors : null,
+        canTrade: Boolean(open && visited && !stale && stock.tradingStatus === 'open' && stock.eventId === m?.eventId
           && (!holding || holding.eventId === m?.eventId) && stock.price >= stock.minPrice && stock.price <= stock.maxPrice),
       };
     });
   }
+  // 1.50 price rules from the server: decay per minute, and a bonus every visitStep visitors (null before 1.50).
+  function visitRules() {
+    const m = market.data?.market;
+    return m && Number.isInteger(m.visitStep) && m.visitStep > 0 && Number.isInteger(m.visitBonusBps) && Number.isInteger(m.decayBps)
+      ? { step: m.visitStep, bonus: m.visitBonusBps / 100, decay: m.decayBps / 100 } : null;
+  }
+  const percent = value => `${Number(value.toFixed(2))}%`;
   const balance = () => market.data?.pointBalance ?? null;
   const userKey = () => market.data?.userId ? String(market.data.userId) : '';
 
@@ -341,7 +355,7 @@ const festivalGames = (() => {
       <button type="button" class="icon-btn game-favorite" data-game-favorite="${h(stock.id)}" aria-pressed="${favorite}" aria-label="${h(stock.name)} ${favorite ? '관심 종목에서 빼기' : '관심 종목에 추가'}" title="${favorite ? '관심 종목에서 빼기' : '관심 종목에 추가'}">${icon('star')}</button>
       <button type="button" class="game-stock-row" data-game-stock="${h(stock.id)}" aria-label="${h(stock.name)} 종목 정보 보기">
         ${clubVisual(boothFor(stock.name))}
-        <span class="game-stock-name"><strong>${h(stock.name)}</strong><small>STOCK-${h(stock.id)}${stock.quantity ? ` · ${stock.quantity.toLocaleString('ko-KR')}주 보유` : ''}</small></span>
+        <span class="game-stock-name"><strong>${h(stock.name)}</strong><small>${stock.visitors === null ? `STOCK-${h(stock.id)}` : `방문 ${stock.visitors.toLocaleString('ko-KR')}명`}${stock.quantity ? ` · ${stock.quantity.toLocaleString('ko-KR')}주 보유` : ''}${stock.visited ? '' : ' · <span class="game-unvisited">방문 전</span>'}</small></span>
         <span class="game-stock-price"><strong>${point(stock.price)}</strong>${changeText(stock)}</span>
       </button></li>`;
   }
@@ -375,6 +389,7 @@ const festivalGames = (() => {
     return `<main class="screen p0-page web-page festival-games game-stock">
       ${header('가상주식', 'games', refreshButton())}
       <p class="game-market">${statusBadge()}<span data-game-schedule>${h(schedule())}</span></p>
+      ${visitRules() ? `<p class="web-muted game-rule-note">방문한 동아리만 사고팔 수 있어요. 가격은 1분마다 ${percent(visitRules().decay)}씩 내려가고, 방문 학생이 ${visitRules().step}명 늘 때마다 ${percent(visitRules().bonus)} 올라요.</p>` : ''}
       ${market.status === 'error' && market.data ? `<p class="ops-alert" role="alert">최신 정보를 불러오지 못했어요. ${h(message(market.code))}</p>` : ''}
       ${user ? `<section class="profile-list game-summary" aria-label="내 주식 자산 요약">
         <div><span>총 가상 자산</span><strong>${point(user.pointBalance + value)}</strong></div>
@@ -431,10 +446,14 @@ const festivalGames = (() => {
     const open = marketOpen();
     const status = stock.canTrade && open ? '<span class="status-badge success">거래 가능</span>'
       : stock.tradingStatus === 'halted' ? '<span class="status-badge warning">거래 중지</span>'
+      : !stock.visited ? '<span class="status-badge neutral">방문 전</span>'
       : stock.stale && open ? '<span class="status-badge warning">가격 갱신 대기</span>' : '<span class="status-badge neutral">거래 대기</span>';
     const opening = chart.opening;
     const vsOpen = opening ? stock.price - opening : null;
     const userBalance = balance() ?? 0;
+    const rules = visitRules();
+    // Visitors still needed for the next bonus: 10 visitors → 10 more for the bonus at 20.
+    const toNext = rules && stock.visitors !== null ? rules.step - stock.visitors % rules.step : null;
     return `<main class="screen p0-page web-page festival-games game-stock-detail">
       ${header(stock.name, 'gamesStock', right)}
       <section class="game-quote">
@@ -449,12 +468,14 @@ const festivalGames = (() => {
         <div><span>시작가</span><strong>${opening ? point(opening) : '미확인'}</strong></div>
         <div><span>내 보유 수량</span><strong>${stock.quantity.toLocaleString('ko-KR')}주</strong></div>
         <div><span>보유 평가액</span><strong>${point(stock.quantity * stock.price)}</strong></div>
+        ${stock.visitors !== null ? `<div><span>방문 학생${toNext !== null ? ` <small>${toNext}명 더 오면 ${percent(rules.bonus)} 상승</small>` : ''}</span><strong>${stock.visitors.toLocaleString('ko-KR')}명</strong></div>` : ''}
       </section>
       ${slot('game-trade')}
       <div class="game-trade-actions">
         <button type="button" class="primary-btn" data-game-trade="buy" ${!stock.canTrade || !open || userBalance < stock.price || tradeBusy ? 'disabled' : ''}>${icon('plus')} 매수하기</button>
         <button type="button" class="ghost-btn" data-game-trade="sell" ${!stock.canTrade || !open || stock.quantity < 1 || tradeBusy ? 'disabled' : ''}>${icon('minus')} 매도하기</button>
       </div>
+      ${stock.visited ? '' : '<p class="web-muted game-trade-hint">이 동아리 부스를 방문하면 사고팔 수 있어요.</p>'}
       ${open ? '' : '<p class="web-muted game-trade-hint">주식시장이 열리면 매수·매도할 수 있어요.</p>'}
       ${bottomNav('games')}</main>`;
   }

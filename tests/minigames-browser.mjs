@@ -149,8 +149,11 @@ async function popup(page,title) {
 // public ORBIT tables are answered by a small synthetic market and a scripted blackjack opponent.
 const NAMES=['창업특허연구소','아트 캔버스','심장박동','다이나믹스','방송부','모멘트','월드 스코프','네온','인벨릭스','레브','케미스트','패러다임','글빛누리','건축학부','배구사랑','인사이트','티치스트','리켐','머큐리','매커니즘'];
 const t0=Date.now();
-const market={eventId:'orbit-event',status:'open',eventStatus:'open',startsAt:new Date(t0-30*60000).toISOString(),endsAt:new Date(t0+90*60000).toISOString(),priceVersion:5,securityReady:true,configApproved:true,maxPriceAgeSeconds:600};
-const stockRows=NAMES.map((name,i)=>({id:String(i+1),eventId:'orbit-event',boothId:name,name,price:3000+i*300,previousPrice:3000+i*300+(i%3-1)*60,priceVersion:5,updatedAt:new Date(t0-60000).toISOString(),tradingStatus:i===4?'halted':'open',recentNfcCount:0,purchaseRate:0,minPrice:1,maxPrice:100000}));
+const market={eventId:'orbit-event',status:'open',eventStatus:'open',startsAt:new Date(t0-30*60000).toISOString(),endsAt:new Date(t0+90*60000).toISOString(),priceVersion:5,securityReady:true,configApproved:true,maxPriceAgeSeconds:600,
+  decayBps:30,visitStep:10,visitBonusBps:500};
+// 1.50: visitors per club, and whether this student visited it (심장박동, id 3, not visited).
+const stockRows=NAMES.map((name,i)=>({id:String(i+1),eventId:'orbit-event',boothId:name,name,price:3000+i*300,previousPrice:3000+i*300+(i%3-1)*60,priceVersion:5,updatedAt:new Date(t0-60000).toISOString(),tradingStatus:i===4?'halted':'open',recentNfcCount:0,purchaseRate:0,minPrice:1,maxPrice:100000,
+  visitors:i===0?13:i,visited:i!==2}));
 const wallet={money:100000,holdings:[],trades:[],receipts:new Map()};
 const calls=[];
 let bjGame=null, bjVersion=0, lobbyWaiting=2, rmMe='waiting', rmOpp='waiting', rmStart=false, bjRules={maxDraws:null}, bjActions=[], forfeits=[];
@@ -230,6 +233,7 @@ globalThis.gameStub=async(url,p)=>{
   if(name==='orbit_trade_stock') {
     if(wallet.receipts.has(p.p_idempotency_key)) return {json:wallet.receipts.get(p.p_idempotency_key)};
     const s=stockRows.find(x=>x.id===String(p.p_stock_id)), total=s.price*p.p_quantity;
+    if(!s.visited) return {status:400,json:{code:'P0001',message:'STOCK_NOT_VISITED'}};
     if(p.p_side==='buy'&&total>wallet.money) return {status:400,json:{code:'P0001',message:'INSUFFICIENT_POINTS'}};
     let h=wallet.holdings.find(x=>x.stockId===s.id);
     if(!h) wallet.holdings.push(h={id:'h'+s.id,eventId:'orbit-event',userId:'7',stockId:s.id,quantity:0,averageBuyPrice:s.price,updatedAt:new Date().toISOString()});
@@ -299,6 +303,11 @@ try {
   await page.waitForSelector('.game-stock-list li'); await page.waitForSelector('.game-news-list li');
   await navCheck(page,'games');
   assert.equal(await page.locator('.game-stock-list li').count(),20);
+  // 1.50: the rule line, visitors per club, and "방문 전" on a club not visited
+  assert.match(await page.locator('.game-rule-note').textContent(),/방문한 동아리만 사고팔 수 있어요[.] 가격은 1분마다 0[.]3%씩 내려가고, 방문 학생이 10명 늘 때마다 5% 올라요/);
+  assert.match(await page.locator('[data-game-stock="1"]').textContent(),/방문 13명/);
+  assert.match(await page.locator('[data-game-stock="3"]').textContent(),/방문 2명 · 방문 전/);
+  assert.doesNotMatch(await page.locator('[data-game-stock="2"]').textContent(),/방문 전/);
   await shot(page,'stock-list');
   const search=page.locator('[data-game-search]');
   await search.fill('인'); assert.equal(await page.evaluate(()=>document.activeElement?.matches('[data-game-search]')),true);
@@ -316,6 +325,8 @@ try {
   await page.waitForSelector('.game-chart .line');
   await navCheck(page,'games');
   assert.match(await page.locator('.game-change').textContent(),/시작가 대비/);
+  // 1.50: 13 visitors → 7 more for the next 5 %
+  assert.match(await page.locator('.game-holding').textContent(),/방문 학생 7명 더 오면 5% 상승\s*13명/);
   await shot(page,'stock-detail');
   await page.locator('[data-game-trade="buy"]').click();
   await page.waitForSelector('dialog.game-trade-dialog[open]');
@@ -335,6 +346,14 @@ try {
   await page.waitForSelector('.game-quote');
   assert.equal(await page.locator('[data-game-trade="buy"]').isDisabled(),true);
   assert.match(await page.locator('.game-quote-status').textContent(),/거래 중지/);
+  // 1.50: a club not visited shows its price but cannot be bought or sold
+  await page.evaluate(()=>{state.gameStockId='3';navigateTo('gamesStockDetail');});
+  await page.waitForFunction(()=>/심장박동/.test(document.querySelector('.game-quote')?.textContent||''));
+  assert.match(await page.locator('.game-quote-status').textContent(),/방문 전/);
+  assert.equal(await page.locator('[data-game-trade="buy"]').isDisabled(),true);
+  assert.equal(await page.locator('[data-game-trade="sell"]').isDisabled(),true);
+  assert.match(await page.locator('.game-stock-detail').textContent(),/이 동아리 부스를 방문하면 사고팔 수 있어요/);
+  await shot(page,'stock-not-visited');
   // Retry of an unresolved trade reuses its key and is answered once
   await page.evaluate(()=>{state.route='gamesStock';render();});
   await page.locator('[data-game-tab="history"]').click(); await page.waitForSelector('.game-trade-list li');

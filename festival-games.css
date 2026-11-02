@@ -162,6 +162,9 @@
 .design-web .festival-games .game-bj-center { padding: 4px 0; }
 .design-web .festival-games .game-bj-turn { margin: 0; font-size: 14px; font-weight: 650; text-align: center; color: var(--muted); }
 .design-web .festival-games .game-bj-turn.mine { color: var(--primary); }
+/* 1.50 stock visit rules: the rule line under the market banner and "방문 전" on clubs not visited yet. */
+.design-web .festival-games .game-rule-note { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; }
+.design-web .festival-games .game-unvisited { color: var(--festival-red); font-weight: 650; }
 /* 1.49 simultaneous rounds: round number, the opponent's "선택 완료", and my chosen button (disabled until the reveal). */
 .design-web .festival-games .game-bj-round { margin: 0 0 4px; font-size: 12px; font-weight: 700; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
 .design-web .festival-games .game-bj-seat-head .game-bj-ready.is-ready { color: var(--primary); font-weight: 700; }
