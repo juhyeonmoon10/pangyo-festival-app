@@ -169,7 +169,7 @@ const festivalWeb = (() => {
   // Tab roots (stamps, MY) are reached from the bottom nav, so they skip back/home buttons.
   function header(title, subtitle = "", root = false) {
     const copy = `<div><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ""}</div>`;
-    if (root) return `<header class="web-header root">${copy}</header>`;
+    if (root) return `<header class="web-header root tab-header">${copy}</header>`;
     return `<header class="web-header"><button type="button" class="icon-btn" data-history-back="home" aria-label="뒤로 가기">${icon("back")}</button>${copy}<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button></header>`;
   }
 
@@ -310,7 +310,7 @@ const festivalWeb = (() => {
     const rewards=rewardState(), claimable=rewards.ready && !rewards.secondIssued && rewards.count>= (rewards.firstChoice?6:3);
     const cycleProgress = Math.min(6,earned.length);
     const older = isServerMode() && festivalOpsUI.snapshot()?.ready && !festivalOpsUI.visitSyncPending?.() ? state.db.booths.filter(b => serverCompletedBooths.includes(boothKeyFor(b)) && !repo.hasStamp(state.user.id,b.id)) : [];
-    return `<main class="screen web-page web-stamps stamp-path-page"><header class="stamp-board-header"><h1>스탬프</h1><button type="button" class="stamp-voucher-shortcut" data-route="vouchers">${icon("ticket")}<span>바우처</span>${claimable?'<i aria-label="받을 바우처 있음"></i>':''}</button></header>
+    return `<main class="screen web-page web-stamps stamp-path-page"><header class="stamp-board-header tab-header"><h1>스탬프</h1><button type="button" class="stamp-voucher-shortcut" data-route="vouchers">${icon("ticket")}<span>바우처</span>${claimable?'<i aria-label="받을 바우처 있음"></i>':''}</button></header>
       <section class="stamp-path-summary" aria-label="스탬프 진행 상황">
         <div class="stamp-count-line"><span>모은 스탬프</span><strong>${earned.length}<small>개</small></strong></div>
         <div class="stamp-progress-copy"><b>${rewards.ready && rewards.secondIssued?'바우처 2장 지급 완료':claimable?'바우처 받기 가능':!rewards.ready && earned.length>=3?'바우처 발급 상태 확인 대기':`다음 바우처까지 ${Math.max(0,goal-earned.length)}개`}</b><span>3개·6개 혜택</span></div>

@@ -1983,8 +1983,7 @@ function mapView() {
   const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : state.sheetLevel === "mid" ? "부스 목록 더 펼치기" : "부스 목록 펼치기";
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
-      <header class="top-bar">
-        <button class="icon-btn" data-route="home" aria-label="홈으로">${icon("back")}</button>
+      <header class="top-bar tab-header">
         <h1>부스 지도</h1>
         <span class="map-location-note">${floorPlaceNote(state.floor)}</span>
       </header>

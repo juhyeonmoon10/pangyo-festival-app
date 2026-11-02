@@ -504,9 +504,9 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | 스탬프 개수 | 40px / 750 / `--primary` | 스탬프 화면 |
 | 홈 스탬프 개수 | 36px / 700 / `--primary` | 홈 "1 개" |
 | 통계 숫자 | 27px / 750 | 프로필, 운영 현황 |
-| 스탬프 화면 제목 | 24px / 750 | "스탬프" |
+| 탭 화면 제목(`.tab-header`) | 24px / 750 | "부스 지도", "스탬프", "미니게임", "MY" |
 | 부스 상세 제목, NFC 관리 제목 | 23px / 700 | 동아리 이름 |
-| 일반 화면 제목(`.web-header`, 지도) | 19px / 750 | "바우처", "부스 지도" |
+| 일반 화면 제목(`.web-header`) | 19px / 750 | "바우처" |
 | 관리 마법사 본문 제목 | 19px / 700 | "운영 현황", "권한 관리" |
 | 승인 완료 제목 | 19px / 700 | "사용 승인이 완료되었어요" |
 | 하위 화면 제목(`.top-bar`) | 18px / 700 | "축제 소식", "부스 관리" |
@@ -540,10 +540,10 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | --- | --- | --- |
 | 홈 `.web-home` | 브랜드 줄 64px(로고 원 + "판교고 축제" + 알림·내 정보 아이콘) | 좌우 20px |
 | 일반 웹 화면 `.web-page`(바우처, 리뷰, 소속 확인) | `.web-header` 70px: `44px 1fr 44px`, 간격 10, 안쪽 `0 14px`, 아래 1px 선, 화면 끝까지 | 좌우 24px |
-| 스탬프 | `.stamp-board-header` 64~68px: 큰 제목 왼쪽, 바우처 바로가기 오른쪽 | |
+| 탭 화면(부스 지도, 스탬프, 미니게임, MY) | `.tab-header` 64px(8.3) | 지도 좌우 16px, 나머지 24px |
 | 하위 화면 `.top-bar`(공지, 부스 관리, 상세) | 64px, `44px 1fr 44px`, 간격 10, 아래 선 없음 | 좌우 20~24px |
 | 관리 마법사 `.top-bar` | 64px, 안쪽 `0 14px`, 아래 1px 선, 화면 끝까지 | 좌우 24px |
-| 지도 `.map-screen` | 64px 머리 + 검색 48px + 필터 줄 = 174px | 지도 + 아래 시트 |
+| 지도 `.map-screen` | 64px 탭 머리 + 검색 48px + 필터 줄 = 174px | 지도 + 아래 시트 |
 
 ### 7.3 반응형 구간
 
@@ -606,7 +606,11 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - `.top-bar`: 3열 `44px 1fr 44px`, 높이 64px. 왼쪽 뒤로(‹), 가운데 제목, 오른쪽 홈 아이콘이나 빈 자리.
   - 빈 자리는 `span.icon-btn[aria-hidden]`을 두고 `visibility: hidden`으로 숨겨 제목을 가운데에 둔다.
 - `.web-header`: 70px, 3열 `44px 1fr 44px`, 간격 10, 안쪽 `0 14px`, 아래 1px `--line`, 화면 끝까지.
-- 탭 화면(홈, 스탬프)은 뒤로 버튼이 없다. 제목을 왼쪽에 크게 둔다.
+- 탭 화면은 뒤로 버튼이 없다. 제목을 왼쪽에 크게 둔다.
+  - 홈은 브랜드 줄(아래)을 쓰고, 나머지 탭(부스 지도, 스탬프, 미니게임, MY)은 같은 **탭 머리** `.tab-header`를 쓴다.
+  - `.tab-header`: 높이 64px, 화면 맨 위(본문 위 여백 0), 화면 끝까지, 안쪽 `0 20px`(350px 이하 `0 16px`, 홈 브랜드 줄과 같은 줄), 아래 1px `--line`, 흰 바탕.
+  - 제목 24px/750 왼쪽. 오른쪽 자리는 화면마다 선택: 스탬프는 바우처 바로가기, 지도는 층 위치 글자(12px `--muted`), 미니게임·MY는 비운다.
+  - 기존 클래스(`.stamp-board-header`, `.web-header.root`, 지도 `.top-bar`)에 `tab-header`를 함께 붙인다. 규칙은 `festival-bright.css`의 `.design-web .app-shell .tab-header`.
 - 홈 브랜드 줄 `.web-brand`: 64px, 안쪽 `8px 0`, 간격 10px.
   - 로고는 지름 36px 원. 바탕 `#98eec7`, 글자 "P." `#076547` 23px/850.
   - 이름 "판교고 축제" 18px/700.
@@ -617,6 +621,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - 5칸 고정: **홈 · 부스 지도 · 스탬프 · 미니게임 · MY**. 순서와 이름을 바꾸지 않는다. 1.36까지는 4칸이었고 1.37에서 '미니게임'(아이콘 `game`)이 MY 앞에 들어왔다.
 - `.bottom-nav`: 높이 72px + safe area, 흰 바탕, 위 1px `--line`, 안쪽 `4px 6px 0`, 5열 같은 너비(390px에서 75.6px, 480px에서 93.6px). 5열 규칙은 `festival-games.css` 맨 위에 있다. 이 파일을 빼면 다섯 번째 칸이 다음 줄로 내려간다.
 - `.nav-btn`: 높이 67px, 글자 12px/800 `#60736b`, 모서리 8px, 아이콘과 글자 간격 4px.
+- 페이지 스크롤바(폭 500px 이하, 자리를 차지하는 스크롤바): 내비가 있는 화면에서는 항상 그려서 탭마다 내비 폭이 같다. 트랙은 내비 위에서 끝나고, 내비 옆 구석은 흰 바탕에 내비 윗선을 잇는다(`festival-bright.css`).
 - 활성 칸: 아이콘 뒤 42×30 민트 상자(모서리 10px), 아이콘·글자 `--primary`. 홈 아이콘만 활성일 때 면을 채운다.
 - 하위 화면은 가장 가까운 탭을 활성으로 표시한다.
   - 바우처 → 스탬프. 공지 → 홈. 부스 리뷰·부스 상세 → 지도.
@@ -882,7 +887,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
   - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_cancel`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 8개만). 1.37은 DB를 바꾸지 않았다. 1.38에서 축제 함수 2개(`festival_blackjack_lobby`, `festival_blackjack_rematch`)와 표 `festival_ops.blackjack_rematch`를 더했다(`operations-server/blackjack-lobby-and-rematch.sql`). 1.40에서 참가와 히트·스탠드를 축제 함수 `festival_blackjack_join`, `festival_blackjack_action`으로 바꿨다(`operations-server/blackjack-no-auto-stand.sql`, ORBIT 함수에서 자동 스탠드만 뺀 사본). 1.41에서 상태 조회를 `festival_blackjack_state`로 바꾸고 카드 제한 표 `festival_ops.blackjack_settings`와 관리 함수 `festival_blackjack_admin`을 더했다(`operations-server/minigames-admin.sql`). 1.42에서 차례당 카드 수(`festival_ops.blackjack_turn`)와 몰수패(`festival_blackjack_forfeit`, `festival_ops.blackjack_forfeit`)를 더했다(`operations-server/blackjack-turn-limit.sql`). 1.43에서 1분이 지난 대기 판을 축제 함수가 취소·환불한다(`festival_ops.blackjack_expire_waiting`, `operations-server/blackjack-match-timeout.sql`). ORBIT `orbit_*` 함수는 바꾸지 않는다.
   - 쓰는 돈은 ORBIT의 **가상 포인트**(`public.users.money`)다. 축제 포인트·스탬프·바우처와 섞이지 않는다. 허브와 블랙잭 첫 화면에 "미니게임에서만 쓰는 포인트예요. 부스 스탬프·바우처와는 따로 계산돼요."를 둔다.
   - 체험(로컬) 모드에서는 서버를 부르지 않고 `.festival-empty`로 "실제 로그인에서 이용할 수 있어요"만 보여 준다.
-- **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root`) → 가상 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
+- **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root.tab-header`, 8.3 탭 머리) → 가상 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
   - **매칭 인원(1.38)**: "1대1 블랙잭" 이름 오른쪽에 `.status-badge.game-matching` "n명 매칭중"(높이 22px, 안쪽 `0 7px`, 12px/700, 숫자 고정폭). 1명 이상이면 success(초록), 0명이면 회색. 1분(1.43, 전에는 3분) 안에 무작위 상대를 기다리는 사람 수다. 허브가 보일 때 5초마다 그 상자의 글자만 바꾼다(다시 그리지 않음). 줄이 좁으면 이름 아래로 내려간다. 1.39부터 블랙잭 화면에도 같은 상자를 무작위 찾기 버튼("300P 걸고 상대 찾기", 상대가 거부한 뒤의 "한 판 더 하기") 바로 위 가운데에 둔다. 같은 상대에게 다시 하기를 요청하는 동안과 상대를 기다리는 동안에는 숨긴다. 상자가 화면에 있을 때만 5초마다 갱신한다.
 - **가상주식 목록** `.game-stock`(`/games/stock`): 머리(뒤로→`games`, "가상주식", 새로고침 아이콘 버튼) → 시장 줄(`.status-badge` 거래 중=success / 거래 준비·마감=neutral + 개장·마감 카운트다운 13px, 0.2초마다 그 글자만 바꾼다) → 자산 3줄(총 가상 자산, 투자할 수 있는 포인트, 주식 평가 손익) → 밑줄 탭 4개(종목·관심·보유·거래 내역, 개수 붙임, 줄바꿈 금지) → 검색(돋보기 왼쪽 14px, 입력 왼쪽 안쪽 44px) + 정렬 셀렉트(118px) → 종목 행 → [띠] 소식 → 이전 거래 결과 확인(보조 버튼 + 설명 13px).
   - **종목 행**: 왼쪽 별 아이콘 버튼 44×44(관심 종목, 켜지면 `--primary` 채움) + 행 버튼(`36px 1fr auto`, 간격 10, 최소 64px, 아래 1px 선). 동아리 이미지 36px(8px 모서리, 9.8과 같은 이미지·대체 글자), 이름 15px/700 + `STOCK-n · n주 보유` 12px, 오른쪽 가격 15px/700 + 등락 12px/650.
@@ -1093,6 +1098,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | 하단 내비 | `.bottom-nav` | 높이 72, 위 1px `#e1ebe5`, 5열(칸 75.6px) |
 | 내비 칸 | `.nav-btn` | 높이 67, 12px/800, `#60736b` |
 | 활성 내비 아이콘 | `.nav-btn[aria-current] span` | 42×30, 모서리 10, 바탕 `#d9faea` |
+| 탭 머리 | `.tab-header` | 높이 64, 제목 24px/750 왼쪽, 안쪽 `0 20px`, 아래 1px 선 |
 | 일반 머리 | `.web-header` | 높이 70, `44px 1fr 44px`, 아래 1px 선 |
 | 하위 화면 머리 | `.top-bar` | 높이 64, `44px 1fr 44px` |
 | 홈 인사 | `.web-welcome h1` | 27px/750 (320px: 24px) |
@@ -1183,7 +1189,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 - 뒤로 버튼은 `[data-history-back="{기본 목적지}"]`를 가진 `.icon-btn`이다.
 - 앱 안에서 이동한 기록이 있으면 브라우저 뒤로(`history.back()`)를 쓴다. 기록이 없으면(주소로 바로 들어온 경우) 기본 목적지로 **기록을 바꿔치기(replace)**해서 이동한다.
 - 하단 내비 탭을 누르면 새 기록을 쌓는다.
-- 탭 화면(홈, 스탬프, MY)에는 뒤로 버튼을 두지 않는다.
+- 탭 화면(홈, 부스 지도, 스탬프, 미니게임, MY)에는 뒤로 버튼을 두지 않는다.
 
 ### 19.4 관리 마법사 구조
 
@@ -1242,7 +1248,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 </body>
 ```
 
-- 머리 종류: 일반 웹 화면은 `header.web-header`, 하위 화면은 `header.top-bar`, MY는 `header.web-header.root`(제목만).
+- 머리 종류: 일반 웹 화면은 `header.web-header`, 하위 화면은 `header.top-bar`, 탭 화면(부스 지도·스탬프·미니게임·MY)은 `.tab-header`를 붙인 머리(8.3).
 - `top-bar`의 오른쪽 자리가 비면 `<span class="icon-btn" aria-hidden="true"></span>`을 둔다(보이지 않는 자리 채움).
 - 섹션 머리는 `div.section-heading` 안에 `h2`(18px/700)와 오른쪽 글자 링크 또는 개수 `span`(13px/700 `--muted`)을 둔다. 높이 48px(링크가 있을 때).
 
@@ -1319,7 +1325,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 
 ```html
 <main class="screen web-page web-stamps stamp-path-page">
-  <header class="stamp-board-header"><h1>스탬프</h1>
+  <header class="stamp-board-header tab-header"><h1>스탬프</h1>
     <button class="stamp-voucher-shortcut" data-route="vouchers">{icon:ticket}<span>바우처</span></button></header>
   <section class="stamp-path-summary" aria-label="스탬프 진행 상황">
     <div class="stamp-count-line"><span>모은 스탬프</span><strong>1<small>개</small></strong></div>
@@ -1382,7 +1388,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 
 ```html
 <main class="screen p0-page profile-screen">
-  <header class="web-header root"><div><h1>MY</h1></div></header>
+  <header class="web-header root tab-header"><div><h1>MY</h1></div></header>
   <section class="profile-card"><div class="profile-avatar">가</div>
     <div><strong>가상방문</strong><span>student@pangyo.hs.kr</span></div></section>
   <section class="profile-name-section" aria-label="이름 변경">
