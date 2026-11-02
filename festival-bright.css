@@ -47,6 +47,14 @@ body.design-web {
 .design-web .bottom-nav .nav-btn { color: var(--muted); font-size: 12px; }
 .design-web .bottom-nav .nav-btn.active { color: var(--primary); }
 .design-web .bottom-nav .nav-btn.active > span:first-child { background: var(--festival-mint); color: var(--primary); }
+/* Classic (non-overlay) page scrollbars stop above the fixed tab bar while it spans the full width (480px column + scrollbar);
+   the corner beside the bar continues its top line. */
+@media (max-width: 500px) {
+  html:has(body.design-web .bottom-nav)::-webkit-scrollbar { width: 12px; background: linear-gradient(transparent calc(100% - 72px - env(safe-area-inset-bottom)), #e1ebe5 0 calc(100% - 71px - env(safe-area-inset-bottom)), #fff 0); }
+  html:has(body.design-web .bottom-nav)::-webkit-scrollbar-track { margin-bottom: calc(72px + env(safe-area-inset-bottom)); background: #f5f8f6; }
+  html:has(body.design-web .bottom-nav)::-webkit-scrollbar-thumb { border: 3px solid #f5f8f6; border-radius: 6px; background: #a8c1b3; }
+  html:has(body.design-web .bottom-nav)::-webkit-scrollbar-thumb:hover { background: #87a898; }
+}
 .design-web .brand-symbol { border-radius: 50%; width: 36px; height: 36px; flex-basis: 36px; background: #98eec7; color: #076547; box-shadow: none; font-size: 23px; }
 .design-web .web-brand { min-height: 64px; padding-block: 8px; }
 .design-web .web-brand > strong { font-size: 18px; }
