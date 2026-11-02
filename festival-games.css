@@ -39,13 +39,10 @@
 .design-web .festival-games .game-search .input { width: 100%; min-width: 0; padding-left: 44px; font-weight: 400; }
 .design-web .festival-games .game-sort .select { width: 100%; font-weight: 400; }
 .design-web .festival-games .game-stock-list,
-.design-web .festival-games .game-trade-list,
 .design-web .festival-games .game-news-list { list-style: none; margin: 0; padding: 0; }
-.design-web .festival-games .game-stock-list li { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+/* 1.50: no 관심 star in front of each row any more. */
+.design-web .festival-games .game-stock-list li { border-bottom: 1px solid var(--line); }
 .design-web .festival-games .game-stock-list li[hidden] { display: none; }
-.design-web .festival-games .game-favorite { width: 44px; height: 44px; min-height: 44px; color: #9aa8a1; }
-.design-web .festival-games .game-favorite[aria-pressed="true"] { color: var(--primary); }
-.design-web .festival-games .game-favorite[aria-pressed="true"] .ui-icon { fill: currentColor; }
 .design-web .festival-games .game-stock-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 12px 0; background: transparent; color: var(--text); text-align: left; }
 .design-web .festival-games .game-stock-row .club-visual { width: 36px; height: 36px; border-radius: 8px; }
 .design-web .festival-games .game-stock-name { display: grid; gap: 2px; min-width: 0; }
@@ -59,8 +56,6 @@
 .design-web .festival-games .game-up { color: var(--festival-red); }
 .design-web .festival-games .game-down { color: var(--festival-blue); }
 .design-web .festival-games .game-flat { color: var(--muted); }
-.design-web .festival-games .game-trade-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 64px; padding: 12px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-.design-web .festival-games .game-trade-list li > strong { font-size: 15px; font-weight: 700; }
 .design-web .festival-games .game-news-list { display: grid; gap: 12px; }
 .design-web .festival-games .game-news-list li + li { padding-top: 12px; border-top: 1px solid var(--line); }
 .design-web .festival-games .game-news-list strong { display: block; font-size: 14px; font-weight: 700; word-break: keep-all; overflow-wrap: anywhere; }

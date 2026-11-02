@@ -1,7 +1,7 @@
 // 미니게임 (1.37, 1.38 matching count and rematch) browser check. Harness copied from voucher-manager-browser.mjs; orbit_* calls are stubbed.
 // Real browser and festival operations SQL in local PGlite. ORBIT's orbit_* functions and the stock_price_history
 // and news tables are answered by a synthetic market and a scripted blackjack opponent (gameStub).
-// Covers: 5-tab bottom navigation, games reachable only from it, 가상주식 list/search/favorites/detail/trade/retry, 블랙잭 flow.
+// Covers: 5-tab bottom navigation, games reachable only from it, 가상주식 list/search/visited tab/detail/trade/retry, 블랙잭 flow.
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -315,9 +315,21 @@ try {
   await search.fill('없는종목'); assert.equal(await page.locator('[data-game-no-match]').isVisible(),true);
   await search.fill('');
   await page.selectOption('[data-game-sort]','gain'); await page.waitForTimeout(150);
-  await page.locator('[data-game-favorite="13"]').click();
-  await page.locator('[data-game-tab="favorites"]').click();
-  assert.equal(await page.locator('.game-stock-list li').count(),1);
+  // 1.50: tabs are 종목 · 방문한 동아리 · 보유 (관심 and 거래 내역 removed, no star buttons)
+  assert.deepEqual(await page.locator('[data-game-tab]').allTextContents().then(t=>t.map(x=>x.trim().replace(/\s+/g,' '))),['종목 20','방문한 동아리 19','보유 0']);
+  assert.equal(await page.locator('.game-favorite').count(),0);
+  await page.locator('[data-game-tab="visited"]').click();
+  assert.equal(await page.locator('.game-stock-list li').count(),19);
+  assert.equal(await page.locator('[data-game-stock="3"]').count(),0,'the club not visited is not in the tab');
+  await shot(page,'stock-visited-tab');
+  for(const s of stockRows) s.visited=false;
+  await page.locator('[data-game-refresh]').click();
+  await page.waitForFunction(()=>/아직 방문한 동아리가 없어요/.test(document.querySelector('.festival-empty')?.textContent||''));
+  assert.equal(await page.locator('.festival-empty [data-route="map"]').count(),1);
+  await shot(page,'stock-visited-empty');
+  stockRows.forEach((s,i)=>{ s.visited=i!==2; });
+  await page.locator('[data-game-refresh]').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.game-stock-list li').length===19);
   await page.locator('[data-game-tab="portfolio"]').click(); await page.waitForSelector('.festival-empty');
   await page.locator('[data-game-tab="market"]').click();
   // Detail + chart + trade
@@ -356,7 +368,7 @@ try {
   await shot(page,'stock-not-visited');
   // Retry of an unresolved trade reuses its key and is answered once
   await page.evaluate(()=>{state.route='gamesStock';render();});
-  await page.locator('[data-game-tab="history"]').click(); await page.waitForSelector('.game-trade-list li');
+  await page.waitForSelector('[data-game-retry]');
   await page.locator('[data-game-retry]').click();
   await page.waitForFunction(()=>/확인할 이전 거래가 없어요/.test(document.querySelector('[data-spot="game-retry"]')?.textContent||''));
   await shot(page,'stock-history');
