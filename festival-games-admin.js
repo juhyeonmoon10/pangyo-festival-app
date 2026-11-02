@@ -208,27 +208,26 @@ const festivalGamesAdmin = (() => {
   }
   function blackjackView() {
     const b = blackjack, s = b.settings || {};
-    const per = Number(s.maxPerTurn) || 1, draws = Number.isInteger(s.maxDraws) ? s.maxDraws : null;
+    const draws = Number.isInteger(s.maxDraws) ? s.maxDraws : null;
     const options = (from, to, value) => Array.from({ length: to - from + 1 }, (_, i) => from + i).map(n => `<option value="${n}" ${n === value ? 'selected' : ''}>${n}장</option>`).join('');
     return `<div class="games-admin-tiles">
         ${tile('매칭 대기', `${Number(b.waiting) || 0}명`)}${tile('진행 중', `${Number(b.playing) || 0}판`)}
         ${tile('오늘 끝난 판', `${Number(b.finishedToday) || 0}판`)}${tile('오늘 오간 판돈', point(b.stakedToday))}
       </div>
       <section class="ops-section"><h2>카드 제한</h2>
-        <p class="games-admin-hint">진행 중인 판에도 바로 적용돼요. 히트 한 번에 카드 한 장을 받고, 한 차례에 정한 장수를 다 받으면 상대 차례로 넘어가요. 덜 받고 넘기려면 스탠드를 눌러요(카드를 받은 뒤 스탠드하면 차례만 넘기고, 받지 않고 스탠드하면 그 판에서 멈춰요). 21이나 버스트여도 자동으로 멈추지 않으니(1.40), 한 판에 받을 수 있는 카드 수로 판이 너무 길어지지 않게 할 수 있어요.</p>
+        <p class="games-admin-hint">진행 중인 판에도 바로 적용돼요. 두 사람이 라운드마다 동시에 히트나 스탠드를 고르고, 히트하면 카드를 한 장 받아요(1.49). 21이나 버스트여도 자동으로 멈추지 않으니(1.40), 한 판에 받을 수 있는 카드 수로 판이 너무 길어지지 않게 할 수 있어요.</p>
         <form class="ops-form" data-bj-limits>
           <div class="games-admin-grid">
-            <label>한 차례에 받을 수 있는 카드<select class="select" name="maxPerTurn">${options(1, 5, per)}</select></label>
             <label>한 판에 더 받을 수 있는 카드 (처음 2장 제외)<select class="select" name="maxDraws"><option value="" ${draws === null ? 'selected' : ''}>제한 없음</option>${options(1, 20, draws)}</select></label>
           </div>
-          <p class="games-admin-hint">지금: 한 차례에 ${per}장 · 한 판에 ${draws === null ? '제한 없음' : `${draws}장`}${s.updatedBy ? ` · ${h(s.updatedBy)}, ${h(time(s.updatedAt))}` : ''}</p>
+          <p class="games-admin-hint">지금: 한 판에 ${draws === null ? '제한 없음' : `${draws}장`}${s.updatedBy ? ` · ${h(s.updatedBy)}, ${h(time(s.updatedAt))}` : ''}</p>
           ${slot('limits')}<button class="primary-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('save')} 저장</button>
         </form></section>
       <section class="ops-section"><h2>최근 판 <span>${(b.recent || []).length}판</span></h2>
         ${(b.recent || []).length ? `<ul class="games-admin-list">${b.recent.map(g => `<li>
           <p class="games-admin-meta">${gameState(g)}<small>${h(time(g.createdAt))} · 판돈 ${point(g.stake)}</small></p>
           <strong>${h(g.playerA || '-')} <span class="games-admin-vs">vs</span> ${h(g.playerB || '상대 없음')}</strong>
-          ${g.status === 'waiting' ? '' : `<small>카드 ${Number(g.cardsA) || 0}장${g.totalA !== null && g.totalA !== undefined ? ` · ${Number(g.totalA)}점` : ''} / ${Number(g.cardsB) || 0}장${g.totalB !== null && g.totalB !== undefined ? ` · ${Number(g.totalB)}점` : ''}</small>`}</li>`).join('')}</ul>` : '<p class="ops-empty">아직 판이 없어요.</p>'}
+          ${g.status === 'waiting' ? '' : `<small>카드 ${Number(g.cardsA) || 0}장${g.totalA !== null && g.totalA !== undefined ? ` · ${Number(g.totalA)}점` : ''} / ${Number(g.cardsB) || 0}장${g.totalB !== null && g.totalB !== undefined ? ` · ${Number(g.totalB)}점` : ''}${Number.isInteger(g.rounds) ? ` · ${g.rounds}라운드` : ''}</small>`}</li>`).join('')}</ul>` : '<p class="ops-empty">아직 판이 없어요.</p>'}
       </section>`;
   }
 
@@ -335,9 +334,8 @@ const festivalGamesAdmin = (() => {
     });
     root.querySelector('[data-bj-limits]')?.addEventListener('submit', event => {
       event.preventDefault();
-      const f = event.currentTarget.elements, maxPerTurn = Number(f.maxPerTurn.value), maxDraws = f.maxDraws.value === '' ? null : Number(f.maxDraws.value);
-      if (maxDraws !== null && maxPerTurn > maxDraws) { say('limits', '한 차례에 받는 카드가 한 판에 받을 수 있는 카드보다 많을 수 없어요.', 'error'); return; }
-      send({ name: 'festival_blackjack_admin', success: '카드 제한을 저장했어요.', args: { p_action: 'save', p_payload: { maxPerTurn, maxDraws } } }, 'limits');
+      const f = event.currentTarget.elements, maxDraws = f.maxDraws.value === '' ? null : Number(f.maxDraws.value);
+      send({ name: 'festival_blackjack_admin', success: '카드 제한을 저장했어요.', args: { p_action: 'save', p_payload: { maxDraws } } }, 'limits');
     });
   }
 

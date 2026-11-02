@@ -18,7 +18,11 @@
    1.43: matching ends after 1 minute (the server cancels and refunds; the time comes with festival_blackjack_lobby
    as matchSeconds), and the matching rules are in the rules list instead of under the waiting timer.
    1.44: 차례 넘기기 is part of 스탠드: a stand after a card this turn only passes the turn (the server stops the
-   player instead when nothing is left to draw or the opponent has stopped); a stand without a card stops. */
+   player instead when nothing is left to draw or the opponent has stopped); a stand without a card stops.
+   1.49: simultaneous rounds (MINIGAME_RULES.md 3). Both players choose hit or stand in the same round; the
+   opponent only shows "선택 완료" until both have chosen (or 10 s pass), then the server reveals both choices
+   together (game.lastRound) and each hit draws one card. A stand stops the player; no choice is a stand.
+   Matching uses the festival queue (festival_blackjack_cancel) and takes the stake only at a match. */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -68,12 +72,12 @@ const festivalGames = (() => {
   let chart = { key: '', status: 'idle', points: [], opening: null };
   let trade = null, tradeBusy = false;
   let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false, cancelled: null };
-  let lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null, matchSeconds: 60 };
+  let lobby = { status: 'idle', waiting: null, maxDraws: null, matchSeconds: 60 };
   let rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
   let pollTimer = 0, tickTimer = 0, revealTimer = 0, lobbyTimer = 0;
 
   function reset() {
-    lobby = { status: 'idle', waiting: null, maxPerTurn: 1, maxDraws: null, matchSeconds: 60 };
+    lobby = { status: 'idle', waiting: null, maxDraws: null, matchSeconds: 60 };
     rematch = { gameId: null, me: null, opponent: null, expired: false, busy: false, loading: false };
     owner = state.user?.id || null;
     market = { status: 'idle', data: null, code: '' };
@@ -292,13 +296,12 @@ const festivalGames = (() => {
     if (state.user?.id !== actor) return;
     lobby.status = 'ready';
     if (response.ok && Number.isInteger(response.data?.waiting) && response.data.waiting >= 0) lobby.waiting = response.data.waiting;
-    // Card limits set in 관리 마법사: cards per turn (1-5) and cards drawn per game after the first two (null = no limit).
+    // Card limit set in 관리 마법사: cards drawn per game after the first two (null = no limit).
     if (response.ok) {
-      const perTurn = response.data?.maxPerTurn, draws = response.data?.maxDraws;
-      const seconds = response.data?.matchSeconds;
-      const next = { maxPerTurn: Number.isInteger(perTurn) && perTurn >= 1 && perTurn <= 5 ? perTurn : 1, maxDraws: Number.isInteger(draws) && draws >= 1 ? draws : null,
+      const draws = response.data?.maxDraws, seconds = response.data?.matchSeconds;
+      const next = { maxDraws: Number.isInteger(draws) && draws >= 1 ? draws : null,
         matchSeconds: Number.isInteger(seconds) && seconds >= 10 && seconds <= 600 ? seconds : 60 };
-      const changed = next.maxPerTurn !== lobby.maxPerTurn || next.maxDraws !== lobby.maxDraws || next.matchSeconds !== lobby.matchSeconds;
+      const changed = next.maxDraws !== lobby.maxDraws || next.matchSeconds !== lobby.matchSeconds;
       Object.assign(lobby, next);
       if (changed && state.route === 'gamesBlackjack') renderKeepingFocus();
     }
@@ -534,37 +537,25 @@ const festivalGames = (() => {
       && Number.isInteger(game.version) && Array.isArray(game.myCards) && game.myCards.every(c => c !== null && validCard(c))
       && Array.isArray(game.opponentCards) && game.opponentCards.every(validCard) && Number.isInteger(game.stake);
   }
+  // 1.49: a revealed round (game.lastRound) shows both players' choices at once. A hit never stops the player
+  // (1.40): it is marked when it makes 21 or goes bust. null means that player had already stopped.
   function tableEvents(previous, next) {
-    if (previous.id !== next.id || previous.status !== 'playing') return [];
+    const last = next.lastRound;
+    if (previous.id !== next.id || previous.status !== 'playing' || !last || last.round === previous.lastRound?.round) return [];
     const events = [];
-    const myHits = next.myCards.length - previous.myCards.length;
-    // A hit never ends the turn (1.40): it is marked when it makes 21 or goes bust.
-    for (let i = 0; i < myHits; i++) {
-      const before = handTotal(next.myCards.slice(0, previous.myCards.length + i));
-      const total = handTotal(next.myCards.slice(0, previous.myCards.length + i + 1));
+    if (last.me === 'hit') {
+      const before = handTotal(next.myCards.slice(0, -1)), total = handTotal(next.myCards);
       events.push({ side: 'me', kind: total > 21 && before <= 21 ? 'bust' : total === 21 ? 'twentyOne' : 'hit', total });
-    }
-    if (!previous.myDone && next.myDone) {
-      // A hit with no card left in the deck stands instead ('done').
-      const kind = bj.sent === 'stand' ? 'stand' : bj.sent === 'hit' ? 'done' : 'timeout';
-      events.push({ side: 'me', kind, total: next.myTotal });
-    } else if (bj.sent === 'stand' && previous.turn === 'me' && next.turn === 'opponent') {
-      // 1.44: a stand after a card this turn passes the turn.
-      events.push({ side: 'me', kind: 'pass', total: next.myTotal });
-    }
-    const theirHits = next.opponentCards.length - previous.opponentCards.length;
-    for (let i = 0; i < theirHits; i++) events.push({ side: 'opponent', kind: 'hit', total: null });
-    if (!previous.opponentDone && next.opponentDone) events.push({ side: 'opponent', kind: theirHits > 0 ? 'done' : 'stand', total: null });
+    } else if (last.me) events.push({ side: 'me', kind: last.me, total: next.myTotal });
+    if (last.opponent) events.push({ side: 'opponent', kind: last.opponent, total: null });
     return events;
   }
-  const BADGE = { hit: '히트!', stand: '스탠드', pass: '차례 넘김', timeout: '시간 초과', bust: '버스트!', twentyOne: '21!', done: '멈춤' };
+  const BADGE = { hit: '히트!', stand: '스탠드', timeout: '시간 초과', bust: '버스트!', twentyOne: '21!' };
   function describe(event) {
-    const who = event.side === 'me' ? '나' : '상대';
     return ({ hit: event.side === 'me' ? `내가 히트했어요 · ${event.total}점` : '상대가 히트했어요',
-      pass: '스탠드로 차례를 넘겼어요',
       stand: event.side === 'me' ? `내가 스탠드했어요 · ${event.total}점` : '상대가 스탠드했어요',
-      timeout: `시간 초과로 스탠드됐어요 · ${event.total}점`, bust: `버스트! ${event.total}점`,
-      twentyOne: '21점!', done: `${who}의 차례가 끝났어요` })[event.kind];
+      timeout: event.side === 'me' ? `시간 초과로 스탠드됐어요 · ${event.total}점` : '상대가 시간 초과로 스탠드됐어요',
+      bust: `버스트! ${event.total}점`, twentyOne: '21점!' })[event.kind];
   }
   // Final reveal flips one card per side in turn: opponent's first card, mine, opponent's second, ...
   function revealOrder(game) {
@@ -696,7 +687,7 @@ const festivalGames = (() => {
     if (['hit', 'stand'].includes(action)) bj.sent = action;
     report('bj', action === 'join' ? '상대를 찾는 중...' : action === 'cancel' ? '대기를 취소하는 중...' : '보내는 중...', 'info');
     const response = action === 'join' ? await api().call('festival_blackjack_join')
-      : action === 'cancel' ? await api().call('orbit_blackjack_cancel')
+      : action === 'cancel' ? await api().call('festival_blackjack_cancel')
       : await api().call('festival_blackjack_action', { p_game_id: game?.id, p_action: action, p_version: game?.version });
     bj.busy = false;
     if (!response.ok) {
@@ -736,11 +727,11 @@ const festivalGames = (() => {
       if (!isGameRoute(state.route)) { clearInterval(tickTimer); return; }
       const now = Date.now();
       const timer = document.querySelector('[data-bj-timer]');
-      if (timer && bj.game?.turnDeadline) {
-        const left = Math.max(0, Date.parse(bj.game.turnDeadline) - now);
+      const left = timeLeft(bj.game, now);
+      if (timer && left !== null) {
         timer.querySelector('i').style.width = `${Math.min(100, left / (TURN_SECONDS * 10))}%`;
-        timer.querySelector('b').textContent = `${Math.ceil(left / 1000)}초`;
-        timer.setAttribute('aria-label', `남은 시간 ${Math.ceil(left / 1000)}초`);
+        timer.querySelector('b').textContent = `${secondsLeft(left)}초`;
+        timer.setAttribute('aria-label', `남은 시간 ${secondsLeft(left)}초`);
       }
       const waited = document.querySelector('[data-bj-waited]');
       if (waited && bj.game?.createdAt) {
@@ -765,10 +756,14 @@ const festivalGames = (() => {
       return position < shownCount ? card(value, !!bj.reveal?.fresh && position === shownCount - 1) : card(null);
     }).join('')}</div>`;
   }
-  // Cards still allowed: in this turn (cards per turn minus the ones drawn) and in this game (after the first two).
-  const turnRoom = game => Math.max(0, lobby.maxPerTurn - (game?.turn === 'me' && Number.isInteger(game.turnDrawn) ? game.turnDrawn : 0));
+  // Cards still allowed in this game (after the first two).
   const gameRoom = game => lobby.maxDraws === null ? Infinity : Math.max(0, lobby.maxDraws - Math.max(0, (game?.myCards.length || 2) - 2));
-  const hitRoom = game => Math.min(turnRoom(game), gameRoom(game));
+  // The round deadline includes 1.5 s for the last reveal, so the count shows at most 10 s.
+  const timeLeft = (game, now = Date.now()) => {
+    const deadline = game?.status === 'playing' ? game.roundDeadline || game.turnDeadline : null;
+    return deadline ? Math.max(0, Date.parse(deadline) - now) : null;
+  };
+  const secondsLeft = left => Math.min(TURN_SECONDS, Math.ceil(left / 1000));
   const outcomeText = result => result === 'win' ? '승리!' : result === 'lose' ? '패배' : '무승부';
   const outcomeLine = (result, stake) => result === 'win' ? `+${point(stake)}` : result === 'lose' ? `−${point(stake)}` : '판돈을 돌려받았어요';
   const matchTime = () => lobby.matchSeconds % 60 === 0 ? `${lobby.matchSeconds / 60}분` : `${lobby.matchSeconds}초`;
@@ -782,39 +777,43 @@ const festivalGames = (() => {
       const order = revealOrder(shown);
       return handTotal(cards.filter((c, i) => c !== null && order.findIndex(([s, j]) => s === side && j === i) < flipped));
     };
-    const myTurn = shown.status === 'playing' && shown.turn === 'me' && !shown.myDone;
-    const room = hitRoom(shown), drawn = myTurn && Number.isInteger(shown.turnDrawn) ? shown.turnDrawn : 0;
-    // A stand after a card this turn only passes the turn while there is more to draw later (same rule as the server).
-    const perTurn = lobby.maxPerTurn > 1, standPasses = perTurn && myTurn && drawn > 0 && gameRoom(shown) > 0 && !shown.opponentDone;
-    const choices = standPasses ? '카드를 더 받거나, 스탠드로 차례를 넘길 수 있어요.' : '카드를 더 받거나 스탠드할 수 있어요.';
+    // 1.49: both players choose in the same round; a choice is final until the round is revealed.
+    const playing = shown.status === 'playing';
+    const canChoose = !reveal && playing && !shown.myDone && !shown.myChoice;
+    const theyChoose = !reveal && playing && !shown.opponentDone && !shown.opponentReady;
+    const room = gameRoom(shown);
     const myTotal = reveal ? visibleTotal('me') : shown.myTotal;
     const theirTotal = reveal ? visibleTotal('opponent') : null;
-    const left = shown.turnDeadline ? Math.max(0, Date.parse(shown.turnDeadline) - Date.now()) : null;
+    const left = timeLeft(shown);
+    const prompt = shown.myDone ? '나는 멈췄어요. 상대를 기다려요.'
+      : shown.myChoice ? '선택 완료 · 상대를 기다려요'
+      : room === 0 ? '더 받을 수 있는 카드가 없어요. 스탠드를 눌러 주세요.'
+      : `${shown.myTotal > 21 ? '버스트예요. ' : shown.myTotal === 21 ? '21점이에요. ' : ''}히트나 스탠드를 골라 주세요.${shown.opponentDone ? '' : ' 둘 다 고르면 함께 공개돼요.'}`;
     const badge = side => !reveal && bj.badges[side] ? `<span class="game-bj-badge" data-kind="${bj.badges[side].kind}">${BADGE[bj.badges[side].kind]}</span>` : '';
+    const chosen = action => shown.myChoice === action ? ' is-chosen' : '';
     return `<section class="game-bj-table" aria-label="블랙잭 테이블">
-      <div class="game-bj-seat${!reveal && shown.turn === 'opponent' ? ' is-turn' : ''}">
+      <div class="game-bj-seat${theyChoose ? ' is-turn' : ''}">
         <div class="game-bj-seat-head"><span><strong>${h(shown.opponentName || '상대')}</strong> <small>카드 ${shown.opponentCards.length}장</small></span>
-          ${reveal ? `<strong class="game-bj-total${theirTotal > 21 ? ' bust' : ''}">${theirTotal}</strong>` : `<small>${shown.opponentDone ? '멈춤' : shown.turn === 'opponent' ? '고르는 중...' : '기다리는 중'}</small>`}</div>
+          ${reveal ? `<strong class="game-bj-total${theirTotal > 21 ? ' bust' : ''}">${theirTotal}</strong>` : `<small class="game-bj-ready${shown.opponentReady && !shown.opponentDone ? ' is-ready' : ''}">${shown.opponentDone ? '멈춤' : shown.opponentReady ? '선택 완료' : '고르는 중...'}</small>`}</div>
         ${hand(shown.opponentCards, flipped, 'opponent')}${badge('opponent')}
       </div>
       <div class="game-bj-center">
         ${done ? `<div class="game-bj-outcome ${h(shown.result || 'draw')}" role="alert"><strong>${outcomeText(shown.result)}</strong><span>${outcomeLine(shown.result, shown.stake)}</span>${forfeitLine(shown) ? `<span>${forfeitLine(shown)}</span>` : ''}
             <button type="button" class="primary-btn full-action" data-bj-ok>확인</button></div>`
           : reveal ? '<p class="game-bj-turn" role="status">카드를 한 장씩 공개해요...</p>'
-          : `<p class="game-bj-turn${myTurn ? ' mine' : ''}" role="status">${myTurn ? (room === 0 ? '더 받을 수 있는 카드가 없어요. 스탠드를 눌러 주세요.' : shown.myTotal > 21 ? `버스트예요. ${choices}` : shown.myTotal === 21 ? `21점이에요. ${choices}` : standPasses ? choices : '내 차례예요. 히트나 스탠드를 골라 주세요.') : shown.myDone ? '나는 멈췄어요. 상대를 기다려요.' : '상대가 고르는 중이에요.'}</p>
-            ${left !== null ? `<span class="game-bj-timer" data-bj-timer role="timer" aria-label="남은 시간 ${Math.ceil(left / 1000)}초"><i style="width:${Math.min(100, left / (TURN_SECONDS * 10))}%"></i><b>${Math.ceil(left / 1000)}초</b></span>` : ''}`}
+          : `${Number.isInteger(shown.round) ? `<p class="game-bj-round">라운드 ${shown.round}</p>` : ''}<p class="game-bj-turn${canChoose ? ' mine' : ''}" role="status">${prompt}</p>
+            ${left !== null ? `<span class="game-bj-timer" data-bj-timer role="timer" aria-label="남은 시간 ${secondsLeft(left)}초"><i style="width:${Math.min(100, left / (TURN_SECONDS * 10))}%"></i><b>${secondsLeft(left)}초</b></span>` : ''}`}
       </div>
-      <div class="game-bj-seat${myTurn ? ' is-turn' : ''}">
+      <div class="game-bj-seat${canChoose ? ' is-turn' : ''}">
         <div class="game-bj-seat-head"><span><strong>나</strong> <small>카드 ${shown.myCards.length}장</small></span>
           <strong class="game-bj-total${myTotal > 21 ? ' bust' : ''}">${myTotal}${!reveal ? (myTotal > 21 ? ' · 버스트' : shown.myDone ? ' · 스탠드' : '') : ''}</strong></div>
         ${hand(shown.myCards, flipped, 'me')}${badge('me')}
       </div>
-      ${reveal ? '' : `${(perTurn || lobby.maxDraws !== null) && shown.status === 'playing' ? `<div class="game-bj-draw">
-        ${perTurn ? `<span>이번 차례에 받을 수 있는 카드 <b>${myTurn ? turnRoom(shown) : lobby.maxPerTurn}장</b></span>` : ''}
-        ${lobby.maxDraws !== null ? `<span>이번 판에 더 받을 수 있는 카드 <b>${gameRoom(shown)}장</b></span>` : ''}
+      ${reveal ? '' : `${lobby.maxDraws !== null && playing ? `<div class="game-bj-draw">
+        <span>이번 판에 더 받을 수 있는 카드 <b>${gameRoom(shown)}장</b></span>
       </div>` : ''}${slot('bj')}<div class="game-trade-actions">
-        <button type="button" class="primary-btn" data-bj="hit" ${!myTurn || bj.busy || room === 0 ? 'disabled' : ''}>${icon('plus')} 히트</button>
-        <button type="button" class="ghost-btn" data-bj="stand" ${!myTurn || bj.busy ? 'disabled' : ''}>${icon('hand')} 스탠드</button>
+        <button type="button" class="primary-btn${chosen('hit')}" data-bj="hit" ${!canChoose || bj.busy || room === 0 ? 'disabled' : ''}>${icon('plus')} 히트</button>
+        <button type="button" class="ghost-btn${chosen('stand')}" data-bj="stand" ${!canChoose || bj.busy ? 'disabled' : ''}>${icon('hand')} 스탠드</button>
       </div>`}
     </section>`;
   }
@@ -832,12 +831,15 @@ const festivalGames = (() => {
       const waited = Math.max(0, Math.floor((Date.now() - Date.parse(game.createdAt)) / 1000));
       return `<section class="game-bj-waiting" aria-live="polite"><span>${icon('spade')}</span><h2>상대를 찾고 있어요</h2>
         <p>기다린 시간 <span data-bj-waited>${Math.floor(waited / 60)}:${String(waited % 60).padStart(2, '0')}</span></p>
-        ${slot('bj')}<button type="button" class="ghost-btn full-action" data-bj="cancel" ${bj.busy ? 'disabled' : ''}>${icon('close')} 취소하고 ${point(STAKE)} 돌려받기</button></section>`;
+        ${slot('bj')}<button type="button" class="ghost-btn full-action" data-bj="cancel" ${bj.busy ? 'disabled' : ''}>${icon('close')} ${game.queued ? '대기 취소' : `취소하고 ${point(STAKE)} 돌려받기`}</button></section>`;
     }
     return `${game?.status === 'finished' ? `<section class="game-bj-result ${h(game.result || 'draw')}" aria-live="polite"><strong>${outcomeText(game.result)}</strong><span>${outcomeLine(game.result, game.stake)}</span>${forfeitLine(game) ? `<span>${forfeitLine(game)}</span>` : ''}
         <div class="game-bj-result-hands"><div><small>나 · ${game.myTotal}${game.myTotal > 21 ? ' · 버스트' : ''}</small>${hand(game.myCards, null, null, true)}</div>
         <div><small>${h(game.opponentName || '상대')} · ${game.opponentTotal ?? '—'}${(game.opponentTotal ?? 0) > 21 ? ' · 버스트' : ''}</small>${hand(game.opponentCards, null, null, true)}</div></div></section>` : ''}
-      ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">${bj.cancelled === game.id ? '대기를 취소하고' : `${matchTime()} 안에 상대를 찾지 못해 매칭이 취소됐어요.`} ${point(game.stake)}를 돌려받았어요.</p>` : ''}
+      ${game?.status === 'cancelled' ? `<p class="ops-form-status" data-tone="success" role="status">${game.queued
+        // 1.49: the festival queue takes no stake before a match, so there is nothing to give back.
+        ? (bj.cancelled === game.id ? '대기를 취소했어요.' : `${matchTime()} 안에 상대를 찾지 못해 매칭이 취소됐어요.`)
+        : `${bj.cancelled === game.id ? '대기를 취소하고' : `${matchTime()} 안에 상대를 찾지 못해 매칭이 취소됐어요.`} ${point(game.stake)}를 돌려받았어요.`}</p>` : ''}
       ${r?.opponent ? `<p class="game-bj-rematch" role="status"><span class="status-badge ${REMATCH_TONE[r.opponent]}" data-bj-rematch="${r.opponent}"><i aria-hidden="true"></i>상대 : ${REMATCH_LABEL[r.opponent]}</span></p>` : ''}
       ${sameOpponent ? '' : `<p class="game-bj-rematch">${matchingBadge()}</p>`}
       ${slot('bj')}
@@ -846,24 +848,24 @@ const festivalGames = (() => {
       ${money !== null && !enough ? `<p class="web-muted game-trade-hint">가상 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
       <section class="ops-section game-rules" aria-labelledby="gameRulesTitle"><h2 id="gameRulesTitle">규칙</h2>
         <ul>
-          <li>"${point(STAKE)} 걸고 상대 찾기"를 누르면 판돈 ${point(STAKE)}를 걸고 기다리는 사람과 무작위로 짝을 지어요. 기다리는 사람이 없으면 내가 기다려요.</li>
-          <li>${matchTime()} 안에 상대를 찾지 못하면 매칭이 취소되고 판돈을 돌려받아요. 기다리는 동안 "취소하고 ${point(STAKE)} 돌려받기"로 언제든 그만둘 수 있어요.</li>
+          <li>"${point(STAKE)} 걸고 상대 찾기"를 누르면 기다리는 사람과 무작위로 짝을 지어요. 기다리는 사람이 없으면 내가 기다려요.</li>
+          <li>판돈 ${point(STAKE)}는 짝이 지어질 때 빠져요. ${matchTime()} 안에 상대를 찾지 못하면 매칭이 취소돼요. 기다리는 동안 언제든 취소할 수 있어요.</li>
           <li>판이 끝나면 "한 판 더 하기"로 같은 상대에게 다시 하자고 할 수 있어요. 둘 다 수락하면 바로 시작하고, 상대가 거부하면 새 상대를 찾아요.</li>
-          <li>둘 다 카드 2장으로 시작해 번갈아 히트(한 장 더)나 스탠드를 골라요.</li>
-          <li>${lobby.maxPerTurn > 1 ? '카드를 받지 않고 스탠드한 사람' : '먼저 스탠드한 사람'}은 그대로 멈추고, 남은 사람만 계속 골라요.</li>
-          <li>21이 되거나 버스트돼도 자동으로 멈추지 않아요. 스탠드를 눌러야 멈춰요.</li>
-          <li>둘 다 스탠드하면 모든 카드를 공개하고 승부를 가려요.</li>
-          <li>상대 카드는 첫 장만 보여요. 21에 더 가까운 사람이 판돈 ${point(STAKE * 2)}를 가져가요.</li>
-          <li>둘 다 버스트이거나 점수가 같으면 판돈을 돌려받아요.</li>
+          <li>둘 다 카드 2장으로 시작해요. 상대 카드는 첫 장만 보여요.</li>
+          <li>매 라운드 두 사람이 동시에 히트(한 장 더)나 스탠드를 골라요. 상대가 무엇을 골랐는지는 공개될 때까지 보이지 않아요.</li>
+          <li>한 번 고르면 바꿀 수 없어요. 둘 다 고르면 두 사람의 선택을 함께 공개하고, 히트한 사람에게 카드를 한 장씩 줘요.</li>
           <li>${TURN_SECONDS}초 안에 고르지 않으면 스탠드로 처리돼요.</li>
+          <li>스탠드하면 이번 판에서 멈춰요. 남은 사람만 계속 골라요.</li>
+          <li>21이 되거나 버스트돼도 자동으로 멈추지 않아요. 스탠드를 눌러야 멈춰요.</li>
+          <li>둘 다 멈추면 모든 카드를 공개해요. 21에 더 가까운 사람이 판돈 ${point(STAKE * 2)}를 가져가요.</li>
+          <li>둘 다 버스트이거나 점수가 같으면 판돈을 돌려받아요.</li>
           <li>게임 도중 화면을 나가면 몰수패가 되고, 상대가 판돈 ${point(STAKE * 2)}를 가져가요.</li>
-          ${lobby.maxPerTurn > 1 ? `<li>내 차례 한 번에 최대 ${lobby.maxPerTurn}장까지 히트할 수 있어요. 다 받으면 차례가 넘어가요. 이번 차례에 카드를 받은 뒤 스탠드하면 차례만 넘기고 다음 차례에 또 받을 수 있어요. 카드를 받지 않고 스탠드하면 이번 판에서 멈춰요.</li>` : ''}
           ${lobby.maxDraws !== null ? `<li>한 판에 처음 2장 외에 최대 ${lobby.maxDraws}장까지 더 받을 수 있어요.</li>` : ''}
         </ul>
         <h3>카드 점수</h3>
         <dl class="game-terms"><div><dt>2~10</dt><dd>적힌 숫자 그대로</dd></div><div><dt>J · Q · K</dt><dd>10점</dd></div><div><dt>A</dt><dd>1점이나 11점. 21을 넘지 않는 쪽으로 자동으로 계산돼요.</dd></div></dl>
         <h3>용어</h3>
-        <dl class="game-terms"><div><dt>히트</dt><dd>카드를 한 장 더 받아요.</dd></div><div><dt>스탠드</dt><dd>${lobby.maxPerTurn > 1 ? '이번 차례에 카드를 받았다면 차례를 넘겨요. 받지 않았다면 지금 점수로 멈추고, 이번 판에서는 다시 받을 수 없어요.' : '카드를 더 받지 않고 지금 점수로 멈춰요. 이번 판에서는 다시 받을 수 없어요.'}</dd></div><div><dt>버스트</dt><dd>카드 점수 합이 21을 넘은 상태예요. 버스트되면 져요.</dd></div></dl>
+        <dl class="game-terms"><div><dt>히트</dt><dd>카드를 한 장 더 받아요.</dd></div><div><dt>스탠드</dt><dd>카드를 더 받지 않고 지금 점수로 멈춰요. 이번 판에서는 다시 받을 수 없어요.</dd></div><div><dt>버스트</dt><dd>카드 점수 합이 21을 넘은 상태예요. 버스트되면 져요.</dd></div></dl>
       </section>`;
   }
 

@@ -162,6 +162,10 @@
 .design-web .festival-games .game-bj-center { padding: 4px 0; }
 .design-web .festival-games .game-bj-turn { margin: 0; font-size: 14px; font-weight: 650; text-align: center; color: var(--muted); }
 .design-web .festival-games .game-bj-turn.mine { color: var(--primary); }
+/* 1.49 simultaneous rounds: round number, the opponent's "선택 완료", and my chosen button (disabled until the reveal). */
+.design-web .festival-games .game-bj-round { margin: 0 0 4px; font-size: 12px; font-weight: 700; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.design-web .festival-games .game-bj-seat-head .game-bj-ready.is-ready { color: var(--primary); font-weight: 700; }
+.design-web .festival-games .game-trade-actions .is-chosen:disabled { opacity: 1; outline: 2px solid var(--primary); outline-offset: 2px; }
 .design-web .festival-games .game-bj-timer { position: relative; display: block; height: 6px; margin: 10px 0 22px; border-radius: 999px; background: var(--line); }
 .design-web .festival-games .game-bj-timer i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s linear; }
 .design-web .festival-games .game-bj-timer b { position: absolute; right: 0; top: 10px; font-size: 12px; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
