@@ -55,8 +55,9 @@ const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4n
 const output=path.join(root,'artifacts/waiting'); fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
 const pages=[], uploads=[], boothUploads=[], removed=[];
-async function pageFor(a,width=390) {
-  const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true});
+const IPHONE_CHROME='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.90 Mobile/15E148 Safari/604.1';
+async function pageFor(a,width=390,userAgent) {
+  const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true,...(userAgent?{userAgent}:{})});
   await context.addInitScript(a=>localStorage.setItem('pangyo-google-session-v1',JSON.stringify({access_token:a.jwt,refresh_token:'fixture',token_type:'bearer',expires_at:4102444800,expires_in:3600,user:{id:a.id}})),a);
   const page=await context.newPage(), errors=[];
   page.on('pageerror',e=>errors.push(e.message)); page.on('dialog',d=>d.accept(d.type()==='prompt'?'재료 소진으로 오늘 운영을 마쳐요':undefined));
@@ -211,14 +212,26 @@ try {
   await m.page.locator('.waiting-qr-code svg').waitFor();
   await check(m.page,'manager-qr');
   const token=(await db.query('select festival_ops.waiting_qr_token(s) t from festival_ops.waiting_settings s where booth_key=$1',[CLUB])).rows[0].t;
-  const q=await pageFor(lead);
+  // This one is an iPhone in Chrome: registering pops up the home-screen steps, naming no browser.
+  const q=await pageFor(lead,390,IPHONE_CHROME);
   await q.page.evaluate(([booth,token])=>{sessionStorage.setItem('pangyo-waiting-qr-v1',JSON.stringify({booth,token,at:Date.now()}));state.waitingBooth=booth;navigateTo('waitingJoin');},[CLUB,token]);
   await q.page.locator('.waiting-join-card [data-waiting-join-form]').waitFor();
   await check(q.page,'qr-join');
   await q.page.locator('.waiting-join-card button[type=submit]').click();
   await q.page.locator('.waiting-ticket h1',{hasText:'웨이팅 등록 완료'}).waitFor();
   assert.match(await q.page.locator('.waiting-ticket').innerText(),/현장 QR 등록/);
-  flows.push('qr registration');
+  const popup=q.page.locator('dialog.waiting-apple-dialog[open]');
+  await popup.waitFor();
+  const popupText=await popup.innerText();
+  assert.match(popupText,/지금 이대로는 알림이 오지 않아요[\s\S]*홈 화면에 추가[\s\S]*브라우저의[\s\S]*공유[\s\S]*같은 계정으로 로그인/);
+  assert.doesNotMatch(popupText,/Safari/);
+  await q.page.waitForTimeout(350);
+  await check(q.page,'iphone-popup');
+  await popup.locator('[data-waiting-apple-ok]').click();
+  await popup.waitFor({state:'detached'});
+  const card=await q.page.locator('[data-waiting-alert].is-apple').innerText();
+  assert.match(card,/브라우저의/); assert.doesNotMatch(card,/Safari/);
+  flows.push('qr registration','iphone popup');
 
   // Home banner and 내 정보 list.
   await routeTo(w3.page,'home');

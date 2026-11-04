@@ -3,7 +3,8 @@
    (/waiting/join/<booth>#q=<token>), pick the party size, and follow their place at /waiting/<id>.
    Places come from festival_waiting. While a waiting is open the pages read it again every 10 seconds and
    say in the page when the teams ahead go down. Push notifications (sw.js) reach the phone when the page
-   is closed: Android asks for permission here; an iPhone needs the site on the home screen first. */
+   is closed: Android asks for permission here; an iPhone needs the site on the home screen first, which a
+   popup right after registering insists on (1.60). */
 const festivalWaiting = (() => {
   const h = value => escapeHtml(String(value ?? ''));
   const ops = () => festivalAccount?.operations;
@@ -176,13 +177,38 @@ const festivalWaiting = (() => {
     } catch { /* The server forgets a stale subscription on its own. */ }
   }
 
+  // iPhone steps, shared by the card and the popup after registering. Since iOS 16.4 every iPhone browser
+  // (Safari, Chrome, Edge, ...) can add the site to the home screen, so the steps name no browser.
+  const appleSteps = () => `<ol><li>브라우저의 ${icon('share')} 공유 버튼을 눌러요. 보이지 않으면 메뉴(⋯)에서 '공유'를 찾아요.</li><li>'홈 화면에 추가'를 눌러요.</li><li>홈 화면에 생긴 '판교고 축제'로 열고, 같은 계정으로 로그인한 뒤 '알림 허용'을 눌러요.</li></ol>`;
+  // Shown over the ticket right after an iPhone registers in the browser, because there the notifications
+  // cannot arrive at all until the site is on the home screen.
+  function appleNotice() {
+    if (!isApple() || standalone()) return;
+    document.querySelector('.waiting-apple-dialog')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.className = 'waiting-apple-dialog';
+    dialog.setAttribute('aria-labelledby', 'waitingAppleTitle');
+    dialog.setAttribute('aria-describedby', 'waitingAppleLead');
+    dialog.innerHTML = `<span class="waiting-apple-icon" aria-hidden="true">${icon('bellRing')}</span>
+      <p class="waiting-apple-kicker">꼭 확인해 주세요</p>
+      <h2 id="waitingAppleTitle">지금 이대로는 알림이 오지 않아요</h2>
+      <p id="waitingAppleLead">iPhone은 이 사이트를 <strong>홈 화면에 추가</strong>해야 순서가 바뀌거나 입장할 차례가 됐을 때 알림을 받을 수 있어요.</p>
+      <div class="waiting-apple-steps">${appleSteps()}</div>
+      <p class="waiting-apple-keep">${icon('check')} 웨이팅은 이미 등록됐어요. 홈 화면 앱에서 같은 계정으로 로그인하면 그대로 이어서 볼 수 있어요.</p>
+      <button type="button" class="primary-btn full-action" data-waiting-apple-ok>확인했어요</button>`;
+    document.body.appendChild(dialog);
+    dialog.addEventListener('close', () => dialog.remove());
+    dialog.querySelector('[data-waiting-apple-ok]').addEventListener('click', () => dialog.close());
+    dialog.showModal();
+  }
+
   // What the student needs to do so a closed page still gets the notifications.
   function alertCard() {
     if (!ready()) return '';
     const p = permission();
     if (isApple() && !standalone()) {
       return `<section class="waiting-alert-card is-apple" data-waiting-alert>${icon('bell')}<div><strong>iPhone에서 알림을 받으려면 홈 화면에 추가해 주세요</strong>
-        <ol><li>Safari 아래쪽의 ${icon('share')} 공유 버튼을 눌러요.</li><li>'홈 화면에 추가'를 눌러요.</li><li>홈 화면에 생긴 '판교고 축제'로 열고, 로그인한 뒤 '알림 허용'을 눌러요.</li></ol>
+        ${appleSteps()}
         <small>지금 이 화면을 열어 두면 순서가 바뀔 때 화면에서 알려 드려요.</small></div></section>`;
     }
     if (!pushSupported()) return `<section class="waiting-alert-card" data-waiting-alert>${icon('bell')}<div><strong>이 브라우저는 알림을 받을 수 없어요</strong><small>이 화면을 열어 두면 순서가 바뀔 때 화면에서 알려 드려요.</small></div></section>`;
@@ -285,6 +311,7 @@ const festivalWaiting = (() => {
     join = null;
     mine = null; loadMine();
     open(response.data.id);
+    if (!response.data.already) appleNotice();
     ensurePush(false).then(done => { if (done) redraw('alert'); });
   }
 

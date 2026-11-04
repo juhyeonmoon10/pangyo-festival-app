@@ -66,6 +66,24 @@
 .waiting-alert-card .primary-btn { justify-self: start; }
 .waiting-alert-card.is-warning { background: #fdf3e2; }
 .waiting-alert-card.is-warning > .ui-icon { color: #b06a00; }
+/* iPhone popup after registering in the browser (1.60) */
+.waiting-apple-dialog { width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto; margin: auto; padding: 24px 20px 20px; border: 0; border-top: 6px solid var(--waiting-danger); border-radius: 22px; background: #fff; color: var(--text); text-align: center; box-shadow: 0 24px 60px #0d1a1440; }
+.waiting-apple-dialog::backdrop { background: #0d1a14b3; }
+.waiting-apple-dialog[open] { animation: waiting-apple-in .28s ease-out; }
+@keyframes waiting-apple-in { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .waiting-apple-dialog[open] { animation: none; } }
+.waiting-apple-icon { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: #fbe7e9; color: var(--waiting-danger); }
+.waiting-apple-icon .ui-icon { width: 34px; height: 34px; }
+.waiting-apple-dialog .waiting-apple-kicker { margin: 12px 0 0; color: var(--waiting-danger); font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+.waiting-apple-dialog h2 { margin: 4px 0 8px; font-size: 22px; line-height: 1.35; word-break: keep-all; }
+.waiting-apple-dialog p { margin: 0; line-height: 1.6; word-break: keep-all; }
+.waiting-apple-dialog #waitingAppleLead strong { color: var(--waiting-danger); }
+.waiting-apple-steps { margin: 16px 0 12px; padding: 14px 16px 14px 12px; border-radius: 14px; background: var(--surface-2); text-align: left; }
+.waiting-apple-steps ol { margin: 0; padding-left: 22px; line-height: 1.7; font-weight: 600; word-break: keep-all; }
+.waiting-apple-steps li + li { margin-top: 6px; }
+.waiting-apple-steps .ui-icon { width: 17px; height: 17px; vertical-align: -3px; color: var(--primary); }
+.waiting-apple-dialog .waiting-apple-keep { display: flex; gap: 6px; justify-content: center; align-items: flex-start; margin-bottom: 16px; color: var(--muted); font-size: 13px; text-align: left; }
+.waiting-apple-keep .ui-icon { flex: none; width: 16px; height: 16px; margin-top: 3px; color: var(--primary); }
 .waiting-alert-ok { display: flex; gap: 6px; align-items: center; margin: 0; color: var(--primary); font-size: 13px; font-weight: 600; }
 .waiting-alert-ok .ui-icon { width: 16px; height: 16px; }
 
