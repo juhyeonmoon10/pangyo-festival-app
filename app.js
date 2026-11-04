@@ -2014,18 +2014,17 @@ function mapView() {
   const plan = mapPlanForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : state.sheetLevel === "mid" ? "부스 목록 더 펼치기" : "부스 목록 펼치기";
+  // 1.57: no visible banner; the title stays for screen readers and the temporary-placement warning moves onto the map.
+  const placeNote = floorPlaceNote(state.floor);
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
-      <header class="top-bar tab-header">
-        <h1>부스 지도</h1>
-        <span class="map-location-note">${floorPlaceNote(state.floor)}</span>
-      </header>
+      <h1 class="sr-only">부스 지도</h1>
       <div class="festival-map-tools"><label class="map-search-bar search-screen-input ${state.search ? 'has-clear' : ''}">
         ${icon('search')}<input id="searchScreenInput" aria-label="부스 이름이나 위치 검색" placeholder="부스, 동아리, 교실 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" /><button id="clearSearchScreen" class="icon-btn" type="button" aria-label="검색어 지우기" ${state.search ? '' : 'hidden'}>${icon('close')}</button>
       </label><div class="festival-map-filter"><span>${floorInfo.label} · ${floorInfo.caption}</span><span>${icon('check')} 방문 완료</span></div></div>
       <section class="map-stage">
         ${floorTabsView()}
-        <div class="map-context-bar"><span>${plan.subtitle}</span></div>
+        <div class="map-context-bar"><span>${plan.subtitle}</span>${placeNote === "판교고" ? "" : `<span class="map-location-note">${placeNote}</span>`}</div>
         ${mapCanvasView(booths, plan)}
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
@@ -4204,7 +4203,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.56";
+const APP_RELEASE = "1.57";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;
