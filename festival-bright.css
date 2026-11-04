@@ -652,3 +652,12 @@ body.design-web {
 .booth-review-summary.booth-review-private { display: block; padding: 18px 0; }
 .booth-review-private p { margin: 0; }
 .ops-field-note { margin: -4px 0 4px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+/* 1.62: the newest important notice under the home header, in a light red strip. */
+.web-important-notice { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 10px; padding: 11px 12px 11px 14px; border: 1px solid #f6d3d1; border-radius: 14px; background: #fdf0ef; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.web-important-notice .web-news-flag { flex: none; margin: 0; background: #fff; vertical-align: 0; }
+.web-important-copy { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.web-important-copy strong, .web-important-copy small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.web-important-copy strong { color: #8f3036; font-size: 15px; }
+.web-important-copy small { color: #8a5a5c; font-size: 13px; }
+.web-important-notice > .ui-icon { flex: none; width: 18px; height: 18px; color: #a14449; }
+.web-important-notice:focus-visible { outline: 2px solid #a14449; outline-offset: 2px; }

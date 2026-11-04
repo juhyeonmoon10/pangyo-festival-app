@@ -177,7 +177,21 @@ try {
   flows.push('manager edit','manager approval');
 
   // Participant: a notice in the home 공지 section opens the notice page with its photo; the bell opens the list.
+  // An older important notice and a newer plain one: the strip under the header shows only the newest important one.
+  await db.query(`insert into festival_ops.notices(event_id,title,body,important,created_at) select event_id,'지난 중요 공지','어제 안내',true,now()-interval '1 hour' from festival_ops.notices limit 1`);
+  await db.query(`insert into festival_ops.notices(event_id,title,body,important,created_at) select event_id,'일반 공지','중요하지 않음',false,now()+interval '1 minute' from festival_ops.notices limit 1`);
   const v=await pageFor(visitor);
+  await routeTo(v.page,'home');
+  const strip=v.page.locator('.web-important-notice');
+  await strip.waitFor();
+  assert.equal(await strip.count(),1);
+  assert.equal(await v.page.evaluate(()=>document.querySelector('.web-brand').nextElementSibling?.className),'web-important-notice');
+  assert.equal(await strip.locator('strong').innerText(),'부스 운영 시간 안내');
+  assert.equal(await strip.locator('small').innerText(),'오늘 부스는 오후 4시까지 운영해요.');
+  assert.equal(await strip.locator('[aria-label*="닫기"]').count(),0);
+  await check(v.page,'home-important-notice');
+  await strip.click();
+  await v.page.locator('.festival-notice-article h2',{hasText:'부스 운영 시간 안내'}).waitFor();
   await routeTo(v.page,'home');
   await v.page.locator('#homeNews [data-notice-open]').first().click();
   await v.page.locator('.festival-notice-article h2',{hasText:'부스 운영 시간 안내'}).waitFor();
@@ -191,7 +205,7 @@ try {
   await v.page.locator('.festival-notice-row').first().waitFor();
   await v.page.locator('.festival-notice-row').first().click();
   await v.page.locator('.festival-notice-article').waitFor();
-  flows.push('notice strip','notice list');
+  flows.push('important notice strip','notice strip','notice list');
 
   // Booth page shows the manager's program; 지도에서 위치 보기 then X stays on the map.
   const id=await v.page.evaluate(k=>state.db.booths.find(b=>boothKeyFor(b)===k)?.id,CLUB);

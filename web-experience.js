@@ -213,6 +213,16 @@ const festivalWeb = (() => {
     return `<div class="festival-empty"><span>${icon('message')}</span><strong>남길 후기가 없어요</strong><p>새로운 부스를 방문해 보세요.</p><button type="button" class="ghost-btn" data-route="map">부스 찾아보기 ${icon('arrow')}</button></div>`;
   }
 
+  // 1.62: the newest important notice under the header, its title and the first line of its body. It
+  // cannot be closed and opens the notice; the 공지 section below still lists it too.
+  function importantNotice(news) {
+    const latest = news.filter(n => n.important && n.id)
+      .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0))[0];
+    if (!latest) return "";
+    const line = String(latest.body || "").split("\n").map(text => text.trim()).find(Boolean) || "";
+    return `<button type="button" class="web-important-notice" data-notice-open="${escapeHtml(latest.id)}"><span class="web-news-flag">중요</span><span class="web-important-copy"><strong>${escapeHtml(latest.title)}</strong>${line ? `<small>${escapeHtml(line)}</small>` : ""}</span>${icon("arrow")}</button>`;
+  }
+
   function home() {
     syncRewards();
     const visits = repo.stampsForUser(state.user.id);
@@ -226,6 +236,7 @@ const festivalWeb = (() => {
     const voucherCount = coupons().filter(c => couponState(c) === "available").length;
     return `<main class="web-home">
       <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-route="notices" aria-label="공지" title="공지">${icon("bell")}</button></div></header>
+      ${importantNotice(news)}
       ${isServerMode() && typeof festivalWaiting !== "undefined" ? festivalWaiting.homeBanner() : ""}
       <section class="web-welcome"><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 모아봐요.</h1></section>
       ${identityPrompt()}
