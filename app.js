@@ -103,6 +103,8 @@ function navigationSnapshot() {
     reviewPickerOpen: state.reviewPickerOpen,
     noticeId: state.noticeId || null,
     gameStockId: state.gameStockId || null,
+    waitingId: state.waitingId || null,
+    waitingBooth: state.waitingBooth || null,
     mapSelection: state.route === "map" && Boolean(state.selectedBoothId && state.mapSelectionEntry),
   };
 }
@@ -122,7 +124,8 @@ function navigateTo(route, { replace = false } = {}) {
   // Leaving a blackjack game in progress asks first and forfeits it (1.42).
   if (typeof festivalGames !== "undefined" && !festivalGames.allowLeave(route)) return;
   const changed = state.route !== route || (window.FestivalRouter?.isWeb(location)
-    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId,gameStockId:state.gameStockId}) !== location.pathname);
+    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId,gameStockId:state.gameStockId,
+      waitingId:state.waitingId,waitingBooth:state.waitingBooth}) !== location.pathname);
   if (window.FestivalRouter && !state.user && route !== "login") {
     pendingNavigation = { ...navigationSnapshot(), route };
     route = "login";
@@ -141,6 +144,8 @@ function applyNavigationSnapshot(snapshot) {
   state.mapSelectionEntry = Boolean(snapshot.mapSelection);
   state.noticeId = snapshot.noticeId || null;
   state.gameStockId = snapshot.gameStockId || null;
+  state.waitingId = snapshot.waitingId || null;
+  state.waitingBooth = snapshot.waitingBooth || null;
   state.sheetLevel = snapshot.sheetLevel || "peek";
   state.sheetOpen = state.sheetLevel !== "peek";
   state.searchOpen = Boolean(snapshot.searchOpen);
@@ -443,6 +448,8 @@ function readInitialSunClaim() {
   return createNfcClaim(token, "sun-url");
 }
 
+// 1.59: an on-site waiting QR (/waiting/join/<booth>#q=…) keeps its token for this tab, out of the address.
+if (typeof festivalWaiting !== "undefined") festivalWaiting.readQrFromUrl();
 state.pendingNfcClaim = readInitialNfcClaim() || readInitialSunClaim();
 
 // Public club profiles imported from Chatdong. Classroom assignments are temporary
@@ -1242,12 +1249,6 @@ function formatTime(value) {
   return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(new Date(value));
 }
 
-function formatOperatingHours(booth) {
-  // Booth managers enter the hours (program.hours). Plain text: escape before putting it in HTML.
-  if (isServerMode()) return booth.opsRecord?.program?.hours || "운영 시간 미등록";
-  return `${formatTime(booth.opensAt)}–${formatTime(booth.closesAt)}`;
-}
-
 // One place for a booth on every screen: the manager's location, else the chosen map room, else
 // the bundled classroom marked as temporary. Plain text: escape before putting it in HTML.
 function boothPlace(booth) {
@@ -1491,6 +1492,9 @@ function render() {
     if (state.route === "notices") app.innerHTML = festivalNotices.listView();
     if (state.route === "notice") app.innerHTML = festivalNotices.detailView();
     if (state.route === "manage") app.innerHTML = festivalBoothManager.view();
+    if (state.route === "waiting") app.innerHTML = festivalWaiting.entryView();
+    if (state.route === "waitingJoin") app.innerHTML = festivalWaiting.joinView();
+    if (state.route === "manageWaiting") app.innerHTML = festivalWaitingManager.view();
     if (state.route === "boothReviews") app.innerHTML = boothReviewsView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
@@ -1754,6 +1758,7 @@ function profileView() {
       </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "관리 마법사 열기" : "관리 마법사 열기"}</button>` : ""}
       ${typeof festivalBoothManager !== "undefined" ? festivalBoothManager.profileButton() : ""}
+      ${typeof festivalWaiting !== "undefined" ? festivalWaiting.profileList() : ""}
       <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(v => festivalWeb.visitRow(v)).join('') : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
@@ -2161,9 +2166,8 @@ function boothItem(booth) {
   const rating = ratingInfo(booth.id);
   const officialClub = Boolean(booth.officialClubId);
   const facility = booth.category === "facility";
-  const metaText = escapeHtml(officialClub
-    ? `${boothPlaceText(booth)} · ${formatOperatingHours(booth)}`
-    : facility ? `${booth.clubName} · ${booth.location}` : `${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}`);
+  // 1.59: operating hours are gone; the line is where the booth is.
+  const metaText = escapeHtml(officialClub ? boothPlaceText(booth) : `${booth.clubName} · ${booth.location}`);
   return `
     <button class="booth-item ${booth.category || "class"} ${officialClub || booth.image ? "has-club-visual" : ""} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       ${officialClub || booth.image ? clubVisual(booth) : ""}
@@ -2194,6 +2198,40 @@ function mapPreviewCard(booth) {
   `;
 }
 
+// 1.59: posters under 부스 소개 (reduced copies; the originals are only for operators). A poster opens
+// full size in a viewer with previous and next.
+function boothPosterPaths(booth) {
+  const list = isServerMode() && Array.isArray(booth.opsRecord?.posters) ? booth.opsRecord.posters : [];
+  return list.map(path => festivalAccount?.boothImages?.url(path)).filter(Boolean);
+}
+function boothPostersMarkup(booth) {
+  const urls = boothPosterPaths(booth);
+  if (!urls.length) return "";
+  return `<section class="panel section booth-posters"><div class="section-heading"><h2>포스터</h2><span>${urls.length}장</span></div>
+    <div class="booth-poster-strip">${urls.map((url, i) => `<button type="button" class="booth-poster" data-poster-open="${i}" aria-label="포스터 ${i + 1} 크게 보기"><img src="${escapeHtml(url)}" alt="${escapeHtml(catalogBooth(booth)?.name || booth.name)} 포스터 ${i + 1}" loading="lazy"></button>`).join("")}</div></section>`;
+}
+function openPosterViewer(booth, start) {
+  const urls = boothPosterPaths(booth);
+  if (!urls.length) return;
+  document.querySelector(".poster-viewer")?.remove();
+  let at = Math.min(Math.max(0, start), urls.length - 1);
+  const dialog = document.createElement("dialog");
+  dialog.className = "poster-viewer";
+  dialog.setAttribute("aria-label", "포스터 보기");
+  const draw = () => {
+    dialog.innerHTML = `<header><span>${at + 1} / ${urls.length}</span><button type="button" class="icon-btn" data-poster-close aria-label="닫기">${icon("close")}</button></header>
+      <img src="${escapeHtml(urls[at])}" alt="${escapeHtml(catalogBooth(booth)?.name || booth.name)} 포스터 ${at + 1}">
+      ${urls.length > 1 ? `<nav><button type="button" class="icon-btn" data-poster-step="-1" aria-label="이전 포스터" ${at === 0 ? "disabled" : ""}>${icon("back")}</button><button type="button" class="icon-btn" data-poster-step="1" aria-label="다음 포스터" ${at === urls.length - 1 ? "disabled" : ""}>${icon("arrow")}</button></nav>` : ""}`;
+    dialog.querySelector("[data-poster-close]").onclick = () => dialog.close();
+    dialog.querySelectorAll("[data-poster-step]").forEach(b => { b.onclick = () => { at = Math.min(urls.length - 1, Math.max(0, at + Number(b.dataset.posterStep))); draw(); }; });
+  };
+  draw();
+  document.body.appendChild(dialog);
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+  dialog.showModal();
+}
+
 function detailView() {
   const booth = state.db.booths.find((item) => item.id === state.selectedBoothId);
   if (!booth) return missingBoothView();
@@ -2211,7 +2249,7 @@ function detailView() {
           : `<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button>`}
       </header>
       <section class="detail-hero">
-        <div class="detail-status-row">${statusBadge(booth.status)}<span>${escapeHtml(formatOperatingHours(booth))}</span></div>
+        <div class="detail-status-row">${statusBadge(booth.status)}</div>
         <div class="detail-club-heading${booth.officialClubId || booth.image ? '' : ' is-text-only'}">
           ${booth.officialClubId || booth.image ? clubVisual(booth, "detail") : ""}
           <div>
@@ -2229,11 +2267,13 @@ function detailView() {
         <button type="button" class="ghost-btn full-action detail-review-link" data-open-booth-reviews="${escapeHtml(booth.id)}">${icon("message")}<span>리뷰 보기</span><b data-review-count-link>${escapeHtml(reviewCountText(rating))}</b>${icon("arrow")}</button>
         <button type="button" class="text-link festival-locate" data-locate-booth="${escapeHtml(booth.id)}">${icon('map')} 지도에서 위치 보기</button>
       </section>
+      ${typeof festivalWaiting !== "undefined" ? festivalWaiting.boothSection(booth) : ""}
       <p class="detail-data-note">${isServerMode() ? (booth.placed ? "부스 위치는 부스 담당자가 등록했어요." : "지도 위치는 임시 배치예요. 실제 부스 위치는 운영 안내를 확인해 주세요.") : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
       <section class="panel section">
         <h2>부스 소개</h2>
         <p class="subtitle">${escapeHtml(booth.description)}</p>
       </section>
+      ${boothPostersMarkup(booth)}
       ${festivalWeb.program(booth)}
       <section class="panel section">
         <h2>방문 인증</h2>
@@ -3133,6 +3173,12 @@ function bindEvents() {
   if (typeof festivalBoothManager !== "undefined") festivalBoothManager.bind();
   if (typeof festivalVoucherManager !== "undefined") festivalVoucherManager.bind();
   if (typeof festivalGames !== "undefined") festivalGames.bind();
+  if (typeof festivalWaiting !== "undefined") festivalWaiting.bind();
+  if (typeof festivalWaitingManager !== "undefined") festivalWaitingManager.bind();
+  document.querySelectorAll("[data-poster-open]").forEach((button) => button.addEventListener("click", () => {
+    const booth = state.db.booths.find((item) => item.id === state.selectedBoothId);
+    if (booth) openPosterViewer(booth, Number(button.dataset.posterOpen));
+  }));
 }
 
 function closeMenus() {
@@ -3413,6 +3459,8 @@ async function resetLogin() {
     if (state.loginBusy) return false;
     state.loginBusy = true;
     try {
+      // This phone stops getting the account's waiting notifications.
+      if (typeof festivalWaiting !== "undefined") await festivalWaiting.signOut();
       const response = await festivalAccount?.signOut();
       if (response?.error) throw response.error;
     } catch {
@@ -4203,7 +4251,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.58";
+const APP_RELEASE = "1.59";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

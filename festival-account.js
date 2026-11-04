@@ -465,6 +465,44 @@
     const noticeImages = publicImages("festival-notices", "notices");
     const boothImages = publicImages("festival-booths", "booths");
 
+    // 1.59: poster originals, stored exactly as uploaded (up to 20 MB) in the private 'festival-booth-posters'
+    // bucket. Only the uploader and operators read them back (관리 마법사 → 부스 포스터 원본); visitors see a
+    // reduced copy in 'festival-booths'.
+    const POSTER_TYPES = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic", heif: "image/heif" };
+    const posterPath = path => /^posters\/[0-9a-f]{32}\.(jpg|png|webp|heic|heif)$/.test(String(path));
+    const posterOriginals = {
+      MAX_BYTES: 20 * 1024 * 1024,
+      extension(file) {
+        const byType = Object.keys(POSTER_TYPES).find(ext => POSTER_TYPES[ext] === file?.type);
+        const byName = String(file?.name || "").split(".").pop().toLowerCase().replace("jpeg", "jpg");
+        return byType || (POSTER_TYPES[byName] ? byName : "");
+      },
+      async upload(file) {
+        const ext = this.extension(file);
+        if (!ext) return { ok: false, message: "JPG·PNG·WebP·HEIC 이미지만 올릴 수 있어요." };
+        if (file.size > this.MAX_BYTES) return { ok: false, message: "포스터 원본은 한 장에 20MB까지 올릴 수 있어요." };
+        const path = `posters/${Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("")}.${ext}`;
+        try {
+          const { error } = await client.storage.from("festival-booth-posters").upload(path, file, { contentType: POSTER_TYPES[ext], cacheControl: "31536000", upsert: false });
+          if (error) return { ok: false, ...normalizeError(error) };
+          return { ok: true, path };
+        } catch (error) { return { ok: false, ...normalizeError(error) }; }
+      },
+      async download(path) {
+        if (!posterPath(path)) return { ok: false, message: "포스터 원본을 찾을 수 없어요." };
+        try {
+          const { data, error } = await client.storage.from("festival-booth-posters").download(path);
+          if (error || !data) return { ok: false, message: "포스터 원본을 내려받지 못했어요. 다시 시도해 주세요." };
+          return { ok: true, blob: data };
+        } catch { return { ok: false, message: "포스터 원본을 내려받지 못했어요. 다시 시도해 주세요." }; }
+      },
+      async remove(paths) {
+        const listed = (paths || []).filter(posterPath);
+        if (!listed.length) return;
+        try { await client.storage.from("festival-booth-posters").remove(listed); } catch { /* A leftover file is harmless. */ }
+      },
+    };
+
     // Point minigames (가상주식, 블랙잭) run on ORBIT's own functions and tables in the same project.
     // They move public.users.money, the one 보유 포인트 balance (1.52), never the voucher ledgers.
     // Errors keep the server's code (e.g. INSUFFICIENT_POINTS) so the games screen can word them.
@@ -516,7 +554,7 @@
     };
 
     return { initialize, signIn, profile, claim, updateProfile, receiveCallback, savePending, pending,
-      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, games,
+      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, posterOriginals, games,
       reviewIdentity: async (action, payload) => {
         try {
           const { data, error } = await client.rpc('festival_review_identity_student', { p_action: action, p_payload: payload });

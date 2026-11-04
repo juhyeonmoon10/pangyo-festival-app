@@ -1,7 +1,7 @@
 // Real browser and operations SQL; all remote requests terminate in local PGlite (storage is mocked).
 // Every screen where an action can fail: the failure is forced, then the message must sit next to the
 // pressed button and inside the viewport (not at the top of the screen), and typed input must stay.
-// Also covers operating hours picked with time inputs.
+// Also covers 예상 소요시간 (1.59, minutes) in 부스 관리.
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -42,7 +42,7 @@ async function account(admin,studentNumber,name='격리 학생') {
 const admin=await account(true,'29999','격리 운영자');
 const write=(a,k,p)=>rpc(a,'select public.festival_ops_write($1,$2,$3) value',[k,p,randomUUID()]);
 await write(admin,'event_save',{name:'오류 위치 격리 검증',state:'open',reviewPoints:10,version:0});
-for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions','sun-nfc','booth-managers','notice-images','booth-profile','manual-voucher-issue'])
+for(const file of ['review-identity.draft','reward-visits','reward-fixed-milestones','voucher-unlimited-and-reset','review-identity-self','voucher-short-code','review-distribution-self-redeem','nfc-tag-registry','claim-guard','booth-bulk-and-tag-register','notices','operator-identity-and-scoped-reset','self-identity-and-own-club-stamps','student-number-display','student-number-only','operator-self-actions','sun-nfc','booth-managers','notice-images','booth-profile','manual-voucher-issue','waiting'])
   await db.exec(fs.readFileSync(path.join(root,`operations-server/${file}.sql`),'utf8'));
 for(const {key} of (await db.query('select key from festival_ops.booths')).rows) await write(admin,'booth_save',{booth:key,name:key,status:'open',floor:1,version:1});
 const eventId=(await db.query('select id from festival_ops.events where current')).rows[0].id;
@@ -129,7 +129,7 @@ async function near(page,name,message,button,text) {
 }
 const ERR=/입력한 내용을 확인해 주세요/;
 try {
-  // 부스 관리 (manager): save, photo upload, hours, lookup, approve.
+  // 부스 관리 (manager): save, photo upload, minutes, lookup, approve.
   const m=await pageFor(lead);
   await routeTo(m.page,'profile');
   await m.page.locator('[data-route=manage]').click();
@@ -148,24 +148,17 @@ try {
   await near(m.page,'manager-photo-upload','[data-spot="save"]','[data-manager-save] button[type=submit]',/요청을 완료하지 못했어요|사진을 올리지 못했어요/);
   await form.locator('[data-manager-photo-undo]').click();
 
-  // Operating hours with the clock picker: an end before the start, then two ranges.
-  const rows=form.locator('[data-hour-row]');
-  await rows.nth(0).locator('[name=hourFrom]').fill('12:00');
-  await rows.nth(0).locator('[name=hourTo]').fill('10:00');
+  // 1.59: 예상 소요시간 in minutes (operating hours are gone): out of range, then saved.
+  const minutes=form.locator('[name=durationMinutes]');
+  await minutes.fill('500');
   await form.locator('button[type=submit]').click();
-  await near(m.page,'manager-hours','[data-spot="hours"]','[data-hours-add]',/끝 시간은 시작 시간보다 늦어야 해요/);
-  await rows.nth(0).locator('[name=hourFrom]').fill('10:00');
-  await rows.nth(0).locator('[name=hourTo]').fill('12:00');
-  await form.locator('[data-hours-add]').click();
-  await rows.nth(1).locator('[name=hourFrom]').fill('13:00');
-  await rows.nth(1).locator('[name=hourTo]').fill('15:30');
-  await m.page.screenshot({path:path.join(output,'manager-hours-picker.png')});
+  await near(m.page,'manager-duration','[data-spot="save"]','[data-manager-save] button[type=submit]',/예상 소요시간은 1~240분/);
+  await minutes.fill('15');
   await form.locator('button[type=submit]').click();
   await near(m.page,'manager-save-success','[data-spot="save"]','[data-manager-save] button[type=submit]',/부스 정보를 저장했어요/);
-  const saved=(await db.query('select description,program from festival_ops.booths where key=$1',[CLUB])).rows[0];
-  assert.equal(saved.program.hours,'10:00–12:00, 13:00–15:30'); assert.equal(saved.description,'저장이 실패해도 남아야 하는 소개');
-  assert.equal(await m.page.locator('[data-hour-row]').count(),2);
-  assert.equal(await m.page.locator('[data-hour-row] [name=hourTo]').nth(1).inputValue(),'15:30');
+  const saved=(await db.query('select description,program,duration_minutes from festival_ops.booths where key=$1',[CLUB])).rows[0];
+  assert.equal(saved.duration_minutes,15); assert.equal(saved.program.hours,undefined); assert.equal(saved.description,'저장이 실패해도 남아야 하는 소개');
+  assert.equal(await m.page.locator('[data-manager-save] [name=durationMinutes]').inputValue(),'15');
 
   await m.page.locator('[data-manager-lookup] [name=studentNumber]').fill('19999');
   await m.page.locator('[data-manager-lookup] button[type=submit]').click();

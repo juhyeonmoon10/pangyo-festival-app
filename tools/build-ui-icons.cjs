@@ -8,6 +8,9 @@ const names = {
   notice: 'Megaphone', refresh: 'RotateCcw', list: 'List', lock: 'LockKeyhole', message: 'MessageSquare',
   save: 'Save', copy: 'Copy', logout: 'LogOut', bell: 'Bell',
   game: 'Gamepad2', spade: 'Spade', trend: 'TrendingUp', hand: 'Hand',
+  // 1.59 웨이팅 and posters.
+  clock: 'Clock', qr: 'QrCode', users: 'Users', download: 'Download', image: 'Image', pause: 'Pause', play: 'Play',
+  bellRing: 'BellRing', share: 'Share', squarePlus: 'SquarePlus', printer: 'Printer',
 };
 const icons = Object.fromEntries(Object.entries(names).map(([name, key]) => {
   if (!lucide[key]) throw Error(`Missing icon ${key}`);

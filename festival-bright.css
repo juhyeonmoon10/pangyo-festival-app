@@ -620,14 +620,6 @@ body.design-web {
 .manager-list li { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
 .manager-list li.is-off { color: var(--muted); }
 .manager-list small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
-/* Operating hours picked with the phone's clock: 시작 – 끝, one row per time range. */
-.manager-hour-rows { display: grid; gap: 8px; }
-.manager-hour-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 8px; }
-.manager-hour-row label { display: grid; gap: 4px; min-width: 0; font-size: 13px; }
-.manager-hour-row input[type=time] { min-width: 0; width: 100%; padding-inline: 10px; font-size: 15px; }
-.manager-hour-row .icon-btn { position: absolute; top: -6px; right: 0; width: 28px; height: 28px; min-height: 0; padding: 0; }
-.manager-hour-row > span { display: none; }
-.manager-hours [data-hours-add] { justify-self: start; }
 /* Results shown next to the pressed button: progress in a neutral color, errors red, success green. */
 .ops-form-status[data-tone="info"] { color: var(--muted, #5b6470); }
 .ops-form-status[data-tone="error"] { color: #a62936; }
@@ -650,11 +642,10 @@ body.design-web {
 .design-web :is(.map-screen .sheet .booth-main .meta, .map-sheet-title small, .search-result-list .booth-main .meta, .web-program .section-heading > span, .stamp-path-face small) { font-size: 12px; }
 .design-web .booth-stats i, .design-web .map-screen .sheet .booth-stats, .design-web .map-screen :is(.sheet, .search-result-list) .status-badge { font-size: 12px; }
 .design-web .booth-stats i, .design-web .map-screen .sheet .booth-stats i { height: 24px; font-size: 12px; font-weight: 700; }
-/* 44px touch targets in the operator tools and the hours editor. */
+/* 44px touch targets in the operator tools. */
 .design-web :is(.ops-bulk-quick .ghost-btn, .ops-notice-list .ghost-btn, .server-admin .nfc-issued-actions .ghost-btn) { min-height: 44px; }
 .design-web .ops-form .ops-checkbox, .design-web .ops-bulk-list .ops-checkbox { min-height: 44px; }
 .design-web .ops-checkbox input { width: 24px; height: 24px; flex: none; }
-.manager-hour-row .icon-btn { top: -14px; right: -8px; width: 44px; height: 44px; }
 /* 1.54: other participants' ratings and reviews stay private until an operator opens them. */
 .review-private-note, .booth-review-private p { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; padding: 12px 14px; border-radius: 8px; background: var(--surface-2); color: var(--muted); font-size: 13px; line-height: 1.6; }
 .review-private-note svg, .booth-review-private p svg { flex: none; width: 16px; height: 16px; margin-top: 3px; }

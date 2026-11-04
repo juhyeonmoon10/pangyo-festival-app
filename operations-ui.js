@@ -15,8 +15,40 @@ const festivalOpsUI = (() => {
   let visitRecipient=null;
   let visitSyncPending=false, visitSyncGeneration=0;
   let identity=null, identityBusy=false, identityNote='', identityQuery='', identityDraft='';
-  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',identity_overview:'소속 관리',booth_managers:'권한 관리',nfc:'NFC 발급',sun:'보안 NFC 카드','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정',minigames:'미니게임 관리'};
-  const localTabs=new Set(['tools','nfc','sun','booth_managers','stamp-simulator','settings','minigames']);
+  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',identity_overview:'소속 관리',booth_managers:'권한 관리',nfc:'NFC 발급',sun:'보안 NFC 카드','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정',minigames:'미니게임 관리',posters:'부스 포스터 원본'};
+  const localTabs=new Set(['tools','nfc','sun','booth_managers','stamp-simulator','settings','minigames','posters']);
+  // 1.59: 부스 포스터 원본 — every booth's posters as uploaded, for operators to download.
+  let posterList=null, posterLoading=false, posterFailure='', posterNote='';
+  async function loadPosters() {
+    if(posterLoading || !api()?.boothPosters) return;
+    posterLoading=true;
+    const actor=state.user?.id, r=await api().boothPosters();
+    posterLoading=false;
+    if(state.user?.id!==actor) return;
+    if(r.ok) { posterList=r.data.items || []; posterFailure=''; } else posterFailure=r.message;
+    if(state.route==='admin' && tab==='posters') render();
+  }
+  function posterAdminView() {
+    if(!posterList && !posterFailure) { queueMicrotask(loadPosters); return '<section class="ops-section"><h2>부스 포스터 원본</h2><p role="status">불러오는 중...</p></section>'; }
+    if(posterFailure) return `<section class="ops-section"><h2>부스 포스터 원본</h2><p class="ops-alert" role="alert">${h(posterFailure)}</p><button type="button" class="ghost-btn" data-poster-retry>${icon('refresh')} 다시 불러오기</button></section>`;
+    const size=n=>Number.isFinite(n) ? (n>=1048576 ? `${(n/1048576).toFixed(1)}MB` : `${Math.max(1,Math.round(n/1024))}KB`) : '';
+    return `<section class="ops-section"><h2>부스 포스터 원본</h2><p>부스 담당자가 올린 포스터를 원본 그대로 내려받아요. 방문자 화면에는 줄인 사본이 보여요.</p>
+      <p class="ops-form-status" role="status" data-spot="posters"${posterNote?' data-tone="error"':''}>${h(posterNote)}</p>
+      ${posterList.length ? posterList.map(b=>`<article class="ops-poster-booth"><h3>${h(b.name)} <span class="ops-count">${b.posters.length}장</span></h3><ul>${b.posters.map((p,i)=>`<li>
+        <img src="${h(festivalAccount?.boothImages?.url(p.image) || '')}" alt="${h(b.name)} 포스터 ${i+1}" loading="lazy"><span><strong>${h(p.name || `포스터 ${i+1}`)}</strong><small>${h([size(p.size), p.uploadedAt ? time(p.uploadedAt) : ''].filter(Boolean).join(' · '))}</small></span>
+        ${p.original ? `<button type="button" class="ghost-btn" data-poster-download="${h(p.original)}" data-poster-name="${h(p.name || `${b.name}-포스터-${i+1}`)}">${icon('download')} 원본</button>` : '<small>원본 없음</small>'}</li>`).join('')}</ul></article>`).join('')
+        : '<p class="ops-empty">아직 포스터를 올린 부스가 없어요.</p>'}</section>`;
+  }
+  async function downloadPoster(button) {
+    button.disabled=true; posterNote=''; showSpot('posters','내려받는 중...','info');
+    const r=await festivalAccount?.posterOriginals?.download(button.dataset.posterDownload);
+    button.disabled=false;
+    if(!r?.ok) { showSpot('posters',r?.message || '포스터 원본을 내려받지 못했어요.'); return; }
+    const url=URL.createObjectURL(r.blob), link=document.createElement('a');
+    link.href=url; link.download=button.dataset.posterName; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+    showSpot('posters','');
+  }
   const h=value=>escapeHtml(String(value ?? ''));
   const VOUCHER_CODE=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
   const api=()=>festivalAccount?.operations;
@@ -51,6 +83,7 @@ const festivalOpsUI = (() => {
     if(owner!==state.user?.id) reset();
     tab=next; offset=0; search=''; data=null; failure=''; notice='', noticeAt=null; loaded=localTabs.has(next);
     if(next==='settings') guardData=null;
+    if(next==='posters') { posterList=null; posterFailure=''; posterNote=''; }
     visitRecipient=null;
     closeDialog();
     render();
@@ -157,7 +190,7 @@ const festivalOpsUI = (() => {
     return `<nav class="festival-ops-tabs" aria-label="관리 마법사 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>${!['dashboard','tools','audit'].includes(tab) ? '<button type="button" class="text-link festival-tool-back" data-ops-tab="tools">'+icon('back')+' 관리 도구 목록</button>' : ''}`;
   }
   function toolsMenu() {
-    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['sun','lock','보안 NFC 카드 (NTAG 424)'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['booth_managers','user','권한 관리'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['minigames','game','미니게임 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
+    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['sun','lock','보안 NFC 카드 (NTAG 424)'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['booth_managers','user','권한 관리'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['posters','image','부스 포스터 원본'],['minigames','game','미니게임 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
     return `<nav class="festival-ops-tools" aria-label="관리 도구">${tools.map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</nav>`;
   }
   function eventForm() {
@@ -303,6 +336,7 @@ const festivalOpsUI = (() => {
     if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${boothStamps()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급'],['claim_guard','notice','부정 적립 감지']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
     if(tab==='claim_guard') return claimGuardView();
     if(tab==='notice_admin') return noticeAdminView();
+    if(tab==='posters') return posterAdminView();
     if(tab==='identity_overview') return identityAdminView();
     if(tab==='catalog') return bulkStatusForm()+boothForm()+table(catalog,[['부스','name'],['위치','location'],['상태',r=>statusName(r.status)]]);
     if(tab==='participants') return searchForm()+table(data?.items,[['학번',r=>r.student_number || '-'],['이름','name'],['방문','visits'],['포인트','points']])+paging()+`<section class="ops-section"><h2>리뷰 실명·소속 확인</h2><p>학번으로 계정을 찾아 동아리 명단과 연결하거나 확인을 취소해요.</p>${identityFinder()}<button type="button" class="ghost-btn" data-ops-tab="identity_overview">${icon('check')} 소속 관리 열기</button></section>`+accountDeleteForm();
@@ -745,7 +779,9 @@ const festivalOpsUI = (() => {
     if(owner!==state.user.id || !loaded || (changed && ['admin','map','vouchers','stamps','reviews','home','identity'].includes(state.route))) queueMicrotask(()=>refresh());
     document.querySelector('#opsTab')?.addEventListener('change',e=>selectTab(e.target.value));
     document.querySelectorAll('[data-ops-tab]').forEach(b=>b.onclick=()=>selectTab(b.dataset.opsTab));
-    document.querySelectorAll('[data-ops-refresh]').forEach(b=>b.onclick=()=>refresh());
+    document.querySelectorAll('[data-ops-refresh]').forEach(b=>b.onclick=()=>{ if(tab==='posters') { posterList=null; posterFailure=''; } refresh(); });
+    document.querySelectorAll('[data-poster-retry]').forEach(b=>b.onclick=()=>{ posterFailure=''; render(); });
+    document.querySelectorAll('[data-poster-download]').forEach(b=>b.onclick=()=>downloadPoster(b));
     document.querySelectorAll('[data-ops-form]').forEach(f=>f.addEventListener('submit',save));
     document.querySelectorAll('[data-unlimited]').forEach(box=>box.onchange=()=>{
       const input=box.form.elements[box.dataset.unlimited];
