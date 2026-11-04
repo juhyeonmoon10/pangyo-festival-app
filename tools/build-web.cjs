@@ -6,7 +6,8 @@ const {pagePattern} = require('../festival-router.js');
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, '.vercel', 'output');
 const entries = [
-  'index.html', 'app.js', 'festival-router.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css',
+  'index.html', 'app.js', 'festival-router.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css', 'ui-refinements.css',
+  'nfc-cards/index.html', 'nfc-cards/cards.js', 'nfc-cards/cards.css', 'assets/stamps/catalog.json',
   'web-experience.js', 'stamp-simulator.js', 'sun-nfc.js', 'sun-cards.js', 'festival-notices.js', 'booth-manager.js', 'voucher-manager.js', 'voucher-scan.js', 'programs.js', 'supabase-catalog.js',
   'festival-account.js', 'nfc-manager.js', 'festival-operations.js', 'operations-ui.js', 'operations.css',
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
@@ -19,7 +20,10 @@ function publicFiles() {
   const logos = fs.readdirSync(path.join(root, 'assets/clubs'))
     .filter(name => /^[a-f0-9-]{36}\.webp$/.test(name))
     .map(name => `assets/clubs/${name}`);
-  return [...entries, ...logos].sort();
+  const stamps = fs.readdirSync(path.join(root, 'assets/stamps'))
+    .filter(name => /^[a-f0-9-]{36}\.png$/.test(name))
+    .map(name => `assets/stamps/${name}`);
+  return [...entries, ...logos, ...stamps].sort();
 }
 
 // Scripts and connections stay on this site and the festival Supabase project; the one inline
@@ -75,7 +79,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.36',
+    version: '1.50',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,
@@ -88,6 +92,7 @@ function build() {
       { src: pagePattern, headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/deployment-info\\.json', headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/nfc/?', dest: '/index.html' },
+      { src: '/nfc-cards/?', dest: '/nfc-cards/index.html' },
       { handle: 'filesystem' },
       { src: pagePattern, dest: '/index.html' },
     ],

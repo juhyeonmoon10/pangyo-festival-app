@@ -34,7 +34,7 @@ const url = (file, query = '') => pathToFileURL(path.join(root, file)).href + qu
         await capture(name);
       }
       await page.evaluate(() => navigateTo('home'));
-      assert.match(await page.locator('.festival-wallet-link').innerText(), /받을 바우처 2/);
+      assert.match(await page.locator('.festival-wallet-link').innerText(), /받을 쿠폰 2/);
       assert.equal(await page.locator('.bottom-nav .nav-btn').count(), 4);
       await page.locator('.web-map-action').click();
       const nav = await page.locator('.bottom-nav').boundingBox();

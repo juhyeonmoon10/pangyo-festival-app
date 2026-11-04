@@ -1703,13 +1703,13 @@ function profileView() {
           </form>` : `<button id="editProfileName" type="button" class="text-link">${icon("user")} 이름 변경</button>`}
         <p class="profile-name-feedback" role="status">${escapeHtml(state.nameEdit.message)}</p>
       </section>
-      <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>바우처</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div><div><dt>방문 기록</dt><dd>${stampCount}<small>개</small></dd></div></dl>
+      <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>쿠폰</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div></dl>
       <section class="profile-list">
         ${isServerMode() ? festivalOpsUI.identityRow() : ""}
         <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
       </section>
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">
-        ${[["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
+        ${[["vouchers", "ticket", "나의 쿠폰"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
       </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "관리 마법사 열기" : "관리 마법사 열기"}</button>` : ""}
       ${typeof festivalBoothManager !== "undefined" ? festivalBoothManager.profileButton() : ""}
@@ -1929,10 +1929,13 @@ function mapPlanMarkup(plan, booths) {
       if (!booth) return `<div class="plan-room ${item.type}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms;${planLabelFit(item.label)}"><span>${item.label}</span></div>`;
       const visited = repo.hasStamp(state.user.id, booth.id);
       const selected = state.selectedBoothId === booth.id;
+      const fullLabel = String(catalogBooth(booth)?.name || booth.clubName || booth.name);
+      const koreanAlias = /^[a-z]/i.test(fullLabel) && booth.aliases?.find(alias=>/^[가-힣 ]+$/u.test(alias) && fullLabel.includes(alias));
+      const clubLabel = koreanAlias || fullLabel.replace(/\s*\([^)]*\)/gu,'').trim();
       return `
         <button type="button" class="plan-room ${item.type} booth-room status-${booth.status} ${visited ? "visited" : ""} ${selected ? "selected" : ""}" style="left:${item.x}%;top:${item.y}%;width:${item.w}%;height:${item.h}%;--stagger:${index * 12}ms;${planLabelFit(item.label)}" data-map-select="${booth.id}" aria-label="${escapeHtml(booth.name)}, ${statusInfo(booth.status).label}" title="${escapeHtml(booth.name)}">
-          <span>${item.label}</span>
-          <small>${booth.category === "class" ? "부스" : "안내"}</small>
+          <span class="plan-club-name">${escapeHtml(booth.officialClubId ? clubLabel : booth.name)}</span>
+          <small>${escapeHtml(item.label)}</small>
           <i class="room-state" aria-hidden="true">${icon("check")}</i>
         </button>
       `;
@@ -2741,7 +2744,7 @@ function userRow(user) {
       <div class="row-metrics"><span>방문 인증 ${stampCount}개</span><span>별점 등록 ${completeCount}개</span></div>
       ${user.exchangedAt
         ? `<p class="exchange-complete">${formatReviewDate(user.exchangedAt)} 간식 교환 완료</p>`
-        : `<p class="web-muted">바우처 교환은 아직 이용할 수 없어요.</p>`}
+        : `<p class="web-muted">쿠폰 교환은 아직 이용할 수 없어요.</p>`}
     </div>
   `;
 }
@@ -3205,6 +3208,12 @@ function bindSheetDrag() {
   handle.addEventListener("pointercancel", finish);
 }
 
+function mapPanBounds(zoom = state.mapZoom) {
+  const card=document.querySelector('#mapCard'), canvas=card?.querySelector('.map-canvas');
+  return { maxX: Math.max(72 * zoom, ((canvas?.offsetWidth || 0) * zoom - (card?.clientWidth || 0)) / 2 + 48),
+    maxY: Math.max(92 * zoom, ((canvas?.offsetHeight || 0) * zoom - (card?.clientHeight || 0)) / 2 + 80) };
+}
+
 function bindMapDrag() {
   const card = document.querySelector("#mapCard");
   const canvas = card?.querySelector(".map-canvas");
@@ -3249,8 +3258,7 @@ function bindMapDrag() {
   const zoomAt = (clientX, clientY) => {
     const nextZoom = Number(Math.min(MAP_ZOOM_MAX, Math.max(1.1, state.mapZoom + 0.22)).toFixed(2));
     const rect = card.getBoundingClientRect();
-    const maxX = 72 * nextZoom;
-    const maxY = 92 * nextZoom;
+    const { maxX, maxY } = mapPanBounds(nextZoom);
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     state.mapZoom = nextZoom;
@@ -3282,8 +3290,7 @@ function bindMapDrag() {
       moved = true;
       const nextZoom = Number(Math.min(MAP_ZOOM_MAX, Math.max(MAP_ZOOM_MIN, baseZoom * (distance([...pointers.values()].slice(0, 2)) / pinchStart))).toFixed(2));
       state.mapZoom = nextZoom;
-      const maxX = 72 * nextZoom;
-      const maxY = 92 * nextZoom;
+      const { maxX, maxY } = mapPanBounds(nextZoom);
       const nextX = clamp(state.mapOffsetX, maxX);
       const nextY = clamp(state.mapOffsetY, maxY);
       state.mapOffsetX = nextX;
@@ -3291,8 +3298,7 @@ function bindMapDrag() {
       queueTransform(`translate(${nextX}px, ${nextY}px) scale(${nextZoom})`);
       return;
     }
-    const maxX = 72 * state.mapZoom;
-    const maxY = 92 * state.mapZoom;
+    const { maxX, maxY } = mapPanBounds();
     const nextX = clamp(baseX + event.clientX - startX, maxX);
     const nextY = clamp(baseY + event.clientY - startY, maxY);
     queueTransform(`translate(${nextX}px, ${nextY}px) scale(${state.mapZoom})`);
@@ -3316,8 +3322,7 @@ function bindMapDrag() {
       pinchStart = pointers.size === 2 ? distance([...pointers.values()]) : 0;
       return;
     }
-    const maxX = 72 * state.mapZoom;
-    const maxY = 92 * state.mapZoom;
+    const { maxX, maxY } = mapPanBounds();
     state.mapOffsetX = clamp(baseX + endX - startX, maxX);
     state.mapOffsetY = clamp(baseY + endY - startY, maxY);
     commitTransform();
@@ -3655,8 +3660,7 @@ function adjustMapZoom(delta) {
     state.mapOffsetX = 0;
     state.mapOffsetY = 0;
   } else {
-    const maxX = 72 * nextZoom;
-    const maxY = 92 * nextZoom;
+    const { maxX, maxY } = mapPanBounds(nextZoom);
     state.mapOffsetX = Math.min(maxX, Math.max(-maxX, state.mapOffsetX));
     state.mapOffsetY = Math.min(maxY, Math.max(-maxY, state.mapOffsetY));
   }
@@ -3701,10 +3705,10 @@ function focusMapOnBooth(id, targetZoom = state.mapZoom) {
   const room = plan.rooms[planAssignments(plan, state.db.booths.filter(item => item.floor === booth.floor)).findIndex(item => item?.id === booth.id)];
   const position = room ? { x: room.x + room.w / 2, y: room.y + room.h / 2 } : boothMapPosition(booth, plan) || { x: 50, y: 48 };
   state.mapZoom = Math.min(1.52, Math.max(state.mapZoom, targetZoom));
-  const maxX = 72 * state.mapZoom;
-  const maxY = 92 * state.mapZoom;
-  const targetX = (50 - position.x) * 1.35;
-  const targetY = (48 - position.y) * 1.15;
+  const { maxX, maxY } = mapPanBounds();
+  const canvas=document.querySelector('#mapCard .map-canvas');
+  const targetX = (50 - position.x) * (canvas?.offsetWidth || 720) / 100 * state.mapZoom;
+  const targetY = (48 - position.y) * (canvas?.offsetHeight || 500) / 100 * state.mapZoom;
   state.mapOffsetX = Math.min(maxX, Math.max(-maxX, targetX));
   state.mapOffsetY = Math.min(maxY, Math.max(-maxY, targetY));
 }
@@ -4151,7 +4155,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.36";
+const APP_RELEASE = "1.50";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

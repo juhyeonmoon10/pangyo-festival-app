@@ -98,7 +98,7 @@ test('tool escapes booth names and keeps explicit simulation boundaries', () => 
   const html=api.view();
   assert.match(html, /&lt;img onerror=&quot;test&quot;&gt;/);
   assert.doesNotMatch(html, /<img/);
-  assert.match(html, /실제 방문·별점·포인트·바우처는 바뀌지 않으며/);
+  assert.match(html, /실제 방문·별점·포인트·쿠폰은 바뀌지 않으며/);
   assert.match(html, /새로고침하면 모의 기록이 사라집니다/);
   assert.match(html, /id="stampSimIssue"[^>]*disabled/);
 });

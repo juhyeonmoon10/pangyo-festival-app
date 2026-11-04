@@ -1,0 +1,31 @@
+/* Approved festival UI refinements. No laboratory adapters. */
+.design-web .web-welcome { padding-block: 20px 14px; }
+.design-web .web-welcome h1 { font-size: 23px; line-height: 1.4; }
+.design-web .web-map-action { min-height: 130px; }
+.design-web .web-map-action .map-action-art { width: 112px; height: 94px; }
+.design-web .web-map-action .map-action-copy strong { font-size: 23px; }
+.design-web .web-announcement .web-news-list p { display: none; }
+.design-web .map-screen { --map-header-height: 154px; }
+.design-web .map-screen .map-location-note { display: none; }
+.design-web .map-screen .festival-map-filter { height: 30px; }
+.design-web .map-screen .map-context-bar { display: none; }
+.design-web .map-screen .map-canvas {
+  width: 720px; height: 500px; min-height: 500px;
+  left: 50%; top: 50%; right: auto; bottom: auto;
+  margin-left: -360px; margin-top: -250px;
+}
+.design-web .map-screen .school-label { display: none; }
+.design-web .map-screen .indoor-floors { top: 12px; }
+.design-web .map-screen .plan-room.booth-room { padding: 10px 5px 5px; gap: 4px; }
+.design-web .map-screen .plan-room > .plan-club-name {
+  font-size: 13px; font-weight: 750; line-height: 1.35; word-break: normal;
+  overflow-wrap: anywhere; white-space: normal; max-width: 100%;
+}
+.design-web .map-screen .plan-room.booth-room > small { display: block; font-size: 11px; line-height: 1.2; opacity: .8; }
+.design-web .map-screen .plan-room:not(.booth-room) > span { font-size: 12px; }
+.design-web .map-screen .plan-corridor span { font-size: 11px; }
+.design-web .map-screen .map-zoom-controls { bottom: 12px; background: #fff; }
+.design-web .map-screen .map-preview-card { z-index: 12; }
+.design-web .festival-identity-card { border: 0; padding: 8px 0 20px; }
+.design-web .festival-identity-help { font-size: 14px; }
+.design-web .festival-profile-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }

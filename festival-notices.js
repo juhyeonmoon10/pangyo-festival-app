@@ -18,7 +18,7 @@ const festivalNotices = (() => {
 
   function listView() {
     const news = items();
-    return `<main class="screen festival-notices-screen">${header('축제 소식', 'home')}
+    return `<main class="screen festival-notices-screen">${header('공지', 'home')}
       ${news.length ? `<ul class="festival-notice-list">${news.map(n => `<li><button type="button" class="festival-notice-row ${n.important ? 'important' : ''}" data-notice-open="${h(n.id)}">
         <span><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${h(n.title)}</strong>${n.body ? `<small>${h(n.body)}</small>` : ''}
         <em>${h(when(n.publishedAt))}${n.images?.length ? ` · 사진 ${n.images.length}장` : ''}</em></span>${icon('arrow')}</button></li>`).join('')}</ul>`
@@ -35,7 +35,7 @@ const festivalNotices = (() => {
         ${(n.images || []).map((path, i) => `<img class="festival-notice-photo" src="${h(url(path))}" alt="${h(n.title)} 사진 ${i + 1}" loading="${i ? 'lazy' : 'eager'}" decoding="async">`).join('')}
         ${n.body ? `<p class="festival-notice-body">${h(n.body)}</p>` : ''}
       </article>`
-      : `<div class="festival-empty"><span>${icon('notice')}</span><strong>${loading ? '공지를 불러오는 중이에요' : '공지를 찾을 수 없어요'}</strong>${loading ? '' : '<p>삭제되었거나 숨겨진 공지예요.</p>'}<button type="button" class="ghost-btn" data-route="notices">축제 소식 전체 보기</button></div>`;
+      : `<div class="festival-empty"><span>${icon('notice')}</span><strong>${loading ? '공지를 불러오는 중이에요' : '공지를 찾을 수 없어요'}</strong>${loading ? '' : '<p>삭제되었거나 숨겨진 공지예요.</p>'}<button type="button" class="ghost-btn" data-route="notices">공지 전체 보기</button></div>`;
     return `<main class="screen festival-notices-screen">${header('공지', 'notices')}${body}${bottomNav('home')}</main>`;
   }
 

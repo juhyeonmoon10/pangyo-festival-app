@@ -79,6 +79,28 @@ test('Google metadata name is accepted when identity full name is absent', async
   }
 });
 
+test('separate Google family and given names prefill onboarding without granting identity or admin', async () => {
+  const pending={...good,name:'',needsProfile:true};
+  const {account,auth}=setup(async()=>({data:pending}));
+  let writes=0;
+  auth.updateUser=async()=>{writes++;};
+  for(const [family,given,expected] of [['김','가람','김가람'],['Doe','Jane','Jane Doe']]) {
+    auth.getUser=async()=>({data:{user:{id:good.authUserId,identities:[{provider:'google',identity_data:{family_name:family,given_name:given}}]}}});
+    const result=await account.profile();
+    assert.equal(result.name,expected);
+    assert.equal(result.studentNumber,'21001');
+    assert.equal(result.needsProfile,true);
+    assert.equal(result.isAdmin,false);
+  }
+  assert.equal(writes,0);
+});
+
+test('incomplete split Google names do not fabricate the missing name', async () => {
+  const {account,auth}=setup(async()=>({data:{...good,name:'',needsProfile:true}}));
+  auth.getUser=async()=>({data:{user:{id:good.authUserId,user_metadata:{given_name:'',family_name:'김'}}}});
+  assert.equal((await account.profile()).name,'');
+});
+
 test('existing app names and complete profiles are never overwritten by Google', async () => {
   for (const needsProfile of [false, true]) {
     const { account, auth } = setup(async () => ({ data: { ...good, name: '내가 정한 이름', needsProfile } }));

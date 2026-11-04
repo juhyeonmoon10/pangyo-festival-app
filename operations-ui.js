@@ -6,7 +6,7 @@ const festivalOpsUI = (() => {
   let stream=null, cameraTimer=null, qrTimer=null, qrPoll=null, walletPoll=null;
   // Seconds between voucher state checks while a voucher is on screen.
   const VOUCHER_POLL_MS=5000;
-  const VOUCHER_FINISHED={VOUCHER_USED:['사용이 완료되었어요','이 바우처는 사용 처리되었어요.'],VOUCHER_VOID:['발급이 취소되었어요','운영자가 이 바우처를 취소했어요.'],VOUCHER_EXPIRED:['사용 기한이 지났어요','이 바우처는 더 이상 사용할 수 없어요.'],NOT_FOUND:['바우처를 찾을 수 없어요','바우처 목록을 다시 확인해 주세요.']};
+  const VOUCHER_FINISHED={VOUCHER_USED:['사용이 완료되었어요','이 쿠폰은 사용 처리되었어요.'],VOUCHER_VOID:['발급이 취소되었어요','운영자가 이 쿠폰을 취소했어요.'],VOUCHER_EXPIRED:['사용 기한이 지났어요','이 쿠폰은 더 이상 사용할 수 없어요.'],NOT_FOUND:['쿠폰을 찾을 수 없어요','쿠폰 목록을 다시 확인해 주세요.']};
   let lastRoute=null;
   let refreshQueued=false, queuedRepaint=false, notice='', noticeAt=null;
   // A status line: progress ("…중...") is neutral, other text is an error unless a tone is given.
@@ -14,8 +14,8 @@ const festivalOpsUI = (() => {
   let refreshWaiters=[];
   let visitRecipient=null;
   let visitSyncPending=false, visitSyncGeneration=0;
-  let identity=null, identityBusy=false, identityNote='', identityQuery='', identityDraft='';
-  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'바우처 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',identity_overview:'소속 관리',booth_managers:'권한 관리',nfc:'NFC 발급',sun:'보안 NFC 카드','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
+  let identity=null, identityBusy=false, identityNote='', identityQuery='', identityDraft=null;
+  const labels={dashboard:'운영 현황',tools:'관리 도구',catalog:'부스 관리',participants:'참여자',visits:'방문 기록',ledger:'포인트',rules:'쿠폰 설정',vouchers:'발급·사용',audit:'처리 기록',claim_guard:'부정 적립 감지',notice_admin:'공지 관리',identity_overview:'소속 관리',booth_managers:'권한 관리',nfc:'NFC 발급',sun:'보안 NFC 카드','stamp-simulator':'스탬프 모의 발급',settings:'축제 운영 설정'};
   const localTabs=new Set(['tools','nfc','sun','booth_managers','stamp-simulator','settings']);
   const h=value=>escapeHtml(String(value ?? ''));
   const VOUCHER_CODE=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
@@ -43,7 +43,7 @@ const festivalOpsUI = (() => {
 
   function reset() {
     owner=state.user?.id || null; mine=null; guardData=null; notices=[]; selectedNotice=''; catalog=[]; event=null; data=null; loaded=false; failure=''; notice='', noticeAt=null; tab='dashboard'; selectedBooth=null; selectedRule='';
-    visitRecipient=null; visitSyncPending=false; visitSyncGeneration++; identity=null; identityNote=''; identityDraft=''; closeDialog();
+    visitRecipient=null; visitSyncPending=false; visitSyncGeneration++; identity=null; identityNote=''; identityDraft=null; closeDialog();
   }
   const viewKey=()=>JSON.stringify([state.user?.id,state.route,tab,offset,search]);
   function selectTab(next) {
@@ -152,7 +152,7 @@ const festivalOpsUI = (() => {
     return `<nav class="festival-ops-tabs" aria-label="관리 마법사 화면"><div>${[['dashboard','현황'],['tools','관리 도구'],['audit','기록']].map(([id,label])=>`<button type="button" data-ops-tab="${id}" aria-current="${group===id?'page':'false'}">${label}</button>`).join('')}</div><button class="icon-btn" data-ops-refresh aria-label="새로고침" title="새로고침">${icon('refresh')}</button></nav>${!['dashboard','tools','audit'].includes(tab) ? '<button type="button" class="text-link festival-tool-back" data-ops-tab="tools">'+icon('back')+' 관리 도구 목록</button>' : ''}`;
   }
   function toolsMenu() {
-    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['sun','lock','보안 NFC 카드 (NTAG 424)'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['booth_managers','user','권한 관리'],['ledger','plus','포인트 조정'],['rules','ticket','바우처 지급 기준'],['vouchers','scan','바우처 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
+    const tools=[['catalog','map','부스 상태·프로그램'],['nfc','scan','NFC 태그 발급'],['sun','lock','보안 NFC 카드 (NTAG 424)'],['visits','stamp','방문 수동 승인'],['participants','user','참여자'],['identity_overview','check','소속 관리'],['booth_managers','user','권한 관리'],['ledger','plus','포인트 조정'],['rules','ticket','쿠폰 지급 기준'],['vouchers','scan','쿠폰 발급·사용'],['claim_guard','notice','부정 적립 감지'],['notice_admin','bell','공지 관리'],['stamp-simulator','stamp','스탬프 모의 발급'],['settings','admin','축제 운영 설정']];
     return `<nav class="festival-ops-tools" aria-label="관리 도구">${tools.map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</nav>`;
   }
   function eventForm() {
@@ -165,7 +165,7 @@ const festivalOpsUI = (() => {
       `<input type="hidden" name="version" value="${event.version}">`,'운영 설정 저장')}</section>`;
   }
   function resetForm() {
-    return `<section class="ops-section ops-reset"><h2>참여 기록 초기화</h2><p>이 축제의 리허설 기록만 비워요. 삭제한 기록은 되돌릴 수 없어요.</p><ul class="ops-reset-scope"><li><strong>삭제</strong> 이 축제의 방문·스탬프, 바우처, 리뷰, 포인트</li><li><strong>유지</strong> 공용 퀘스트·잔고·기존 별점, 계정·권한, 부스·바우처 설정, NFC 태그와 인식 횟수, 공식 명단, 처리 기록</li></ul>${form('participation_reset',
+    return `<section class="ops-section ops-reset"><h2>참여 기록 초기화</h2><p>이 축제의 리허설 기록만 비워요. 삭제한 기록은 되돌릴 수 없어요.</p><ul class="ops-reset-scope"><li><strong>삭제</strong> 이 축제의 방문·스탬프, 쿠폰, 리뷰, 포인트</li><li><strong>유지</strong> 공용 퀘스트·잔고·기존 별점, 계정·권한, 부스·쿠폰 설정, NFC 태그와 인식 횟수, 공식 명단, 처리 기록</li></ul>${form('participation_reset',
       `<label class="ops-checkbox"><input name="identities" type="checkbox" checked>리뷰 실명 확인 연결도 초기화</label>`+
       field('confirm','확인 문구 (초기화)','','required autocomplete="off" pattern="초기화" placeholder="초기화"')+
       `<input type="hidden" name="eventId" value="${h(event?.id)}">`,'참여 기록 초기화','refresh')}</section>`;
@@ -173,7 +173,7 @@ const festivalOpsUI = (() => {
   // 학생 계정 삭제: the festival account only. The Google sign-in and ORBIT records live in the shared
   // project and stay; the student can sign in again and register as a new participant.
   function accountDeleteForm() {
-    return `<section class="ops-section ops-reset ops-account-delete"><h2>학생 계정 삭제</h2><p>잘못 가입했거나 중복된 학생 계정을 지워요. 삭제한 기록은 되돌릴 수 없어요.</p><ul class="ops-reset-scope"><li><strong>삭제</strong> 그 학생의 방문·스탬프, 바우처, 리뷰, 포인트, 소속 확인, 담당자 권한, 학번 등록 · 바로 로그아웃</li><li><strong>유지</strong> Google 로그인과 ORBIT 기록(같은 계정을 함께 써요), 처리 기록. 다시 로그인하면 새로 가입해요.</li></ul>`+
+    return `<section class="ops-section ops-reset ops-account-delete"><h2>학생 계정 삭제</h2><p>잘못 가입했거나 중복된 학생 계정을 지워요. 삭제한 기록은 되돌릴 수 없어요.</p><ul class="ops-reset-scope"><li><strong>삭제</strong> 그 학생의 방문·스탬프, 쿠폰, 리뷰, 포인트, 소속 확인, 담당자 권한, 학번 등록 · 바로 로그아웃</li><li><strong>유지</strong> Google 로그인과 ORBIT 기록(같은 계정을 함께 써요), 처리 기록. 다시 로그인하면 새로 가입해요.</li></ul>`+
       form('account_delete',participant('삭제할 학생')+reason()+field('confirm','확인 문구 (삭제)','','required autocomplete="off" pattern="삭제" placeholder="삭제"'),'계정 삭제','close')+'</section>';
   }
   function unavailableEvent() {
@@ -206,7 +206,7 @@ const festivalOpsUI = (() => {
     const items=data.items, n=items.find(x=>x.id===selectedNotice);
     return `<section class="ops-section ops-notice-form"><h2>${n?'공지 수정':'새 공지'}</h2><label>편집할 공지<select id="opsNoticeSelect" class="select"><option value="">새 공지 작성</option>${items.map(x=>`<option value="${h(x.id)}" ${x.id===selectedNotice?'selected':''}>${h(x.title)}${x.published?'':' (숨김)'}</option>`).join('')}</select></label>${form('notice_save',
       field('title','제목',n?.title,'required maxlength="80" autocomplete="off"')+
-      `<label>내용<textarea class="textarea" name="body" maxlength="1000" rows="5" placeholder="학생 홈 화면의 축제 소식에 보여요.">${h(n?.body)}</textarea></label>`+
+      `<label>내용<textarea class="textarea" name="body" maxlength="1000" rows="5" placeholder="학생 홈 화면의 공지에 보여요.">${h(n?.body)}</textarea></label>`+
       (typeof festivalNotices==='undefined'?'':festivalNotices.editor(n))+
       `<label class="ops-checkbox"><input name="important" type="checkbox" ${n?.important?'checked':''}>중요 공지 (홈 맨 위 알림 띠에 표시)</label>`+
       `<label class="ops-checkbox"><input name="published" type="checkbox" ${!n || n.published?'checked':''}>학생에게 게시</label>`+
@@ -249,7 +249,7 @@ const festivalOpsUI = (() => {
     const rules=(data?.items || []).filter(x=>!x.reward_kind);
     const r=rules.find(x=>x.id===selectedRule);
     return `<section class="ops-section"><h2>${r?'발급 기준 수정':'발급 기준 추가'}</h2><label>편집할 기준<select id="opsRuleSelect" class="select"><option value="">새 발급 기준</option>${rules.map(x=>`<option value="${h(x.id)}" ${x.id===selectedRule?'selected':''}>${h(x.title)}</option>`).join('')}</select></label>${form('rule_save',
-      field('title','바우처 이름',r?.title,'required maxlength="100"')+
+      field('title','쿠폰 이름',r?.title,'required maxlength="100"')+
       field('target','필요한 완성 스탬프',r?.target || 5,'required min="1" max="500" step="1"','number')+
       field('stock','총 발급 한도',r?.stock || 0,'required min="0" max="100000" step="1"','number')+
       field('expiresAt','사용 마감 (한국 시간)',kstInput(r?.expires_at), 'required','datetime-local')+
@@ -267,17 +267,17 @@ const festivalOpsUI = (() => {
         +field(`${kind}Stock`,'총 수량',unlimited?'':o.stock,`min="${issued}" max="100000" step="1" ${unlimited?'disabled':'required'}`,'number')
         +`<label class="ops-checkbox"><input type="checkbox" data-unlimited="${kind}Stock" ${unlimited?'checked':''}>수량 제한 없음</label></fieldset>`;
     };
-    return `<section class="ops-section"><h2>스탬프 3개·6개 바우처</h2><p>스탬프 3개에서 하나를 고르고, 6개에서 나머지 하나를 받아요. 참여자당 최대 2장이에요.</p>${form('reward_config',
+    return `<section class="ops-section"><h2>스탬프 3개·6개 쿠폰</h2><p>스탬프 3개에서 하나를 고르고, 6개에서 나머지 하나를 받아요. 참여자당 최대 2장이에요.</p>${form('reward_config',
       stockField('photo','포토부스 이용권')+stockField('food','푸드트럭 교환권')+
       field('expiresAt','이용권 사용 마감 (한국 시간)',kstInput(photo?.expiresAt),noDeadline?'disabled':'required','datetime-local')+
       `<label class="ops-checkbox"><input type="checkbox" data-unlimited="expiresAt" ${noDeadline?'checked':''}>사용 기한 없음</label>`+
-      `<label class="ops-checkbox"><input name="enabled" type="checkbox" ${reward?.ready?'checked':''}>바우처 실제 지급 활성화</label>`+
+      `<label class="ops-checkbox"><input name="enabled" type="checkbox" ${reward?.ready?'checked':''}>쿠폰 실제 지급 활성화</label>`+
       `<input type="hidden" name="eventId" value="${h(event?.id)}"><input type="hidden" name="photoVersion" value="${photo?.version || 0}"><input type="hidden" name="foodVersion" value="${food?.version || 0}">`,'지급 기준 저장')}</section>`;
   }
   async function chooseReward(kind,firstTarget) {
     const actor=state.user?.id, reward=snapshot()?.rewardProgram;
-    if(firstTarget!==3) return {ok:false,message:'바우처는 스탬프 3개와 6개에서만 지급돼요.'};
-    if(!reward?.ready || !event) return {ok:false,message:'바우처 발급 준비 중이에요.'};
+    if(firstTarget!==3) return {ok:false,message:'쿠폰은 스탬프 3개와 6개에서만 지급돼요.'};
+    if(!reward?.ready || !event) return {ok:false,message:'쿠폰 발급 준비 중이에요.'};
     const response=await api().write('reward_choose',{kind,firstTarget,eventId:event.id});
     if(state.user?.id!==actor) return {ok:false,message:'다시 로그인해 주세요.'};
     await refresh(false);
@@ -285,14 +285,14 @@ const festivalOpsUI = (() => {
   }
   function manualVoucherForm() {
     const rules=(mine?.rules || []).filter(r=>!r.reward_kind);
-    if(!rules.length) return '<p>발급 가능한 바우처 기준이 없어요.</p><button type="button" class="ghost-btn" data-ops-tab="rules">바우처 설정 열기</button>';
-    return form('voucher_issue',participant()+select('ruleId','바우처',rules.map(r=>[r.id,r.title]),null)+reason(),'발급 확정');
+    if(!rules.length) return '<p>발급 가능한 쿠폰 기준이 없어요.</p><button type="button" class="ghost-btn" data-ops-tab="rules">쿠폰 설정 열기</button>';
+    return form('voucher_issue',participant()+select('ruleId','쿠폰',rules.map(r=>[r.id,r.title]),null)+reason(),'발급 확정');
   }
   function content() {
     if(tab==='tools') return toolsMenu();
     if(!currentEventReady()) return unavailableEvent();
     if(tab==='settings') return eventForm()+(!guardData ? '<section class="ops-section"><h2>부정 적립 제한</h2><p role="status">불러오는 중...</p></section>' : guardData.error ? `<section class="ops-section"><h2>부정 적립 제한</h2><p class="ops-alert" role="alert">${h(guardData.error)}</p><button type="button" class="ghost-btn" data-ops-refresh>${icon('refresh')} 다시 불러오기</button></section>` : claimGuardView(guardData,false))+resetForm();
-    if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['바우처 발급',data?.issued],['바우처 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${boothStamps()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','바우처 확인·사용'],['nfc','scan','NFC 태그 발급'],['claim_guard','notice','부정 적립 감지']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
+    if(tab==='dashboard') return `<div class="festival-op-status ${event.state === 'open' ? '' : 'is-paused'}">${icon(event.state === 'open' ? 'check' : 'notice')}<div><strong>${h(statusName(event.state))}</strong><p>축제 운영 상태</p></div><button type="button" class="icon-btn" data-ops-tab="settings" aria-label="축제 운영 설정" title="축제 운영 설정">${icon('admin')}</button></div><dl class="ops-stats">${[['참여자',data?.participants],['방문',data?.visits],['리뷰',data?.reviews],['쿠폰 발급',data?.issued],['쿠폰 사용',data?.used]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v ?? '-'}</dd></div>`).join('')}</dl>${boothReadiness()}${boothStamps()}<section class="ops-section"><h2>빠른 처리</h2><div class="festival-ops-tools">${[['visits','stamp','수동 방문 승인'],['vouchers','scan','쿠폰 확인·사용'],['nfc','scan','NFC 태그 발급'],['claim_guard','notice','부정 적립 감지']].map(([id,symbol,label])=>`<button type="button" data-ops-tab="${id}"><span class="festival-tool-icon">${icon(symbol)}</span><strong>${label}</strong>${icon('arrow')}</button>`).join('')}</div></section>`;
     if(tab==='claim_guard') return claimGuardView();
     if(tab==='notice_admin') return noticeAdminView();
     if(tab==='identity_overview') return identityAdminView();
@@ -302,9 +302,9 @@ const festivalOpsUI = (() => {
     if(tab==='ledger') return `<section class="ops-section"><h2>포인트 조정</h2>${form('points_adjust',participant()+field('delta','변경 포인트 (+지급 / -차감)','','required min="-100000" max="100000" step="1"','number')+reason(),'조정 확정')}</section>`+searchForm()+table(data?.items,[['시각',r=>time(r.created_at)],['참여자',r=>person(r.name,r.student_number)],['변경','delta'],['사유','reason']])+paging();
     if(tab==='rules') return (mine?.rewardProgram?.supported ? rewardConfigForm() : mine?.rewardProgram?.legacyRules
       ? '<p class="ops-empty">3개·6개 지급은 아직 준비 중이에요. 기존 발급 기준은 관리할 수 있어요.</p>'+ruleForm()
-      : '<p class="ops-alert" role="alert">바우처 지급 설정을 확인하지 못했어요. 새로고침 후 다시 확인해 주세요.</p>')
+      : '<p class="ops-alert" role="alert">쿠폰 지급 설정을 확인하지 못했어요. 새로고침 후 다시 확인해 주세요.</p>')
       +table(data?.items,[['이름','title'],['기준',r=>r.reward_kind?'3개·6개 지급':r.target],['발급','issued'],['한도',r=>stockText(r.stock)],['마감',r=>time(r.expires_at)],['활성',r=>r.enabled?'예':'아니오']]);
-    if(tab==='vouchers') return `<section class="ops-section"><h2>바우처 사용</h2><form id="opsRedeem" class="ops-form"><label>인증키 (8자리)<input class="input ops-code-input" name="token" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="11" placeholder="QR 스캔 또는 직접 입력"></label>${spotMarkup(noticeAt==='redeem'?{at:'form:redeem',text:notice,tone:'success'}:null,'form:redeem')}<div class="ops-actions"><button class="icon-btn" type="button" data-ops-camera title="QR 스캔" aria-label="QR 스캔">${icon('scan')}</button><button class="primary-btn" type="submit">바우처 확인</button></div></form></section><section class="ops-section"><h2>수동 발급</h2>${manualVoucherForm()}</section><section class="ops-section"><h2>발급 취소</h2>${form('voucher_void',select('id','취소할 바우처',(data?.items || []).filter(v=>v.state==='available').map(v=>[v.id,`${v.name} · ${v.title}`]),null)+reason(),'취소 확정')}</section>`+searchForm()+table(data?.items,[['학번',r=>r.student_number || '-'],['이름','name'],['바우처','title'],['상태',r=>statusName(r.state)],['마감',r=>time(r.expires_at)]])+paging();
+    if(tab==='vouchers') return `<section class="ops-section"><h2>쿠폰 사용</h2><form id="opsRedeem" class="ops-form"><label>인증키 (8자리)<input class="input ops-code-input" name="token" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="11" placeholder="QR 스캔 또는 직접 입력"></label>${spotMarkup(noticeAt==='redeem'?{at:'form:redeem',text:notice,tone:'success'}:null,'form:redeem')}<div class="ops-actions"><button class="icon-btn" type="button" data-ops-camera title="QR 스캔" aria-label="QR 스캔">${icon('scan')}</button><button class="primary-btn" type="submit">쿠폰 확인</button></div></form></section><section class="ops-section"><h2>수동 발급</h2>${manualVoucherForm()}</section><section class="ops-section"><h2>발급 취소</h2>${form('voucher_void',select('id','취소할 쿠폰',(data?.items || []).filter(v=>v.state==='available').map(v=>[v.id,`${v.name} · ${v.title}`]),null)+reason(),'취소 확정')}</section>`+searchForm()+table(data?.items,[['학번',r=>r.student_number || '-'],['이름','name'],['쿠폰','title'],['상태',r=>statusName(r.state)],['마감',r=>time(r.expires_at)]])+paging();
     return table(data?.items,[['시각',r=>time(r.created_at)],['처리자',r=>person(r.actor_name,r.actor_student_number)],['작업','action'],
       ['대상',r=>r.target_name!==undefined && r.target_name!==null?person(r.target_name,r.target_student_number):r.target],
       ['사유',r=>r.action==='review_identity_self_conflict'?'이미 연결된 학번으로 시도':r.action==='own_club_stamp_remove'?`${r.reason}개 제외`:r.reason]])+paging();
@@ -351,7 +351,7 @@ const festivalOpsUI = (() => {
       body.booths=[...form.querySelectorAll('[name=booths]:checked')].map(x=>x.value);
       if(!body.booths.length) { tell(note,'상태를 바꿀 부스를 선택해 주세요.'); return; }
     }
-    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save','booth_status_bulk','account_delete'].includes(action) && !confirm(action==='account_delete'?`${visitRecipient.name} (${visitRecipient.studentNumber})${visitRecipient.email?` · ${visitRecipient.email}`:''} 학생의 축제 계정을 삭제할까요?\n방문·스탬프, 바우처, 리뷰, 포인트, 소속 확인과 담당자 권한이 모두 지워지고 바로 로그아웃돼요. 되돌릴 수 없어요.`:action==='booth_status_bulk'?`선택한 부스 ${body.booths.length}개를 '${statusName(body.status)}'(으)로 바꿀까요?${body.status==='open'?'':' 이 부스들은 NFC 방문 인증이 중지돼요.'}`:action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`이 축제의 방문·스탬프, 바우처, 리뷰와 포인트를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 공용 퀘스트·잔고·기존 별점과 NFC 태그는 유지돼요. 삭제한 행사 기록은 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장이에요.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 바우처를 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장이에요. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
+    if(['event_save','points_adjust','visit_approve','voucher_issue','voucher_void','reward_config','participation_reset','claim_guard_save','booth_status_bulk','account_delete'].includes(action) && !confirm(action==='account_delete'?`${visitRecipient.name} (${visitRecipient.studentNumber})${visitRecipient.email?` · ${visitRecipient.email}`:''} 학생의 축제 계정을 삭제할까요?\n방문·스탬프, 쿠폰, 리뷰, 포인트, 소속 확인과 담당자 권한이 모두 지워지고 바로 로그아웃돼요. 되돌릴 수 없어요.`:action==='booth_status_bulk'?`선택한 부스 ${body.booths.length}개를 '${statusName(body.status)}'(으)로 바꿀까요?${body.status==='open'?'':' 이 부스들은 NFC 방문 인증이 중지돼요.'}`:action==='claim_guard_save'?(body.enabled?`${guardSummary(body.windowMinutes,body.maxClaims)} 이 기준을 바로 적용할까요?`:'NFC 적립 제한을 끌까요? 짧은 시간에 몰아서 적립해도 막지 않아요.'):action==='participation_reset'?`이 축제의 방문·스탬프, 쿠폰, 리뷰와 포인트를 삭제할까요?${body.identities?' 리뷰 실명 확인 연결도 삭제돼요.':''} 공용 퀘스트·잔고·기존 별점과 NFC 태그는 유지돼요. 삭제한 행사 기록은 되돌릴 수 없어요.`:action==='reward_config'&&body.enabled?`스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 참여자당 최대 2장이에요.\n포토부스 이용권: ${stockText(body.photoStock)} · 푸드트럭 교환권: ${stockText(body.foodStock)} · 사용 기한: ${time(body.expiresAt)}`:action==='visit_approve'?`${visitRecipient.name}님에게 ${catalog.find(b=>b.key===body.booth).name} 방문 스탬프 1개를 부여할까요? 이미 방문한 부스는 중복 적립되지 않아요.`:action==='points_adjust'?`${visitRecipient.name}님의 포인트를 ${body.delta>0?'+':''}${body.delta} 조정할까요?`:action==='voucher_issue'?`${visitRecipient.name}님에게 선택한 쿠폰을 발급할까요?`:action==='reward_config'?(body.enabled?'스탬프 3개에서 하나를 선택하고, 6개에서 나머지를 지급할까요? 행사당 최대 2장이에요. 기존 자동 지급 기준은 중지됩니다.':'실제 발급을 중지한 상태로 지급 기준을 저장할까요?'):'입력한 내용으로 처리할까요?')) return;
     busy=true; form.querySelector('button[type=submit]').disabled=true; tell(note,'처리 중...');
     try {
       // Notice photos are uploaded first; the notice then stores their paths.
@@ -382,7 +382,7 @@ const festivalOpsUI = (() => {
       }
       if(action==='notice_save') { selectedNotice=''; if(typeof festivalNotices!=='undefined') festivalNotices.afterSave(); }
       if(action==='account_delete') { visitRecipient=null; form.reset(); }
-      notice=action==='notice_save'?(body.id?'공지를 수정했어요.':body.published?'공지를 등록했어요. 학생 홈에 바로 보여요.':'공지를 숨김 상태로 저장했어요.'):action==='booth_status_bulk'?`부스 ${response.data.selected}개를 '${statusName(response.data.status)}'(으)로 맞췄어요. 바뀐 부스 ${response.data.changed}개.`:action==='participation_reset'?`이 축제의 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 초기화했어요. 공용 기록은 유지돼요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'바우처를 발급했어요.':action==='voucher_void'?'바우처 발급을 취소했어요.':action==='account_delete'?`${response.data.name} (${response.data.studentNumber || '학번 없음'}) 학생의 계정을 삭제했어요. 방문 ${response.data.visits}건, 바우처 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 지웠어요.`:'저장했어요.';
+      notice=action==='notice_save'?(body.id?'공지를 수정했어요.':body.published?'공지를 등록했어요. 학생 홈에 바로 보여요.':'공지를 숨김 상태로 저장했어요.'):action==='booth_status_bulk'?`부스 ${response.data.selected}개를 '${statusName(response.data.status)}'(으)로 맞췄어요. 바뀐 부스 ${response.data.changed}개.`:action==='participation_reset'?`이 축제의 방문 ${response.data.visits}건, 쿠폰 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 초기화했어요. 공용 기록은 유지돼요.`:action==='visit_approve'?(response.data.result==='ALREADY_EARNED'?'이미 적립한 부스예요. 스탬프는 1개만 유지돼요.':`${visitRecipient.name}님에게 스탬프 1개를 적립했어요.`):action==='voucher_issue'?'쿠폰을 발급했어요.':action==='voucher_void'?'쿠폰 발급을 취소했어요.':action==='account_delete'?`${response.data.name} (${response.data.studentNumber || '학번 없음'}) 학생의 계정을 삭제했어요. 방문 ${response.data.visits}건, 쿠폰 ${response.data.vouchers}장, 리뷰 ${response.data.reviews}건을 지웠어요.`:'저장했어요.';
       selectedBooth=response.data.booth || selectedBooth; selectedRule=response.data.id && action==='rule_save'?response.data.id:selectedRule;
       noticeAt=action;
       await refresh();
@@ -458,6 +458,7 @@ const festivalOpsUI = (() => {
     if(me.verified) return page(`<section class="festival-identity-card" aria-label="확인된 소속"><span class="festival-identity-badge">${icon('check')} 소속 확인 완료</span><dl><div><dt>이름</dt><dd>${h(me.realName)}</dd></div><div><dt>학번</dt><dd>${h(me.studentNumber)}</dd></div><div><dt>소속 동아리</dt><dd>${me.clubs.map(h).join(', ')}</dd></div><div><dt>스탬프·별점 제외 부스</dt><dd>${me.boothKeys.length?boothNames(me.boothKeys).map(h).join(', '):'없음'}</dd></div></dl></section><p class="festival-identity-help">본인 동아리 부스는 스탬프를 적립하거나 별점을 남길 수 없어요. 다른 부스에는 모두 참여할 수 있고, 리뷰에는 위 이름이 표시돼요. 소속이 다르면 운영 부스에 문의해 주세요.</p>`);
     if(!me.eligible) return page('<p class="festival-identity-help">1·2학년 창체 동아리 명단으로 소속을 확인해요. 가입할 때 등록한 학번이 확인 대상이 아니에요.</p>');
     if(me.locked) return page(`<p class="ops-alert" role="alert">${identityMessages.OPERATOR_LOCKED}</p>`);
+    if(identityDraft === null) identityDraft=String(state.user?.name || '').replace(/^[1-3][0-9]{4}\s*(?=[가-힣])/u,'').trim();
     return page(`<section class="festival-identity-card"><p class="festival-identity-help">가입할 때 등록한 학번과 창체 동아리 명단의 이름이 같으면 바로 확인돼요. 확인되면 본인 동아리를 제외한 부스에 별점을 남길 수 있어요. 본인 동아리 부스는 스탬프도 적립되지 않아요.</p><form class="ops-form" data-identity-confirm><label>가입할 때 등록한 학번<input class="input" value="${h(me.studentNumber)}" readonly aria-readonly="true"></label><label>이름 (동아리 명단과 같게)<input class="input" name="realName" required maxlength="60" autocomplete="name" spellcheck="false" value="${h(identityDraft)}"></label><p class="ops-form-status" role="status">${h(identityNote)}</p><button class="primary-btn" type="submit" ${identityBusy?'disabled':''}>${icon('check')} ${identityBusy?'확인 중...':'소속 확인'}</button></form><p class="festival-identity-help">학번이 틀렸거나 명단에 없으면 운영 부스에 문의해 주세요. 다른 사람의 학번으로 확인하면 운영자가 취소할 수 있어요.</p></section>`);
   }
   async function loadIdentity(actor,eventId) {
@@ -490,7 +491,7 @@ const festivalOpsUI = (() => {
       if(!response.ok) { identityNote=response.message; return; }
       identity=response.data;
       identityNote=response.data.result==='CONFIRMED'?'':identityMessages[response.data.result] || '';
-      if(identity.verified) identityDraft='';
+      if(identity.verified) identityDraft=null;
       // Booth review permissions depend on the identity; drop cached policies.
       if(identity.verified) serverReviews.clear();
     } finally { identityBusy=false; if(state.user?.id===actor) render(); }
@@ -614,12 +615,12 @@ const festivalOpsUI = (() => {
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!preview.ok) { tell(note,preview.code==='VOUCHER_INVALID'?'맞지 않거나 시간이 지난 인증키예요. 참여자 화면의 새 인증키를 확인해 주세요.':preview.message); return; }
       const p=preview.data;
-      if(!p.valid) { tell(note,p.state==='used'?'이미 사용한 바우처예요.':p.state==='void'?'취소된 바우처예요.':p.state==='expired'?'만료된 바우처예요.':!p.eventOpen?'축제가 운영 중이 아니어서 사용할 수 없어요.':'사용할 수 없는 바우처예요.'); return; }
-      if(!confirm(`${p.title}\n${p.participant}${p.studentNumber?` (${p.studentNumber})`:''}${p.own?' · 내 바우처':''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
+      if(!p.valid) { tell(note,p.state==='used'?'이미 사용한 쿠폰예요.':p.state==='void'?'취소된 쿠폰예요.':p.state==='expired'?'만료된 쿠폰예요.':!p.eventOpen?'축제가 운영 중이 아니어서 사용할 수 없어요.':'사용할 수 없는 쿠폰예요.'); return; }
+      if(!confirm(`${p.title}\n${p.participant}${p.studentNumber?` (${p.studentNumber})`:''}${p.own?' · 내 쿠폰':''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
       const r=await api().write('voucher_code_redeem',{code});
       if(state.user?.id!==actor || requestedView!==viewKey() || !form.isConnected) return;
       if(!r.ok) { tell(note,r.message); return; }
-      notice='바우처를 사용 처리했어요.'; noticeAt='redeem';
+      notice='쿠폰을 사용 처리했어요.'; noticeAt='redeem';
       form.reset(); await refresh(); showNotice();
       festivalVoucherScan.approved(r.data);
     } finally { busy=false; if(form.isConnected) button.disabled=false; }
@@ -636,7 +637,7 @@ const festivalOpsUI = (() => {
     d.querySelector('button').onclick=closeDialog; d.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
     document.body.append(d); d.showModal(); return d;
   }
-  // The camera and QR reading live in voucher-scan.js (shared with 바우처 담당자); it also reads QR
+  // The camera and QR reading live in voucher-scan.js (shared with 쿠폰 담당자); it also reads QR
   // codes where BarcodeDetector is missing (iPhone Safari).
   function camera() {
     closeDialog();
@@ -657,7 +658,7 @@ const festivalOpsUI = (() => {
     return copied;
   }
   async function qr(id) {
-    const d=dialog('바우처 사용'), body=d.querySelector('.ops-dialog-content'); body.innerHTML='<p role="status">인증키 준비 중...</p>';
+    const d=dialog('쿠폰 사용'), body=d.querySelector('.ops-dialog-content'); body.innerHTML='<p role="status">인증키 준비 중...</p>';
     let shown=null, checking=false;
     // A used, cancelled or expired voucher replaces the code at once and updates the wallet.
     const finish=code=>{
@@ -685,7 +686,7 @@ const festivalOpsUI = (() => {
       shown=current.code;
       const offset=new Date(current.serverTime)-Date.now();
       const code=qrcode(0,'M'); code.addData(current.code); code.make();
-      body.innerHTML=`<div class="ops-qr" role="img" aria-label="바우처 인증 QR">${code.createSvgTag({cellSize:5,margin:16,scalable:true})}</div><p class="ops-voucher-code" aria-label="인증키 ${h(current.code.split('').join(' '))}">${h(current.code.slice(0,4))} ${h(current.code.slice(4))}</p><p class="ops-code-timer" role="timer"></p><button type="button" class="ghost-btn" data-copy-code>${icon('copy')} 인증키 복사</button><p class="ops-copy-status" role="status" aria-live="polite"></p><p class="ops-code-help">카메라가 안 되면 운영자에게 인증키 8자리를 보여 주세요. 인증키는 30초마다 바뀌어요.</p>`;
+      body.innerHTML=`<div class="ops-qr" role="img" aria-label="쿠폰 인증 QR">${code.createSvgTag({cellSize:5,margin:16,scalable:true})}</div><p class="ops-voucher-code" aria-label="인증키 ${h(current.code.split('').join(' '))}">${h(current.code.slice(0,4))} ${h(current.code.slice(4))}</p><p class="ops-code-timer" role="timer"></p><button type="button" class="ghost-btn" data-copy-code>${icon('copy')} 인증키 복사</button><p class="ops-copy-status" role="status" aria-live="polite"></p><p class="ops-code-help">카메라가 안 되면 운영자에게 인증키 8자리를 보여 주세요. 인증키는 30초마다 바뀌어요.</p>`;
       body.querySelector('[data-copy-code]').onclick=async()=>{
         const ok=await copyText(current.code,d);
         if(d.isConnected) body.querySelector('.ops-copy-status').textContent=ok?'인증키를 복사했어요.':'복사하지 못했어요. 화면의 인증키를 직접 알려 주세요.';
@@ -784,6 +785,7 @@ const festivalOpsUI = (() => {
     document.querySelectorAll('[data-identity-open]').forEach(b=>b.onclick=()=>openRoster({studentNumber:b.dataset.identitySid,email:b.dataset.identityEmail},b,document.querySelector('[data-identity-open-status]'),()=>b.isConnected,loadIdentityList));
     document.querySelectorAll('[data-identity-find]').forEach(f=>f.addEventListener('submit',findIdentityAccount));
     document.querySelector('[data-identity-confirm]')?.addEventListener('submit',confirmIdentity);
+    document.querySelector('[data-identity-confirm] [name=realName]')?.addEventListener('input',e=>{identityDraft=e.target.value;});
     const identitySearch=document.querySelector('[data-identity-search]');
     if(identitySearch) {
       identitySearch.onsubmit=ev=>{ev.preventDefault();identityQuery=identitySearch.elements.search.value.trim();loadIdentityList();};

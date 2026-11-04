@@ -157,7 +157,7 @@ test('server path keeps only the third and sixth milestones without fabricating 
   assert.equal((html.match(/class="stamp-reward-marker"/g)||[]).length,2);
   assert.match(html,/3개·6개 혜택/);
   assert.match(html,/3번째 스탬프, 확인 대기/);
-  assert.doesNotMatch(html, /is-issued|is-claimable|받기 가능|지급 완료|체험 바우처|작은 선물/);
+  assert.doesNotMatch(html, /is-issued|is-claimable|받기 가능|지급 완료|체험 쿠폰|작은 선물/);
   assert.match(html, /data-route="vouchers"/);
   assert.equal(records.size, 0);
 });
@@ -189,7 +189,7 @@ test('stamp board has a serpentine grid and benefits stay inside vouchers', () =
     assert.match(html,/grid-row:2;grid-column:3/);
     assert.match(html,/grid-row:2;grid-column:1/);
     assert.doesNotMatch(html,/스탬프 \d+~\d+|설레는 첫 발걸음|축제를 더 가까이/);
-    assert.doesNotMatch(html,/reward-choice-section|rewardChoiceForm|스탬프 혜택|stamp-chapter|첫 번째 바우처 선택|나머지 바우처 지급/);
+    assert.doesNotMatch(html,/reward-choice-section|rewardChoiceForm|스탬프 혜택|stamp-chapter|첫 번째 쿠폰 선택|나머지 쿠폰 지급/);
     assert.match(api.vouchers(),/rewardChoiceForm/);
   }
 });
@@ -223,7 +223,7 @@ test('ink stamps distinguish claimable, issued and future reward milestones', as
   assert.equal((html.match(/is-issued/g) || []).length, 0);
   assert.match(html, /3번째 스탬프, 받기 가능/);
   assert.match(html, /<svg data-icon="ticket"[^>]*><\/svg><small>3개<\/small>/);
-  assert.doesNotMatch(html, /9번째 스탬프, 바우처 확인/);
+  assert.doesNotMatch(html, /9번째 스탬프, 쿠폰 확인/);
   await api.chooseReward('photo', 3);
   html = api.stamps();
   assert.equal((html.match(/is-issued/g) || []).length, 2);
@@ -237,7 +237,7 @@ test('ink stamps distinguish claimable, issued and future reward milestones', as
   assert.equal((html.match(/is-issued/g) || []).length, 2);
   assert.equal((html.match(/is-claimable/g) || []).length, 0);
   assert.match(html, /max="6" value="6"/);
-  assert.match(html, /바우처 2장 지급 완료/);
+  assert.match(html, /쿠폰 2장 지급 완료/);
 });
 
 test('server snapshot drives received indicators without fabricating local rewards', () => {

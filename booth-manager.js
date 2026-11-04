@@ -2,7 +2,7 @@
    profile photo, status, operating hours, location (floor, map room, description), introduction and
    program, and approve manual stamps there when the operator allowed it.
    Every action is re-checked by festival_booth_manager; operators grant the role in 관리 마법사 →
-   권한 관리. A 바우처 담당자 uses the same screen for voucher approval (voucher-manager.js).
+   권한 관리. A 쿠폰 담당자 uses the same screen for voucher approval (voucher-manager.js).
    Results are shown next to the button that was pressed (spotMarkup/showSpot); a failed action keeps
    what was typed. */
 const festivalBoothManager = (() => {
@@ -56,7 +56,7 @@ const festivalBoothManager = (() => {
     if (['manage', 'profile'].includes(state.route)) render();
   }
 
-  // 바우처 담당자 shares this screen: its section follows the booth (voucher-manager.js).
+  // 쿠폰 담당자 shares this screen: its section follows the booth (voucher-manager.js).
   const vouchers = () => typeof festivalVoucherManager === 'undefined' ? null : festivalVoucherManager;
   const voucherKinds = () => vouchers()?.kinds() || [];
 
@@ -140,12 +140,12 @@ const festivalBoothManager = (() => {
   function view() {
     if (owner !== (state.user?.id || null)) reset();
     const voucherSection = vouchers()?.section() || '';
-    const title = items().length || !voucherKinds().length ? '부스 관리' : '바우처 사용 승인';
+    const title = items().length || !voucherKinds().length ? '부스 관리' : '쿠폰 사용 승인';
     const head = `<header class="top-bar"><button class="icon-btn" data-history-back="profile" aria-label="뒤로">${icon('back')}</button><h1>${title}</h1><span class="icon-btn" aria-hidden="true"></span></header>`;
     let body;
     if (failure) body = `<p class="ops-alert" role="alert">${h(failure)}</p><button type="button" class="ghost-btn" data-manager-retry>${icon('refresh')} 다시 불러오기</button>${voucherSection}`;
     else if (!status || vouchers() && !vouchers().ready() && !items().length) body = '<p role="status">불러오는 중...</p>';
-    else if (!items().length) body = voucherSection || `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없어요</strong><p>운영자가 부스 담당자나 바우처 담당자로 지정하면 이곳에서 맡은 일을 할 수 있어요.</p></div>`;
+    else if (!items().length) body = voucherSection || `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없어요</strong><p>운영자가 부스 담당자나 쿠폰 담당자로 지정하면 이곳에서 맡은 일을 할 수 있어요.</p></div>`;
     else {
       const b = current(), p = b.program || {};
       // A server without booth-profile.sql sends no 'room': the new fields would not be saved.

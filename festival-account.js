@@ -216,7 +216,12 @@
       if (!data?.user || data.user.id !== current.authUserId) throw new Error("AUTH_REQUIRED");
       const google = data.user.identities?.find(identity => identity.provider === "google")?.identity_data || {};
       const metadata = data.user.user_metadata || {};
-      const names = [google.full_name, google.name, metadata.full_name, metadata.name];
+      const parts = source => {
+        const family=source.family_name, given=source.given_name;
+        if(typeof family !== 'string' || typeof given !== 'string' || !family.trim() || !given.trim()) return '';
+        return /^[가-힣]+$/u.test(family.trim()+given.trim()) ? family.trim()+given.trim() : `${given.trim()} ${family.trim()}`;
+      };
+      const names = [google.full_name, google.name, parts(google), metadata.full_name, metadata.name, parts(metadata)];
       // School accounts are named "21001홍길동": the 학번 and the name are filled in for the student
       // to confirm. This is an onboarding default, not a completed profile or a role assertion.
       const school = schoolIdentity(data.user.email || current.email, names);

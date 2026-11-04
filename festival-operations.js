@@ -17,17 +17,17 @@
     STUDENT_NOT_FOUND: '이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.',
     STUDENT_AMBIGUOUS: '같은 학번으로 가입한 계정이 여러 개예요. 학생 확인을 다시 눌러 학생 본인의 계정을 골라 주세요.',
     REVIEW_POLICY_REQUIRED: '리뷰 작성 가능 여부를 확인하지 못했어요. 다시 시도해 주세요.',
-    REWARD_CHOICE_LOCKED: '이미 선택한 바우처는 바꿀 수 없어요.',
-    REWARD_NOT_READY: '바우처 발급 준비 중이에요.',
-    REWARD_ORDER_REQUIRED: '앞선 바우처부터 선택해 주세요.',
-    REWARD_MIGRATION_REQUIRED: '기존 발급 바우처의 이관 확인이 필요해요.',
+    REWARD_CHOICE_LOCKED: '이미 선택한 쿠폰은 바꿀 수 없어요.',
+    REWARD_NOT_READY: '쿠폰 발급 준비 중이에요.',
+    REWARD_ORDER_REQUIRED: '앞선 쿠폰부터 선택해 주세요.',
+    REWARD_MIGRATION_REQUIRED: '기존 발급 쿠폰의 이관 확인이 필요해요.',
     RESET_CONFIRM_REQUIRED: '확인 문구로 "초기화"를 정확히 입력해 주세요.',
     RESET_SCOPE_UNAVAILABLE: '여러 행사 기록이 있어 안전하게 초기화할 수 없어요. 기술 담당자에게 문의해 주세요.',
     REQUEST_CONFLICT: '이전 요청과 내용이 달라요. 화면을 새로고침해 주세요.',
     POINTS_INSUFFICIENT: '포인트 잔액이 부족해요.', SELF_ADJUSTMENT: '본인 계정에는 직접 지급하거나 조정할 수 없어요.',
-    VOUCHER_USED: '이미 사용한 바우처예요.', VOUCHER_EXPIRED: '만료된 바우처예요.', VOUCHER_VOID: '취소된 바우처예요.',
-    VOUCHER_INVALID: '유효한 바우처 QR이 아니에요.', SELF_REDEMPTION: '본인 바우처는 다른 담당자나 운영자에게 확인받아 주세요.',
-    OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VOUCHER_ALREADY_ISSUED: '이 학생에게는 이미 같은 바우처를 수동 발급했어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
+    VOUCHER_USED: '이미 사용한 쿠폰예요.', VOUCHER_EXPIRED: '만료된 쿠폰예요.', VOUCHER_VOID: '취소된 쿠폰예요.',
+    VOUCHER_INVALID: '유효한 쿠폰 QR이 아니에요.', SELF_REDEMPTION: '본인 쿠폰은 다른 담당자나 운영자에게 확인받아 주세요.',
+    OUT_OF_STOCK: '발급 가능한 수량이 모두 소진되었어요.', VOUCHER_ALREADY_ISSUED: '이 학생에게는 이미 같은 쿠폰을 수동 발급했어요.', VERSION_CONFLICT: '다른 운영자가 먼저 변경했어요. 새로고침 후 확인해 주세요.',
     CLAIM_RATE_LIMITED: '짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.',
     NFC_TAG_INVALID: '유효한 NFC 태그가 아니에요.', NFC_TAG_EXPIRED: '교체되었거나 만료된 태그예요.', NFC_DISABLED: '방문 인증이 중지되었어요.',
     SUN_DISABLED: '보안 카드 적립이 잠시 중지됐어요.', SUN_CARD_INVALID: '확인되지 않은 보안 카드예요. 카드를 휴대폰에 다시 대 주세요.',
@@ -37,11 +37,11 @@
     SUN_NOT_READY: '보안 카드 키를 먼저 만들어 주세요.',
     BOOTH_MANAGER_REQUIRED: '이 부스의 담당자만 사용할 수 있어요.', BOOTH_APPROVAL_NOT_ALLOWED: '이 부스는 스탬프 수동 승인이 허용되지 않았어요. 운영자에게 문의해 주세요.',
     BOOTH_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있어요.',
-    VOUCHER_MANAGER_REQUIRED: '바우처 담당자나 운영자만 바우처를 사용 처리할 수 있어요.',
-    VOUCHER_KIND_NOT_ALLOWED: '담당한 종류의 바우처가 아니에요. 이 바우처는 승인할 수 없어요.',
+    VOUCHER_MANAGER_REQUIRED: '쿠폰 담당자나 운영자만 쿠폰을 사용 처리할 수 있어요.',
+    VOUCHER_KIND_NOT_ALLOWED: '담당한 종류의 쿠폰이 아니에요. 이 쿠폰은 승인할 수 없어요.',
     ACCOUNT_DELETE_CONFIRM_REQUIRED: '확인 문구로 "삭제"를 정확히 입력해 주세요.', ACCOUNT_DELETE_SELF: '본인 계정은 삭제할 수 없어요.',
     ACCOUNT_DELETE_OPERATOR: '운영자 계정은 삭제할 수 없어요.',
-    VOUCHER_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만 바우처 담당자를 맡길 수 있어요.',
+    VOUCHER_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만 쿠폰 담당자를 맡길 수 있어요.',
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
   const writeKinds = new Set(['event_save', 'booth_save', 'claim', 'visit_approve', 'review_save', 'points_adjust', 'rule_save', 'voucher_issue', 'voucher_claim', 'voucher_qr', 'voucher_redeem', 'voucher_void']);
@@ -169,7 +169,7 @@
     async function sun(action, payload = {}) { return direct('festival_sun_admin', action, payload); }
     // 부스 담당자 grants (operators only): list, candidates, grant, revoke.
     async function boothManagers(action, payload = {}) { return direct('festival_booth_manager_admin', action, payload); }
-    // 바우처 담당자 grants (operators only): list, candidates, grant, revoke.
+    // 쿠폰 담당자 grants (operators only): list, candidates, grant, revoke.
     async function voucherManagers(action, payload = {}) { return direct('festival_voucher_manager_admin', action, payload); }
     async function direct(name, action, payload) {
       const id = actor();

@@ -1,4 +1,4 @@
-/* Voucher approval helpers shared by 관리 마법사 (operations-ui.js) and 바우처 담당자 (voucher-manager.js).
+/* Voucher approval helpers shared by 관리 마법사 (operations-ui.js) and 쿠폰 담당자 (voucher-manager.js).
    scan(onCode): opens the camera and reads the student's voucher QR (its 8-character code). The
    browser's BarcodeDetector is used when present; otherwise jsQR (assets/vendor, loaded on first use)
    reads camera frames, so iPhone Safari scans too.
@@ -6,7 +6,7 @@
 const festivalVoucherScan = (() => {
   const CODE = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
   const JSQR = './assets/vendor/jsqr-1.4.0.js';
-  const KINDS = { food: '푸드트럭 바우처', photo: '포토부스 바우처' };
+  const KINDS = { food: '푸드트럭 쿠폰', photo: '포토부스 쿠폰' };
   const h = value => escapeHtml(String(value ?? ''));
   let stream = null, timer = null, jsqr = null;
 
@@ -65,7 +65,7 @@ const festivalVoucherScan = (() => {
   }
 
   async function scan(onCode) {
-    const d = dialog('바우처 QR 스캔'), body = d.querySelector('.ops-dialog-content');
+    const d = dialog('쿠폰 QR 스캔'), body = d.querySelector('.ops-dialog-content');
     body.innerHTML = '<video playsinline muted></video><p role="status">카메라 연결 중...</p>';
     const say = text => { const p = body.querySelector('p'); if (p) p.textContent = text; };
     if (!navigator.mediaDevices?.getUserMedia) { say('이 브라우저에서는 카메라를 쓸 수 없어요. 학생 화면의 인증키 8자리를 입력해 주세요.'); return; }
@@ -77,7 +77,7 @@ const festivalVoucherScan = (() => {
       video.srcObject = stream; await video.play();
       const read = await reader(video);
       if (!d.isConnected) return;
-      say('학생 화면의 바우처 QR을 비춰 주세요.');
+      say('학생 화면의 쿠폰 QR을 비춰 주세요.');
       const tick = async () => {
         if (!d.isConnected) return;
         try {
@@ -94,10 +94,10 @@ const festivalVoucherScan = (() => {
 
   // result: the festival_voucher_redeem 'redeem' answer.
   function approved(result) {
-    const d = dialog('바우처 사용 승인'), body = d.querySelector('.ops-dialog-content');
+    const d = dialog('쿠폰 사용 승인'), body = d.querySelector('.ops-dialog-content');
     const at = result.redeemedAt ? new Date(result.redeemedAt) : new Date();
     const when = at.toLocaleString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
-    const rows = [['바우처', result.title || KINDS[result.kind] || '바우처'], ['이름', result.participant || '-'], ['학번', result.studentNumber || '-'], ['승인 일시', when]];
+    const rows = [['쿠폰', result.title || KINDS[result.kind] || '쿠폰'], ['이름', result.participant || '-'], ['학번', result.studentNumber || '-'], ['승인 일시', when]];
     body.innerHTML = `<div class="ops-voucher-done used" role="status" aria-live="assertive">${icon('check')}<strong>사용 승인이 완료되었어요</strong><p>상품을 전달해 주세요.</p></div>
       <dl class="voucher-approved-list">${rows.map(([k, v]) => `<div><dt>${h(k)}</dt><dd>${h(v)}</dd></div>`).join('')}</dl>
       <button type="button" class="primary-btn" data-voucher-approved-ok>확인</button>`;

@@ -52,10 +52,10 @@ const festivalStampSimulator = (() => {
   }
   function choose(kind, target) {
     if (!guard()) return denied();
-    if (!Object.hasOwn(titles, kind) || target!==3) return { ok: false, message: '바우처는 스탬프 3개와 6개에서만 지급돼요.' };
+    if (!Object.hasOwn(titles, kind) || target!==3) return { ok: false, message: '쿠폰은 스탬프 3개와 6개에서만 지급돼요.' };
     const existing = vouchers.find(v => v.target === target);
-    if (existing) return existing.kind === kind ? { ok: true, message: '이미 모의 발급된 바우처예요.' }
-      : { ok: false, message: '이미 선택한 바우처는 바꿀 수 없어요.' };
+    if (existing) return existing.kind === kind ? { ok: true, message: '이미 모의 발급된 쿠폰예요.' }
+      : { ok: false, message: '이미 선택한 쿠폰은 바꿀 수 없어요.' };
     const reward = rewardState();
     if (target !== reward.firstTarget || !reward.canChoose) return { ok: false, message: '필요한 스탬프를 먼저 모의 발급해 주세요.' };
     vouchers.push({ target, kind });
@@ -77,16 +77,16 @@ const festivalStampSimulator = (() => {
     const next = visits.length<3?3:6;
     return `<section class="stamp-simulator" data-stamp-simulator aria-label="스탬프 모의 발급">
       <header class="stamp-sim-heading"><h1>스탬프 모의 발급</h1><span>테스트 전용</span></header>
-      <p class="stamp-sim-boundary">완성 스탬프를 가정한 테스트예요. 실제 방문·별점·포인트·바우처는 바뀌지 않으며, 새로고침하면 모의 기록이 사라집니다.</p>
-      <dl class="stamp-sim-stats"><div><dt>모의 스탬프</dt><dd>${visits.length}<small>개</small></dd></div><div><dt>모의 바우처</dt><dd>${vouchers.length}<small>장</small></dd></div></dl>
+      <p class="stamp-sim-boundary">완성 스탬프를 가정한 테스트예요. 실제 방문·별점·포인트·쿠폰은 바뀌지 않으며, 새로고침하면 모의 기록이 사라집니다.</p>
+      <dl class="stamp-sim-stats"><div><dt>모의 스탬프</dt><dd>${visits.length}<small>개</small></dd></div><div><dt>모의 쿠폰</dt><dd>${vouchers.length}<small>장</small></dd></div></dl>
       <form id="stampSimIssueForm" class="stamp-sim-form"><label for="stampSimBooth">발급할 부스</label><select id="stampSimBooth" class="select" ${list.length?'':'disabled'}>${list.map(b=>`<option value="${h(b.id)}" ${b.id===selected?'selected':''}>${h(b.name)}${visits.some(v=>v.boothId===b.id)?' · 발급됨':''}</option>`).join('')}</select>
         <button type="submit" id="stampSimIssue" class="primary-btn" ${!current||already?'disabled':''}>${icon('stamp')} ${already?'이 부스 발급 완료':'모의 발급'}</button>
       </form>
       ${!list.length?'<p class="stamp-sim-note">테스트할 부스가 없어요.</p>':''}
       <p class="stamp-sim-status" role="status" data-tone="${tone}">${h(message)}</p>
       <div class="stamp-sim-actions"><button type="button" class="ghost-btn" data-stamp-sim-preview>${icon('stamp')} 스탬프판 확인</button><button type="button" class="icon-btn" data-stamp-sim-reset aria-label="모의 기록 초기화" title="모의 기록 초기화" ${visits.length?'':'disabled'}>${icon('refresh')}</button></div>
-      <section class="stamp-sim-rewards"><h2>바우처 모의 발급</h2>
-        ${!reward.firstChoice && reward.canChoose?`<form id="stampSimRewardForm"><input type="hidden" name="target" value="${reward.firstTarget}"><fieldset><legend>스탬프 ${reward.firstTarget}개 달성</legend>${Object.entries(titles).map(([kind,title])=>`<label><input type="radio" name="kind" value="${kind}" required><span>${title}</span></label>`).join('')}</fieldset><button type="submit" class="primary-btn">선택한 바우처 모의 발급</button></form>`:`<p class="stamp-sim-note">${reward.secondIssued?'바우처 2장 모의 지급 완료':`${Math.max(0,next-visits.length)}개 더 발급하면 ${next}개 바우처를 테스트할 수 있어요.`}</p>`}
+      <section class="stamp-sim-rewards"><h2>쿠폰 모의 발급</h2>
+        ${!reward.firstChoice && reward.canChoose?`<form id="stampSimRewardForm"><input type="hidden" name="target" value="${reward.firstTarget}"><fieldset><legend>스탬프 ${reward.firstTarget}개 달성</legend>${Object.entries(titles).map(([kind,title])=>`<label><input type="radio" name="kind" value="${kind}" required><span>${title}</span></label>`).join('')}</fieldset><button type="submit" class="primary-btn">선택한 쿠폰 모의 발급</button></form>`:`<p class="stamp-sim-note">${reward.secondIssued?'쿠폰 2장 모의 지급 완료':`${Math.max(0,next-visits.length)}개 더 발급하면 ${next}개 쿠폰을 테스트할 수 있어요.`}</p>`}
         <ul class="stamp-sim-vouchers">${vouchers.map(v=>`<li><span>${icon('ticket')}<strong>${titles[v.kind]}</strong></span><small>${v.target}개 · 모의 발급</small></li>`).join('')}</ul>
       </section>
       <details class="stamp-sim-history"><summary>모의 발급 기록 <span>${visits.length}개</span></summary><ul>${visits.slice().reverse().map(v=>`<li><span>${h(state.db.booths.find(b=>b.id===v.boothId)?.name || '삭제된 부스')}</span><time>${new Date(v.createdAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</time></li>`).join('')}</ul></details>
@@ -131,7 +131,7 @@ const festivalStampSimulator = (() => {
     };
     const resetButton = document.querySelector('[data-stamp-sim-reset]');
     if (resetButton) resetButton.onclick = () => {
-      if (guard() && confirm('이 화면의 모의 스탬프와 모의 바우처만 초기화할까요? 실제 기록은 유지돼요.')) repaint(reset(), '#stampSimBooth');
+      if (guard() && confirm('이 화면의 모의 스탬프와 모의 쿠폰만 초기화할까요? 실제 기록은 유지돼요.')) repaint(reset(), '#stampSimBooth');
     };
     const previewButton = document.querySelector('[data-stamp-sim-preview]');
     if (previewButton) previewButton.onclick = preview;

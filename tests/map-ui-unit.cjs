@@ -29,7 +29,7 @@ function setup() {
   for (const file of ['assets/vendor/ui-icons.js', 'web-experience.js', 'nfc-manager.js', 'operations-ui.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
-  const api = vm.runInContext('({state, mapView, visibleBooths, searchResults, setSheetLevel, bindEvents, adjustMapZoom, planAssignments, mapPlanForFloor, focusMapOnBooth})', context);
+  const api = vm.runInContext('({state, mapView, visibleBooths, searchResults, setSheetLevel, bindEvents, adjustMapZoom, planAssignments, mapPlanForFloor, focusMapOnBooth, setVisits: keys => {serverCompletedBooths=keys;}})', context);
   api.state.user = api.state.db.users[0];
   api.state.selectedBoothId = null;
   return { ...api, nodes, app };
@@ -74,7 +74,10 @@ test('sheet summaries and accessible expansion states agree for every snap level
 
 test('visit check marks reflect existing records without creating visits', () => {
   const api = setup();
+  api.state.floor=2;
   const booth = api.visibleBooths()[0];
+  booth.opsKey='fixture-booth';
+  api.setVisits(['fixture-booth']);
   api.state.db.stamps = [{ id: 'fixture', userId: api.state.user.id, boothId: booth.id, status: 'active' }];
   const html = api.mapView();
   assert.match(html, /data-floor-stamp-count>1<\/span>/);

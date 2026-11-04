@@ -4,17 +4,22 @@ const path = require('node:path');
 const { build, publicFiles, output } = require('../tools/build-web.cjs');
 
 const first = build();
-assert.equal(first.version, '1.36');
+assert.equal(first.version, '1.50');
 // An open page compares its own release with the deployed one to offer a reload.
 assert.ok(fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8').includes(`const APP_RELEASE = "${first.version}";`), 'APP_RELEASE must match the build version');
 assert.equal(fs.existsSync(path.join(output, 'functions')), false);
 fs.writeFileSync(path.join(output, 'static/stale-secret.txt'), 'synthetic stale file');
 build();
 assert.equal(fs.existsSync(path.join(output, 'static/stale-secret.txt')), false);
-for (const forbidden of ['.env', 'api', 'nfc-server', 'operations-server', 'tools', 'supabase', 'tests', 'artifacts', 'README.md', '.git']) {
+for (const forbidden of ['.env', 'api', 'nfc-server', 'operations-server', 'tools', 'supabase', 'tests', 'artifacts', 'README.md', '.git', 'ui-lab', '.ui-lab', 'AGENTS.md', 'assets/stamps/SOURCES.json']) {
   assert.equal(fs.existsSync(path.join(output, 'static', forbidden)), false, forbidden);
 }
 const html = fs.readFileSync(path.join(output, 'static/index.html'), 'utf8');
+assert.doesNotMatch(html, /mock-account|isolation\.js|ui-lab/);
+assert.equal(publicFiles().filter(file=>/^assets\/stamps\/.*\.png$/.test(file)).length,20);
+for (const file of publicFiles().filter(file=>file.endsWith('.js'))) {
+  assert.doesNotMatch(fs.readFileSync(path.join(output,'static',file),'utf8'), /FestivalUILab|UI_LAB_REQUIRED|labFloor/);
+}
 for (const asset of ['assets/festival-school-1.4.webp', 'assets/festival-map-1.4.webp']) {
   assert.ok(first.files[asset], `Missing home illustration: ${asset}`);
   assert.ok(fs.statSync(path.join(output, 'static', asset)).size < 200000, 'Home artwork must stay lightweight');
