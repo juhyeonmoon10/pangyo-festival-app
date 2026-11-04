@@ -1714,7 +1714,7 @@ function profileView() {
       <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>바우처</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div><div><dt>방문 기록</dt><dd>${stampCount}<small>개</small></dd></div></dl>
       <section class="profile-list">
         ${isServerMode() ? festivalOpsUI.identityRow() : ""}
-        <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
+        <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points()?.toLocaleString("ko-KR") ?? "—"} P</strong></div>
       </section>
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">
         ${[["stamps", "stamp", "나의 스탬프"], ["vouchers", "ticket", "나의 바우처"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
@@ -4160,7 +4160,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.50";
+const APP_RELEASE = "1.51";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

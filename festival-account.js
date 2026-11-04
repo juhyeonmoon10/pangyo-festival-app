@@ -463,7 +463,7 @@
     const boothImages = publicImages("festival-booths", "booths");
 
     // Point minigames (가상주식, 블랙잭) run on ORBIT's own functions and tables in the same project.
-    // They move ORBIT virtual points (public.users.money), never the festival point or voucher ledgers.
+    // They move public.users.money, the one 보유 포인트 balance (1.51), never the voucher ledgers.
     // Errors keep the server's code (e.g. INSUFFICIENT_POINTS) so the games screen can word them.
     // 1.40: blackjack join and hit/stand go through festival copies that never stand automatically.
     // 1.41: festival_blackjack_state shows the opponent's whole name. 관리 마법사 → 미니게임 관리 calls the

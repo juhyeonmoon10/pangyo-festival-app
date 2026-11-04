@@ -1,6 +1,6 @@
 /* 미니게임: the point games ported from ORBIT develop (/games). 동아리 가상주식 and 1대1 블랙잭 call ORBIT's own
    functions (orbit_stock_snapshot, orbit_trade_stock, orbit_blackjack_*) through the signed-in festival account.
-   They move ORBIT virtual points (가상 포인트), which are separate from festival points, stamps and vouchers.
+   They move public.users.money, the one 보유 포인트 balance (1.51: festival point rewards land there too).
    The only way in is the bottom navigation tab '미니게임' (route 'games'); no other screen links here.
    Results are shown next to the button that was pressed (spotMarkup/showSpot).
    1.38: the hub shows how many players wait for a blackjack opponent (festival_blackjack_lobby), and the
@@ -273,7 +273,7 @@ const festivalGames = (() => {
     return '<p class="web-muted" role="status">불러오는 중...</p>';
   }
   function demoOnly(title) {
-    return `<div class="festival-empty"><span>${icon('game')}</span><strong>${h(title)}은 실제 로그인에서 이용할 수 있어요</strong><p>체험 모드에는 가상 포인트가 없어요.</p></div>`;
+    return `<div class="festival-empty"><span>${icon('game')}</span><strong>${h(title)}은 실제 로그인에서 이용할 수 있어요</strong><p>체험 모드에는 보유 포인트가 없어요.</p></div>`;
   }
 
   // "n명 매칭중" next to 1대1 블랙잭 and above the blackjack lobby button. Refreshed every 5 s while the box is on
@@ -322,10 +322,10 @@ const festivalGames = (() => {
     const stockLine = market.data ? `${marketOpen() ? '거래 중' : '거래 준비·마감'} · 종목 ${list.length}개${held ? ` · 보유 ${held}개` : ''}` : market.status === 'error' ? '정보를 불러오지 못했어요' : '불러오는 중...';
     return `<main class="screen p0-page web-page festival-games">
       ${festivalWeb.header('미니게임', '', true)}
-      ${isServerMode() ? `<section class="profile-list game-wallet" aria-label="내 가상 포인트">
-        <div><span>가상 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div>
+      ${isServerMode() ? `<section class="profile-list game-wallet" aria-label="내 보유 포인트">
+        <div><span>보유 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div>
       </section>
-      <p class="web-muted game-wallet-note">미니게임에서만 쓰는 포인트예요. 부스 스탬프·바우처와는 따로 계산돼요.</p>
+      <p class="web-muted game-wallet-note">MY의 보유 포인트와 같은 포인트예요. 부스 후기 보상도 여기에 더해져요.</p>
       ${market.status === 'error' && !market.data ? `<p class="ops-alert" role="alert">${h(message(market.code))}</p>` : ''}
       <nav class="profile-shortcuts game-list" aria-label="미니게임 목록">
         <button type="button" data-route="gamesStock"><span class="shortcut-symbol map">${icon('trend')}</span><span class="game-row-copy"><strong>동아리 가상주식</strong><small>${h(stockLine)}</small></span>${icon('arrow')}</button>
@@ -495,7 +495,7 @@ const festivalGames = (() => {
           <output aria-live="polite">${trade.quantity.toLocaleString('ko-KR')}주</output>
           <button type="button" class="icon-btn" data-trade-step="1" aria-label="한 주 더하기" ${trade.quantity >= most || tradeBusy ? 'disabled' : ''}>${icon('plus')}</button>
         </div>
-        ${most < 1 ? `<p class="ops-alert" role="alert">${trade.side === 'buy' ? '가상 포인트가 부족해 살 수 없어요.' : '보유한 주식이 없어요.'}</p>` : ''}
+        ${most < 1 ? `<p class="ops-alert" role="alert">${trade.side === 'buy' ? '보유 포인트가 부족해 살 수 없어요.' : '보유한 주식이 없어요.'}</p>` : ''}
         ${slot('game-trade-dialog')}
         <button type="button" class="primary-btn full-action" data-trade-confirm ${most < 1 || tradeBusy ? 'disabled' : ''}>${verb} 확정 · ${point(stock.price * trade.quantity)}</button>
         <button type="button" class="ghost-btn full-action" data-trade-close ${tradeBusy ? 'disabled' : ''}>취소</button>
@@ -843,7 +843,7 @@ const festivalGames = (() => {
       ${slot('bj')}
       <button type="button" class="primary-btn full-action" data-bj="${sameOpponent ? 'rematch' : 'join'}" ${bj.busy || r?.busy || waitingForThem || !enough ? 'disabled' : ''}>${icon('spade')} ${game?.status === 'finished' ? '한 판 더 하기' : `${point(STAKE)} 걸고 상대 찾기`}</button>
       ${waitingForThem && r.opponent !== 'accept' ? '<p class="web-muted game-trade-hint">상대도 수락하면 같은 상대와 바로 시작해요.</p>' : ''}
-      ${money !== null && !enough ? `<p class="web-muted game-trade-hint">가상 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
+      ${money !== null && !enough ? `<p class="web-muted game-trade-hint">보유 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
       <section class="ops-section game-rules" aria-labelledby="gameRulesTitle"><h2 id="gameRulesTitle">규칙</h2>
         <ul>
           <li>"${point(STAKE)} 걸고 상대 찾기"를 누르면 기다리는 사람과 무작위로 짝을 지어요. 기다리는 사람이 없으면 내가 기다려요.</li>
@@ -875,7 +875,7 @@ const festivalGames = (() => {
       : '<p class="web-muted" role="status">게임 상태를 불러오는 중...</p>';
     return `<main class="screen p0-page web-page festival-games game-blackjack${atTable ? ' at-table' : ''}">
       ${header('블랙잭', 'games')}
-      ${atTable ? '' : `<section class="profile-list game-wallet" aria-label="내 가상 포인트"><div><span>가상 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div></section>
+      ${atTable ? '' : `<section class="profile-list game-wallet" aria-label="내 보유 포인트"><div><span>보유 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div></section>
       <p class="web-muted game-wallet-note">무작위로 만난 상대와 ${point(STAKE)}를 걸고, 21에 더 가까운 쪽이 판돈 ${point(STAKE * 2)}를 가져가요.</p>`}
       ${body}
       <p class="sr-only" aria-live="polite">${h(bj.announcement)}</p>
