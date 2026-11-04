@@ -220,14 +220,12 @@ const festivalWeb = (() => {
     const pending = waiting().length;
     // Server notices come sorted with important ones first.
     const news = isServerMode() ? (festivalOpsUI.notices?.() || []) : state.db.announcements;
-    const notice = isServerMode() ? news.find(n => n.important) || null : news[0];
     const reviewCount = state.db.booths.filter(b => repo.hasReview(state.user.id, b.id)).length;
     const pendingReviews = state.db.booths.filter(reviewPending);
     const toWrite = pendingReviews.length;
     const voucherCount = coupons().filter(c => couponState(c) === "available").length;
     return `<main class="web-home">
-      <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-route="notices" aria-label="축제 소식" title="축제 소식">${icon("bell")}</button><button type="button" class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">${icon("user")}</button></div></header>
-      ${notice ? `<button type="button" class="festival-notice-strip" data-notice-open="${escapeHtml(notice.id)}">${icon('notice')}<span>${escapeHtml(notice.title)}</span>${icon('arrow')}</button>` : ''}
+      <header class="web-brand"><span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong><div class="web-brand-actions"><button type="button" class="icon-btn" data-route="notices" aria-label="공지" title="공지">${icon("bell")}</button></div></header>
       <section class="web-welcome"><h1>${escapeHtml(state.user.name)}님,<br>오늘의 축제를 모아봐요.</h1></section>
       ${identityPrompt()}
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
@@ -246,7 +244,7 @@ const festivalWeb = (() => {
       ${visits.length ? `<section class="web-section"><div class="section-heading"><h2>최근 내 기록</h2><button class="text-link" data-route="stamps">전체 보기 ${icon("arrow")}</button></div>
         <div class="web-records">${visits.slice(-3).reverse().map(v => visitRow(v)).join("")}</div>
       </section>` : ""}
-      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><div class="section-heading"><h2>축제 소식</h2>${news.length ? `<button type="button" class="text-link" data-route="notices">전체 보기 ${icon('arrow')}</button>` : ''}</div>${news.length ? `<ul class="web-news-list">${news.slice(0, 5).map(n => `<li class="${n.important ? 'important' : ''}"><button type="button" class="web-news-open" data-notice-open="${escapeHtml(n.id)}"><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${escapeHtml(n.title)}</strong>${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}${n.publishedAt ? `<small>${new Date(n.publishedAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}${n.images?.length ? ` · 사진 ${n.images.length}장` : ''}</small>` : ''}</button></li>`).join('')}</ul>` : '<strong>등록된 공지가 없어요</strong>'}</div></section>
+      <section class="web-section web-announcement" id="homeNews" tabindex="-1">${icon("notice")}<div><div class="section-heading"><h2>공지</h2>${news.length ? `<button type="button" class="text-link" data-route="notices">전체 보기 ${icon('arrow')}</button>` : ''}</div>${news.length ? `<ul class="web-news-list">${news.slice(0, 5).map(n => `<li class="${n.important ? 'important' : ''}"><button type="button" class="web-news-open" data-notice-open="${escapeHtml(n.id)}"><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${escapeHtml(n.title)}</strong>${n.body ? `<p>${escapeHtml(n.body)}</p>` : ''}${n.publishedAt ? `<small>${new Date(n.publishedAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}${n.images?.length ? ` · 사진 ${n.images.length}장` : ''}</small>` : ''}</button></li>`).join('')}</ul>` : '<strong>등록된 공지가 없어요</strong>'}</div></section>
       <footer class="web-footer">PANGYO HIGH SCHOOL${isServerMode() ? "" : "<span>체험 기록 · 실제 포인트 및 상품 교환 불가</span>"}</footer>
       ${bottomNav("home")}
     </main>`;

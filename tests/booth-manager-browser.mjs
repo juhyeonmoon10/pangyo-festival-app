@@ -176,10 +176,10 @@ try {
   assert.equal(visit.method,'manual'); assert.equal(visit.actor_id,lead.uid);
   flows.push('manager edit','manager approval');
 
-  // Participant: the notice strip opens the notice page with its photo; the bell opens the list.
+  // Participant: a notice in the home 공지 section opens the notice page with its photo; the bell opens the list.
   const v=await pageFor(visitor);
   await routeTo(v.page,'home');
-  await v.page.locator('.festival-notice-strip').click();
+  await v.page.locator('#homeNews [data-notice-open]').first().click();
   await v.page.locator('.festival-notice-article h2',{hasText:'부스 운영 시간 안내'}).waitFor();
   assert.equal(await v.page.evaluate(()=>state.route),'notice');
   const src=await v.page.locator('.festival-notice-photo').getAttribute('src');

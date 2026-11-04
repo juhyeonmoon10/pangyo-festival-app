@@ -1526,15 +1526,18 @@ function googleForm() {
 
 function profileForm() {
   const google = state.pendingGoogle;
-  const needsName = !isServerMode() || !google.displayName?.trim() || google.displayName.trim().length > 60;
+  const missingName = isServerMode() && (!google.displayName?.trim() || google.displayName.trim().length > 60);
+  const detected = [google.detectedName && `이름 <strong>${escapeHtml(google.detectedName)}</strong>`, google.detectedStudentNumber && `학번 <strong>${escapeHtml(google.detectedStudentNumber)}</strong>`].filter(Boolean);
+  // 1.48: the name is always an input, filled in from the Google account when it can be read.
   return `
     <div class="auth-card">
-      <h2>${needsName ? "학생 정보 등록" : "학번 확인"}</h2>
-      <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>${needsName ? "Google 계정" : escapeHtml(google.displayName)}</strong><span>${escapeHtml(google.email)}</span></div></div>
+      <h2>학생 정보 등록</h2>
+      <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>Google 계정</strong><span>${escapeHtml(google.email)}</span></div></div>
       ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
       <div class="input-stack">
-        ${needsName ? `${isServerMode() ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}<label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? google.displayName ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>` : ""}
-        ${google.detectedStudentNumber ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 학번 <strong>${escapeHtml(google.detectedStudentNumber)}</strong>을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>` : ""}
+        ${missingName ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}
+        ${detected.length ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 ${detected.join(", ")}을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>` : ""}
+        <label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? (missingName ? "" : google.displayName) ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" maxlength="5" value="${escapeHtml(google.studentNumber || "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         ${isServerMode() ? "" : `<label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>`}
         <button id="profileSubmit" type="button" class="primary-btn" aria-busy="${Boolean(state.loginBusy)}" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "저장 중..." : "등록하고 시작"}</button>
@@ -4088,7 +4091,7 @@ function applyServerProfile(profile) {
   } else if (profile.needsProfile) {
     state.user = null;
     state.pendingGoogle = { uid: profile.authUserId, email: profile.email, displayName: profile.name, studentNumber: profile.studentNumber,
-      detectedStudentNumber: profile.studentNumberDetected === true ? profile.studentNumber : "" };
+      detectedStudentNumber: profile.studentNumberDetected === true ? profile.studentNumber : "", detectedName: profile.nameDetected === true ? profile.name : "" };
     state.authStep = "profile";
     state.route = "login";
   } else {
@@ -4160,7 +4163,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.49";
+const APP_RELEASE = "1.50";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

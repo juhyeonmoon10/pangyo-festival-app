@@ -12,12 +12,16 @@
   const STUDENT_NUMBER = /^[1-3][0-9]{4}$/;
   // A @pangyo.hs.kr Google account is named "<학번 5자리><이름>", e.g. "21001홍길동" (the name has
   // two or more Hangul letters). Returns { studentNumber, name } or null for any other account.
+  // 1.48: the name may also come first ("홍길동21001"), with a space, "_", "-" or brackets between.
   function schoolIdentity(email, names) {
     if (typeof email !== "string" || !/@pangyo\.hs\.kr$/i.test(email.trim())) return null;
     for (const value of names) {
       if (typeof value !== "string") continue;
-      const match = value.normalize("NFC").trim().match(/^([1-3][0-9]{4})\s*([가-힣]{2,30})$/);
-      if (match) return { studentNumber: match[1], name: match[2] };
+      const text = value.normalize("NFC").replace(/[\s_\-.()[\]]+/g, " ").trim();
+      const front = text.match(/^([1-3][0-9]{4}) ?([가-힣]{2,30})$/);
+      if (front) return { studentNumber: front[1], name: front[2] };
+      const back = text.match(/^([가-힣]{2,30}) ?([1-3][0-9]{4})$/);
+      if (back) return { studentNumber: back[2], name: back[1] };
     }
     return null;
   }
@@ -220,12 +224,13 @@
       // School accounts are named "21001홍길동": the 학번 and the name are filled in for the student
       // to confirm. This is an onboarding default, not a completed profile or a role assertion.
       const school = schoolIdentity(data.user.email || current.email, names);
-      if (validName(current.name)) {
+      // A saved name that is the whole Google name ("21001홍길동") is replaced by the name part (1.48).
+      if (validName(current.name) && !(school && schoolIdentity(data.user.email || current.email, [current.name]))) {
         return school && !STUDENT_NUMBER.test(current.studentNumber) ? { ...current, studentNumber: school.studentNumber, studentNumberDetected: true } : current;
       }
       if (school) {
         const studentNumber = STUDENT_NUMBER.test(current.studentNumber) ? current.studentNumber : school.studentNumber;
-        return { ...current, name: school.name, studentNumber, ...(studentNumber === school.studentNumber ? { studentNumberDetected: true } : {}) };
+        return { ...current, name: school.name, nameDetected: true, studentNumber, ...(studentNumber === school.studentNumber ? { studentNumberDetected: true } : {}) };
       }
       const name = names.find(validName);
       return { ...current, name: name ? name.trim() : current.name };

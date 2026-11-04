@@ -59,10 +59,6 @@ body.design-web {
 .design-web .brand-symbol { border-radius: 50%; width: 36px; height: 36px; flex-basis: 36px; background: #98eec7; color: #076547; box-shadow: none; font-size: 23px; }
 .design-web .web-brand { min-height: 64px; padding-block: 8px; }
 .design-web .web-brand > strong { font-size: 18px; }
-.design-web .web-brand .web-profile-button { width: 44px; height: 44px; min-width: 44px; background: transparent; }
-.festival-notice-strip { display: flex; align-items: center; gap: 10px; width: calc(100% + 40px); min-height: 48px; margin-inline: -20px; padding: 10px 20px; background: var(--festival-sky); color: var(--festival-blue); text-align: left; font-size: 13px; }
-.festival-notice-strip span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.festival-notice-strip .ui-icon { width: 20px; height: 20px; }
 .design-web .web-welcome { min-height: 0; margin: 0; padding: 26px 0 18px; overflow: visible; }
 .design-web .web-welcome h1 { font-size: 24px; line-height: 1.45; font-weight: 750; }
 .design-web .home-stamp-card { margin: 0; padding: 0 0 24px; border: 0; border-radius: 0; background: #fff; }
@@ -221,7 +217,6 @@ body.design-web {
 .design-web .ops-alert { padding: 12px; background: #fff0ed; color: #a43530; border: 0; border-radius: 4px; font-size: 13px; }
 .design-web .stamp-sim-boundary { border-left: 0; padding: 12px; color: var(--festival-blue); background: var(--festival-sky); }
 @media (max-width: 350px) {
-  .festival-notice-strip { width: calc(100% + 32px); margin-inline: -16px; padding-inline: 16px; }
   .design-web .web-home .home-quick-section { margin-inline: -16px; padding-inline: 16px; }
   .festival-pass-heading { gap: 8px; }
   .festival-wallet-link { gap: 5px; padding-inline: 8px; font-size: 12px; }
