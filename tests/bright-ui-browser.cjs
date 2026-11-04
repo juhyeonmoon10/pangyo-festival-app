@@ -35,7 +35,7 @@ const url = (file, query = '') => pathToFileURL(path.join(root, file)).href + qu
       }
       await page.evaluate(() => navigateTo('home'));
       assert.match(await page.locator('.festival-wallet-link').innerText(), /받을 쿠폰 2/);
-      assert.equal(await page.locator('.bottom-nav .nav-btn').count(), 4);
+      assert.equal(await page.locator('.bottom-nav .nav-btn').count(), 5); // 홈 · 부스 지도 · 스탬프 · 미니게임 · MY (1.37)
       await page.locator('.web-map-action').click();
       const nav = await page.locator('.bottom-nav').boundingBox();
       const sheet = await page.locator('#sheet').boundingBox();

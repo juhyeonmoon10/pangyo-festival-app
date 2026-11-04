@@ -8,6 +8,8 @@ const entrypoints = new Set(['index.html', 'app.js', 'styles.css', 'ui-ver2.css'
 entrypoints.add('stamp-simulator.js');
 entrypoints.add('festival-bright.css');
 entrypoints.add('festival-router.js');
+entrypoints.add('festival-games.js');
+entrypoints.add('festival-games.css');
 entrypoints.add('tests/stamp-simulator-preview.html');
 entrypoints.add('tests/login-ui-preview.html');
 entrypoints.add('tests/stamp-ui-preview.html');

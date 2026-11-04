@@ -102,6 +102,7 @@ function navigationSnapshot() {
     adminTab: state.adminTab,
     reviewPickerOpen: state.reviewPickerOpen,
     noticeId: state.noticeId || null,
+    gameStockId: state.gameStockId || null,
     mapSelection: state.route === "map" && Boolean(state.selectedBoothId && state.mapSelectionEntry),
   };
 }
@@ -118,8 +119,10 @@ function writeNavigationHistory(mode = "push") {
 }
 
 function navigateTo(route, { replace = false } = {}) {
+  // Leaving a blackjack game in progress asks first and forfeits it (1.42).
+  if (typeof festivalGames !== "undefined" && !festivalGames.allowLeave(route)) return;
   const changed = state.route !== route || (window.FestivalRouter?.isWeb(location)
-    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId}) !== location.pathname);
+    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId,gameStockId:state.gameStockId}) !== location.pathname);
   if (window.FestivalRouter && !state.user && route !== "login") {
     pendingNavigation = { ...navigationSnapshot(), route };
     route = "login";
@@ -137,6 +140,7 @@ function applyNavigationSnapshot(snapshot) {
   state.selectedBoothId = snapshot.selectedBoothId || null;
   state.mapSelectionEntry = Boolean(snapshot.mapSelection);
   state.noticeId = snapshot.noticeId || null;
+  state.gameStockId = snapshot.gameStockId || null;
   state.sheetLevel = snapshot.sheetLevel || "peek";
   state.sheetOpen = state.sheetLevel !== "peek";
   state.searchOpen = Boolean(snapshot.searchOpen);
@@ -161,6 +165,7 @@ function loadNavigationContent() {
   if (["detail", "boothReviews"].includes(state.route) && state.selectedBoothId) {
     loadBoothReviews(state.selectedBoothId, {force: state.route === "boothReviews"});
   }
+  if (typeof festivalGames !== "undefined") festivalGames.load();
 }
 
 function resumeRequestedNavigation() {
@@ -203,6 +208,8 @@ function initializeNavigation() {
     const saved = event.state?.key === HISTORY_KEY ? event.state : null;
     const snapshot = urlTarget ? { ...(saved || {}), ...urlTarget } : saved;
     if (!snapshot) return;
+    // The back button during a blackjack game: staying puts the table's address back.
+    if (typeof festivalGames !== "undefined" && !festivalGames.allowLeave(snapshot.route)) { writeNavigationHistory("push"); return; }
     navigationIndex = Number(saved?.index) || 0;
     if (snapshot.route === "login" && state.user) snapshot.route = "home";
     if (snapshot.route === "login" && router) pendingNavigation = router.safeReturn(new URL(location.href).searchParams.get("next"));
@@ -1469,6 +1476,7 @@ function render() {
     if (state.route === "boothReviews") app.innerHTML = boothReviewsView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
+    if (["games", "gamesStock", "gamesStockDetail", "gamesBlackjack"].includes(state.route)) app.innerHTML = festivalGames.view();
     if (state.reviewPickerOpen && state.user) app.insertAdjacentHTML("beforeend", reviewPickerView());
     if (app.querySelector("main")) app.querySelector("main").inert = state.reviewPickerOpen;
     app.dataset.previousRoute = previousRoute;
@@ -1978,8 +1986,7 @@ function mapView() {
   const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : state.sheetLevel === "mid" ? "부스 목록 더 펼치기" : "부스 목록 펼치기";
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
-      <header class="top-bar">
-        <button class="icon-btn" data-route="home" aria-label="홈으로">${icon("back")}</button>
+      <header class="top-bar tab-header">
         <h1>부스 지도</h1>
         <span class="map-location-note">${floorPlaceNote(state.floor)}</span>
       </header>
@@ -2783,10 +2790,10 @@ function adminEmpty(title, body) {
 }
 
 function bottomNav(active) {
-  const current = active === "boothReviews" ? "map" : ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity", "manage"].includes(active) ? "profile" : ["notices", "notice"].includes(active) ? "home" : active;
+  const current = active === "boothReviews" ? "map" : ['scan', 'vouchers'].includes(active) ? "stamps" : ["profile", "admin", "reviews", "identity", "manage"].includes(active) ? "profile" : ["notices", "notice"].includes(active) ? "home" : ["gamesStock", "gamesStockDetail", "gamesBlackjack"].includes(active) ? "games" : active;
   return `
     <nav class="bottom-nav" aria-label="주요 메뉴">
-      ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}
+      ${[["home", "home", "홈"], ["map", "map", "부스 지도"], ["stamps", "stamp", "스탬프"], ["games", "game", "미니게임"], ["profile", "user", "MY"]].map(([route, symbol, label]) => `<button type="button" class="nav-btn ${current === route ? "active" : ""}" data-route="${route}" ${current === route ? 'aria-current="page"' : ""}><span>${icon(symbol)}</span><span>${label}</span></button>`).join("")}
     </nav>
   `;
 }
@@ -3092,9 +3099,11 @@ function bindEvents() {
   festivalOpsUI.bind();
   if (typeof festivalStampSimulator !== "undefined") festivalStampSimulator.bind();
   if (typeof festivalSunCards !== "undefined") festivalSunCards.bind();
+  if (typeof festivalGamesAdmin !== "undefined") festivalGamesAdmin.bind();
   if (typeof festivalNotices !== "undefined") festivalNotices.bind();
   if (typeof festivalBoothManager !== "undefined") festivalBoothManager.bind();
   if (typeof festivalVoucherManager !== "undefined") festivalVoucherManager.bind();
+  if (typeof festivalGames !== "undefined") festivalGames.bind();
 }
 
 function closeMenus() {
@@ -4155,7 +4164,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.50";
+const APP_RELEASE = "1.51";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

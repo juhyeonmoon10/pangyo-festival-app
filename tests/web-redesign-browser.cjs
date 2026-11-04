@@ -30,7 +30,7 @@ const base = process.env.FESTIVAL_TEST_URL || 'http://127.0.0.1:5186/';
       await capture('login');
       await page.locator('#googleLogin').click();
       await page.waitForSelector('.web-home');
-      assert.deepEqual(await page.locator('.bottom-nav button').allTextContents(), ['홈', '부스 지도', '스탬프', 'MY']);
+      assert.deepEqual(await page.locator('.bottom-nav button').allTextContents(), ['홈', '부스 지도', '스탬프', '미니게임', 'MY']);
       assert.equal(await page.locator('.bottom-nav [aria-current="page"]').getAttribute('data-route'), 'home');
       assert.doesNotMatch(await page.locator('.web-brand').innerText(), /데모|DEMO/);
       assert.match(await page.locator('.web-footer').innerText(), /실제 포인트 및 상품 교환 불가/);

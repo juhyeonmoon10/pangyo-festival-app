@@ -4,21 +4,32 @@ const path = require('node:path');
 const { build, publicFiles, output } = require('../tools/build-web.cjs');
 
 const first = build();
-assert.equal(first.version, '1.50');
+assert.equal(first.version, '1.51');
 // An open page compares its own release with the deployed one to offer a reload.
 assert.ok(fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8').includes(`const APP_RELEASE = "${first.version}";`), 'APP_RELEASE must match the build version');
 assert.equal(fs.existsSync(path.join(output, 'functions')), false);
 fs.writeFileSync(path.join(output, 'static/stale-secret.txt'), 'synthetic stale file');
 build();
 assert.equal(fs.existsSync(path.join(output, 'static/stale-secret.txt')), false);
-for (const forbidden of ['.env', 'api', 'nfc-server', 'operations-server', 'tools', 'supabase', 'tests', 'artifacts', 'README.md', '.git', 'ui-lab', '.ui-lab', 'AGENTS.md', 'assets/stamps/SOURCES.json']) {
+for (const forbidden of ['.env', 'api', 'nfc-server', 'operations-server', 'tools', 'supabase', 'tests', 'artifacts', 'README.md', '.git', 'ui-lab', '.ui-lab', 'AGENTS.md']) {
   assert.equal(fs.existsSync(path.join(output, 'static', forbidden)), false, forbidden);
 }
 const html = fs.readFileSync(path.join(output, 'static/index.html'), 'utf8');
 assert.doesNotMatch(html, /mock-account|isolation\.js|ui-lab/);
-assert.equal(publicFiles().filter(file=>/^assets\/stamps\/.*\.png$/.test(file)).length,20);
 for (const file of publicFiles().filter(file=>file.endsWith('.js'))) {
   assert.doesNotMatch(fs.readFileSync(path.join(output,'static',file),'utf8'), /FestivalUILab|UI_LAB_REQUIRED|labFloor/);
+}
+for (const file of ['festival-games.js','festival-games-admin.js','festival-games.css','ui-refinements.css']) assert.ok(first.files[file], `Missing integrated file: ${file}`);
+const stampFiles = publicFiles().filter(file => /^assets\/stamps\/.*\.png$/.test(file));
+assert.equal(stampFiles.length, 20);
+assert.equal(fs.existsSync(path.join(output, 'static/assets/stamps/SOURCES.json')), false);
+for (const file of stampFiles) {
+  const bytes = fs.readFileSync(path.join(output, 'static', file));
+  assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
+  assert.equal(bytes.readUInt32BE(16), 256);
+  assert.equal(bytes.readUInt32BE(20), 256);
+  assert.equal(bytes[25], 6, 'Stamp must keep transparency');
+  assert.ok(bytes.length < 100000, 'Stamp must be lightweight');
 }
 for (const asset of ['assets/festival-school-1.4.webp', 'assets/festival-map-1.4.webp']) {
   assert.ok(first.files[asset], `Missing home illustration: ${asset}`);
@@ -33,7 +44,7 @@ assert.ok(config.routes.some(route => route.src === '/nfc/?' && route.dest === '
 const rewrite = config.routes.find(route => route.src === require('../festival-router.js').pagePattern && route.dest === '/index.html');
 assert.ok(rewrite, 'Page URLs must support a direct visit and refresh');
 const pattern = new RegExp(`^${rewrite.src}$`);
-for (const page of ['/', '/login', '/admin', '/map', '/stamp', '/voucher/', '/my', '/reviews', '/identity', '/booth/fixture', '/booth/fixture/reviews']) {
+for (const page of ['/', '/login', '/admin', '/map', '/stamp', '/voucher/', '/my', '/reviews', '/identity', '/booth/fixture', '/booth/fixture/reviews', '/games', '/games/stock', '/games/stock/1', '/games/blackjack']) {
   assert.ok(pattern.test(page), `Missing page rewrite: ${page}`);
 }
 for (const privatePath of ['/api/debug', '/operations-server/install.sql', '/.env', '/tests/stamp-ui-preview.html', '/missing.js']) {

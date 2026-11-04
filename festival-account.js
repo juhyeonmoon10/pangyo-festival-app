@@ -467,8 +467,58 @@
     const noticeImages = publicImages("festival-notices", "notices");
     const boothImages = publicImages("festival-booths", "booths");
 
+    // Point minigames (가상주식, 블랙잭) run on ORBIT's own functions and tables in the same project.
+    // They move ORBIT virtual points (public.users.money), never the festival point or voucher ledgers.
+    // Errors keep the server's code (e.g. INSUFFICIENT_POINTS) so the games screen can word them.
+    // 1.40: blackjack join and hit/stand go through festival copies that never stand automatically.
+    // 1.41: festival_blackjack_state shows the opponent's whole name. 관리 마법사 → 미니게임 관리 calls the
+    // admin functions below; each one rejects anyone who is not an operator (public.users.admin).
+    // 1.49: festival_blackjack_cancel leaves the festival-only matching queue.
+    const GAME_RPCS = new Set(["orbit_stock_snapshot", "orbit_trade_stock", "festival_blackjack_state",
+      "orbit_blackjack_cancel", "festival_blackjack_cancel", "festival_blackjack_join", "festival_blackjack_action",
+      "festival_blackjack_lobby", "festival_blackjack_rematch",
+      "orbit_admin_stock_dashboard", "orbit_admin_stock_audit_log", "orbit_admin_stock_mutate",
+      "orbit_admin_publish_stock_price", "festival_blackjack_admin", "festival_blackjack_forfeit"]);
+    const gameError = error => {
+      const code = String(error?.message || "").match(/^[A-Z][A-Z0-9_]+$/)?.[0]
+        || (error?.code === "PGRST202" ? "SERVER_NOT_READY" : error?.status === 401 ? "UNAUTHENTICATED" : "NETWORK_ERROR");
+      return { ok: false, code };
+    };
+    const games = {
+      async call(name, args = {}) {
+        if (!GAME_RPCS.has(name)) return { ok: false, code: "INVALID_INPUT" };
+        try {
+          const { data, error } = await client.rpc(name, args);
+          return error ? gameError(error) : { ok: true, data };
+        } catch (error) { return gameError(error); }
+      },
+      // Public price history of one stock (RLS: readable by every signed-in user).
+      async priceHistory(stockId, eventId, from, to) {
+        try {
+          const { data, error } = await client.from("stock_price_history").select("created_at,price,version")
+            .eq("stock_id", stockId).eq("event_id", eventId).gte("created_at", from).lte("created_at", to)
+            .order("version", { ascending: false }).limit(500);
+          return error ? gameError(error) : { ok: true, data: Array.isArray(data) ? data : [] };
+        } catch (error) { return gameError(error); }
+      },
+      // Last price at or before a moment: the opening price of the market session.
+      async priceAt(stockId, eventId, at) {
+        try {
+          const { data, error } = await client.from("stock_price_history").select("price")
+            .eq("stock_id", stockId).eq("event_id", eventId).lte("created_at", at).order("version", { ascending: false }).limit(1);
+          return error ? gameError(error) : { ok: true, price: Number.isInteger(data?.[0]?.price) ? data[0].price : null };
+        } catch (error) { return gameError(error); }
+      },
+      async news() {
+        try {
+          const { data, error } = await client.from("news").select("id,title,content,stock_id,created_at").order("created_at", { ascending: false }).limit(5);
+          return error ? gameError(error) : { ok: true, data: Array.isArray(data) ? data : [] };
+        } catch (error) { return gameError(error); }
+      },
+    };
+
     return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
-      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages,
+      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, games,
       reviewIdentity: async (action, payload) => {
         try {
           const { data, error } = await client.rpc('festival_review_identity_student', { p_action: action, p_payload: payload });

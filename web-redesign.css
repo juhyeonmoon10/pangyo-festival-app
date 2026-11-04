@@ -477,7 +477,7 @@
 .stamp-path-step.is-claimable .stamp-path-face { border-color: transparent; }
 .stamp-path-step button.stamp-path-node { cursor: pointer; transition: scale .12s ease; }
 .stamp-path-step button.stamp-path-node:active { scale: .96; }
-.stamp-path-node:focus-visible, .stamp-voucher-shortcut:focus-visible, .stamp-visit-history > summary:focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 6px; }
+.stamp-path-node:focus-visible, .stamp-voucher-shortcut:focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 6px; }
 .stamp-path-link { position: absolute; left: 50%; top: calc(var(--stamp-size) / 2 + 7px); width: 100%; height: 2px; background: var(--stamp-track); pointer-events: none; }
 .stamp-path-step.is-reverse .stamp-path-link { left: auto; right: 50%; }
 .stamp-path-link.is-turn { width: calc(50% + 8px); height: calc(var(--stamp-row) + 2px); border: 2px solid var(--stamp-track); border-left: 0; border-radius: 0 78px 78px 0; background: transparent; }
@@ -486,15 +486,9 @@
 .stamp-reward-marker > .ui-icon { width: 13px; height: 13px; }
 .stamp-path-step.is-claimable .stamp-reward-marker { color: var(--primary-dark); font-weight: 650; }
 .stamp-current-label { margin-top: 12px; color: var(--primary-dark); font-size: 12px; font-weight: 550; line-height: 20px; }
-.stamp-visit-history { margin-top: 24px; border-block: 1px solid var(--line); }
-.stamp-visit-history > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 16px 0; list-style: none; cursor: pointer; color: var(--text); font-size: 15px; font-weight: 650; }
-.stamp-visit-history > summary::-webkit-details-marker { display: none; }
-.stamp-visit-history > summary > span:last-child { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 500; }
-.stamp-visit-history > summary .ui-icon { width: 17px; height: 17px; transform: rotate(90deg); }
-.stamp-visit-history[open] > summary .ui-icon { transform: rotate(-90deg); }
-.stamp-history-body { border-top: 1px solid var(--line); padding-bottom: 10px; }
-.stamp-history-body > .text-link { display: flex; margin-left: auto; }
 .stamp-visits { padding: 18px 0 22px; border-top: 1px solid var(--line); }
+.stamp-visits .section-heading { align-items: center; }
+.stamp-visits .section-heading .text-link { flex: none; }
 .stamp-visits h2 { display: flex; align-items: center; gap: 6px; font-size: 16px; }
 .stamp-visits h2 > span { color: var(--primary, #147a57); }
 .stamp-visits .web-visit { min-height: 72px; }
