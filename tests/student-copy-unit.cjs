@@ -65,7 +65,7 @@ test('login has one brand heading and retains the original Google action', async
   assert.match(html, /class="login-content"/);
   assert.match(html, /id="googleLogin"/);
   assert.match(html, /Google 계정으로 계속/);
-  assert.doesNotMatch(html, /처음 한 번, 학번만 확인합니다|class="login-note"/);
+  assert.doesNotMatch(html, /처음 한 번, 학번만 확인해요|class="login-note"/);
   assert.doesNotMatch(html, /auth-step|1단계|2단계|login-footer|id="adminLogin"|id="switchMode"/);
 });
 
@@ -159,10 +159,10 @@ test("1.54: other participants' ratings and reviews stay private for students un
   const detail = api.detailView();
   assert.match(detail, /data-review-average>비공개</);
   assert.match(detail, /data-review-count>비공개</);
-  assert.match(detail, /아직 비공개입니다/);
+  assert.match(detail, /아직 비공개예요/);
   assert.match(detail, /내 후기/);
   const list = api.boothReviewsBody(booth.id);
-  assert.match(list, /아직 비공개입니다/);
+  assert.match(list, /아직 비공개예요/);
   assert.match(list, /내 후기/);
   assert.doesNotMatch(list, /booth-review-bars|평균/);
   // Opened in 관리 마법사: the summary carries everyone's reviews again.
@@ -176,12 +176,12 @@ test("1.54: other participants' ratings and reviews stay private for students un
 test('unavailable services, provisional locations, and review rules remain explicit', async () => {
   const api = await setup();
   assert.match(api.detailView(), /실제 부스 위치는 운영 안내를 확인/);
-  assert.match(api.festivalWeb.vouchers(), /바우처 발급 상태를 확인하지 못했습니다/);
+  assert.match(api.festivalWeb.vouchers(), /바우처 발급 상태를 확인하지 못했어요/);
   assert.match(api.festivalWeb.reviews(), /별점은 필수, 글 후기는 선택/);
   assert.match(api.festivalWeb.reviews(), /부스당 한 번만 지급/);
   assert.doesNotMatch(api.festivalWeb.reviews(), /탭을 닫으면 사라지며 포인트는 적립되지/);
-  api.state.loginError = '저장하지 못했습니다. 다시 시도해 주십시오.';
-  assert.match(api.profileView(), /저장하지 못했습니다/);
+  api.state.loginError = '저장하지 못했어요. 다시 시도해 주세요.';
+  assert.match(api.profileView(), /저장하지 못했어요/);
   for (const code of ['AUTH_REQUIRED', 'SERVER_NOT_READY', 'NFC_DISABLED', 'BOOTH_NOT_FOUND', 'NETWORK_ERROR']) {
     const result = normalizeError({ message: code });
     assert.ok(result.message);

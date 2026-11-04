@@ -68,7 +68,7 @@ const festivalVoucherScan = (() => {
     const d = dialog('바우처 QR 스캔'), body = d.querySelector('.ops-dialog-content');
     body.innerHTML = '<video playsinline muted></video><p role="status">카메라 연결 중...</p>';
     const say = text => { const p = body.querySelector('p'); if (p) p.textContent = text; };
-    if (!navigator.mediaDevices?.getUserMedia) { say('이 브라우저에서는 카메라를 쓸 수 없습니다. 학생 화면의 인증키 8자리를 입력해 주십시오.'); return; }
+    if (!navigator.mediaDevices?.getUserMedia) { say('이 브라우저에서는 카메라를 쓸 수 없어요. 학생 화면의 인증키 8자리를 입력해 주세요.'); return; }
     try {
       const capture = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
       if (!d.isConnected) { capture.getTracks().forEach(t => t.stop()); return; }
@@ -77,7 +77,7 @@ const festivalVoucherScan = (() => {
       video.srcObject = stream; await video.play();
       const read = await reader(video);
       if (!d.isConnected) return;
-      say('학생 화면의 바우처 QR을 비춰 주십시오.');
+      say('학생 화면의 바우처 QR을 비춰 주세요.');
       const tick = async () => {
         if (!d.isConnected) return;
         try {
@@ -88,7 +88,7 @@ const festivalVoucherScan = (() => {
       };
       tick();
     } catch (e) {
-      if (d.isConnected) say(String(e?.message).startsWith('JSQR') ? 'QR 인식 도구를 불러오지 못했습니다. 인증키 8자리를 입력해 주십시오.' : '카메라 권한을 확인해 주십시오. 허용하지 않으면 인증키 8자리를 입력해 주십시오.');
+      if (d.isConnected) say(String(e?.message).startsWith('JSQR') ? 'QR 인식 도구를 불러오지 못했어요. 인증키 8자리를 입력해 주세요.' : '카메라 권한을 확인해 주세요. 허용하지 않으면 인증키 8자리를 입력해 주세요.');
     }
   }
 
@@ -98,7 +98,7 @@ const festivalVoucherScan = (() => {
     const at = result.redeemedAt ? new Date(result.redeemedAt) : new Date();
     const when = at.toLocaleString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
     const rows = [['바우처', result.title || KINDS[result.kind] || '바우처'], ['이름', result.participant || '-'], ['학번', result.studentNumber || '-'], ['승인 일시', when]];
-    body.innerHTML = `<div class="ops-voucher-done used" role="status" aria-live="assertive">${icon('check')}<strong>사용 승인이 완료되었습니다</strong><p>상품을 전달해 주십시오.</p></div>
+    body.innerHTML = `<div class="ops-voucher-done used" role="status" aria-live="assertive">${icon('check')}<strong>사용 승인이 완료되었어요</strong><p>상품을 전달해 주세요.</p></div>
       <dl class="voucher-approved-list">${rows.map(([k, v]) => `<div><dt>${h(k)}</dt><dd>${h(v)}</dd></div>`).join('')}</dl>
       <button type="button" class="primary-btn" data-voucher-approved-ok>확인</button>`;
     body.querySelector('[data-voucher-approved-ok]').onclick = close;

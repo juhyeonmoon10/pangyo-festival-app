@@ -54,7 +54,7 @@ const lead=await account(false,'11001','가상담당'), visitor=await account(fa
 await rpc(lead,'select public.festival_review_identity_self($1,$2) value',['confirm',{eventId,realName:'가상담당'}]);
 await rpc(admin,'select public.festival_booth_manager_admin($1,$2) value',['grant',{account:{studentNumber:'11001'},booth:CLUB,canApprove:true}]);
 // A notice to delete, secure cards and issued tags: long lists, so the last row is far down.
-await rpc(admin,'select public.festival_notice_admin($1,$2) value',['save',{id:null,version:0,title:'삭제할 공지',body:'오류 위치 확인용 공지입니다.',important:false,published:true}]);
+await rpc(admin,'select public.festival_notice_admin($1,$2) value',['save',{id:null,version:0,title:'삭제할 공지',body:'오류 위치 확인용 공지예요.',important:false,published:true}]);
 await rpc(admin,'select public.festival_sun_admin($1,$2) value',['keys_create',{metaKey:'00112233445566778899aabbccddeeff',fileKey:'ffeeddccbbaa99887766554433221100'}]);
 const cards=[];
 for(let i=0;i<6;i++) { const uid=`04A1B2C3D4E5${String(i).padStart(2,'0')}`; cards.push(uid);
@@ -65,7 +65,7 @@ for(let i=0;i<8;i++) tags.push((await rpc(admin,'select public.festival_nfc_tag_
 const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==','base64');
 const output=path.join(root,'artifacts/error-placement'); fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
-// Forced failures: '<rpc>:<action>' answers once with INVALID_INPUT ("입력한 내용을 확인해 주십시오.").
+// Forced failures: '<rpc>:<action>' answers once with INVALID_INPUT ("입력한 내용을 확인해 주세요.").
 const fail=new Set(); let failUpload=false;
 const pages=[];
 async function pageFor(a,width=390) {
@@ -127,7 +127,7 @@ async function near(page,name,message,button,text) {
   checks.push({name,ok,...r});
   await page.screenshot({path:path.join(output,`${name}.png`)});
 }
-const ERR=/입력한 내용을 확인해 주십시오/;
+const ERR=/입력한 내용을 확인해 주세요/;
 try {
   // 부스 관리 (manager): save, photo upload, hours, lookup, approve.
   const m=await pageFor(lead);
@@ -145,7 +145,7 @@ try {
   await form.locator('[data-manager-photo] img[src^="blob:"]').waitFor();
   failUpload=true;
   await form.locator('button[type=submit]').click();
-  await near(m.page,'manager-photo-upload','[data-spot="save"]','[data-manager-save] button[type=submit]',/요청을 완료하지 못했습니다|사진을 올리지 못했습니다/);
+  await near(m.page,'manager-photo-upload','[data-spot="save"]','[data-manager-save] button[type=submit]',/요청을 완료하지 못했어요|사진을 올리지 못했어요/);
   await form.locator('[data-manager-photo-undo]').click();
 
   // Operating hours with the clock picker: an end before the start, then two ranges.
@@ -153,7 +153,7 @@ try {
   await rows.nth(0).locator('[name=hourFrom]').fill('12:00');
   await rows.nth(0).locator('[name=hourTo]').fill('10:00');
   await form.locator('button[type=submit]').click();
-  await near(m.page,'manager-hours','[data-spot="hours"]','[data-hours-add]',/끝 시간은 시작 시간보다 늦어야 합니다/);
+  await near(m.page,'manager-hours','[data-spot="hours"]','[data-hours-add]',/끝 시간은 시작 시간보다 늦어야 해요/);
   await rows.nth(0).locator('[name=hourFrom]').fill('10:00');
   await rows.nth(0).locator('[name=hourTo]').fill('12:00');
   await form.locator('[data-hours-add]').click();
@@ -161,7 +161,7 @@ try {
   await rows.nth(1).locator('[name=hourTo]').fill('15:30');
   await m.page.screenshot({path:path.join(output,'manager-hours-picker.png')});
   await form.locator('button[type=submit]').click();
-  await near(m.page,'manager-save-success','[data-spot="save"]','[data-manager-save] button[type=submit]',/부스 정보를 저장했습니다/);
+  await near(m.page,'manager-save-success','[data-spot="save"]','[data-manager-save] button[type=submit]',/부스 정보를 저장했어요/);
   const saved=(await db.query('select description,program from festival_ops.booths where key=$1',[CLUB])).rows[0];
   assert.equal(saved.program.hours,'10:00–12:00, 13:00–15:30'); assert.equal(saved.description,'저장이 실패해도 남아야 하는 소개');
   assert.equal(await m.page.locator('[data-hour-row]').count(),2);
@@ -169,7 +169,7 @@ try {
 
   await m.page.locator('[data-manager-lookup] [name=studentNumber]').fill('19999');
   await m.page.locator('[data-manager-lookup] button[type=submit]').click();
-  await near(m.page,'manager-lookup','[data-spot="lookup"]','[data-manager-lookup] button[type=submit]',/이 학번으로 가입한 계정이 없습니다/);
+  await near(m.page,'manager-lookup','[data-spot="lookup"]','[data-manager-lookup] button[type=submit]',/이 학번으로 가입한 계정이 없어요/);
   assert.equal(await m.page.locator('[data-manager-lookup] [name=studentNumber]').inputValue(),'19999');
   await m.page.locator('[data-manager-lookup] [name=studentNumber]').fill('21001');
   await m.page.locator('[data-manager-lookup] button[type=submit]').click();
@@ -188,7 +188,7 @@ try {
   await find.waitFor(); await a.page.locator('.manager-list li').first().waitFor();
   await find.locator('[name=studentNumber]').fill('19999');
   await find.locator('button[type=submit]').click();
-  await near(a.page,'admin-find','[data-spot="find"]','[data-bm-find] button[type=submit]',/계정이 없습니다|찾을 수 없습니다|확인해 주십시오/);
+  await near(a.page,'admin-find','[data-spot="find"]','[data-bm-find] button[type=submit]',/계정이 없어요|찾을 수 없어요|확인해 주세요/);
   assert.equal(await find.locator('[name=studentNumber]').inputValue(),'19999');
   await find.locator('[name=studentNumber]').fill('11001');
   await find.locator('button[type=submit]').click();

@@ -22,7 +22,7 @@ const festivalNotices = (() => {
       ${news.length ? `<ul class="festival-notice-list">${news.map(n => `<li><button type="button" class="festival-notice-row ${n.important ? 'important' : ''}" data-notice-open="${h(n.id)}">
         <span><strong>${n.important ? '<span class="web-news-flag">중요</span>' : ''}${h(n.title)}</strong>${n.body ? `<small>${h(n.body)}</small>` : ''}
         <em>${h(when(n.publishedAt))}${n.images?.length ? ` · 사진 ${n.images.length}장` : ''}</em></span>${icon('arrow')}</button></li>`).join('')}</ul>`
-        : '<div class="festival-empty"><span>' + icon('notice') + '</span><strong>등록된 공지가 없습니다</strong></div>'}
+        : '<div class="festival-empty"><span>' + icon('notice') + '</span><strong>등록된 공지가 없어요</strong></div>'}
       ${bottomNav('home')}</main>`;
   }
 
@@ -35,7 +35,7 @@ const festivalNotices = (() => {
         ${(n.images || []).map((path, i) => `<img class="festival-notice-photo" src="${h(url(path))}" alt="${h(n.title)} 사진 ${i + 1}" loading="${i ? 'lazy' : 'eager'}" decoding="async">`).join('')}
         ${n.body ? `<p class="festival-notice-body">${h(n.body)}</p>` : ''}
       </article>`
-      : `<div class="festival-empty"><span>${icon('notice')}</span><strong>${loading ? '공지를 불러오는 중입니다' : '공지를 찾을 수 없습니다'}</strong>${loading ? '' : '<p>삭제되었거나 숨겨진 공지입니다.</p>'}<button type="button" class="ghost-btn" data-route="notices">공지 전체 보기</button></div>`;
+      : `<div class="festival-empty"><span>${icon('notice')}</span><strong>${loading ? '공지를 불러오는 중이에요' : '공지를 찾을 수 없어요'}</strong>${loading ? '' : '<p>삭제되었거나 숨겨진 공지예요.</p>'}<button type="button" class="ghost-btn" data-route="notices">공지 전체 보기</button></div>`;
     return `<main class="screen festival-notices-screen">${header('공지', 'notices')}${body}${bottomNav('home')}</main>`;
   }
 
@@ -83,7 +83,7 @@ const festivalNotices = (() => {
           const blob = await shrink(file);
           draft.added.push({ blob, preview: URL.createObjectURL(blob) });
           draft.note = '';
-        } catch { draft.note = '이 사진은 열 수 없습니다. JPG·PNG 사진을 골라 주십시오.'; }
+        } catch { draft.note = '이 사진은 열 수 없어요. JPG·PNG 사진을 골라 주세요.'; }
       }
       redrawEditor(box);
     });
@@ -120,7 +120,7 @@ const festivalNotices = (() => {
     const uploaded = [];
     for (const item of draft.added) {
       const result = await images()?.upload(item.blob);
-      if (!result?.ok) { await discard(uploaded); return { ok: false, message: result?.message || '사진을 올리지 못했습니다. 다시 시도해 주십시오.', uploaded: [] }; }
+      if (!result?.ok) { await discard(uploaded); return { ok: false, message: result?.message || '사진을 올리지 못했어요. 다시 시도해 주세요.', uploaded: [] }; }
       uploaded.push(result.path);
     }
     return { ok: true, images: [...draft.keep, ...uploaded], uploaded };

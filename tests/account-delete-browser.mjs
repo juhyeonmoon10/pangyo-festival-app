@@ -120,7 +120,7 @@ try {
   await f.locator('[name=reason]').fill('중복 가입 계정');
   await f.locator('[name=confirm]').fill('삭제');
   await f.locator('button[type=submit]').click();
-  await f.getByText('처리할 학생을 목록에서 골라 주십시오.',{exact:true}).waitFor();
+  await f.getByText('처리할 학생을 목록에서 골라 주세요.',{exact:true}).waitFor();
   await f.locator('[data-recipient-pick="21001"]').click();
   await f.locator('[data-recipient-result]').getByText('21001').first().waitFor();
   // A wrong confirmation word is stopped by the form itself.
@@ -131,10 +131,10 @@ try {
   await f.locator('[name=confirm]').fill('삭제');
   await check(a.page,'delete-form');
   await f.locator('button[type=submit]').click();
-  await f.getByText('학생의 계정을 삭제했습니다',{exact:false}).waitFor();
+  await f.getByText('학생의 계정을 삭제했어요',{exact:false}).waitFor();
   assert.match(await f.locator('.ops-form-status').innerText(),/방문 1건, 바우처 0장, 리뷰 0건/);
   assert.equal(calls.filter(c=>c==='festival_account_delete').length,1);
-  assert.equal(dialogs.some(t=>/축제 계정을 삭제하시겠습니까\?/.test(t)),true);
+  assert.equal(dialogs.some(t=>/축제 계정을 삭제할까요\?/.test(t)),true);
   await check(a.page,'deleted');
   const left=(await db.query('select count(*)::int n from festival_ops.visits where user_id=$1',[visitor.uid])).rows[0].n;
   assert.equal(left,0);
@@ -155,7 +155,7 @@ try {
   await f.locator('[name=reason]').fill('중복 가입 계정');
   await f.locator('[name=confirm]').fill('삭제');
   await f.locator('button[type=submit]').click();
-  await f.getByText('학생의 계정을 삭제했습니다',{exact:false}).waitFor();
+  await f.getByText('학생의 계정을 삭제했어요',{exact:false}).waitFor();
   assert.ok(dialogs.at(-1).includes(mailB),dialogs.at(-1));
   const kept=(await db.query('select raw_user_meta_data m from auth.users where id=$1',[twinA.id])).rows[0].m;
   assert.equal(kept.festival_student_number,'21007');

@@ -136,7 +136,7 @@ try {
     // A booth without reviews explains the empty state.
     await detail(v.page,quiet);
     await v.page.locator('[data-open-booth-reviews]').click();
-    await v.page.locator('.booth-review-list').getByText('아직 등록된 리뷰가 없습니다').waitFor();
+    await v.page.locator('.booth-review-list').getByText('아직 등록된 리뷰가 없어요').waitFor();
     assert.match(await v.page.locator('.booth-review-score small').innerText(),/총\s*0건/);
     await screenshot(v.page,width,'booth-reviews-empty');
     assert.deepEqual(v.errors,[]);
@@ -145,7 +145,7 @@ try {
     await detail(m.page,booth);
     await m.page.locator('#boothReviewSection.own-club-review').waitFor();
     assert.equal(await m.page.locator('#boothReviewSection .review-compose,#submitReview,[data-rating]').count(),0);
-    assert.match(await m.page.locator('#boothReviewSection').innerText(),/본인 동아리 부스에는 별점을 남길 수 없습니다/);
+    assert.match(await m.page.locator('#boothReviewSection').innerText(),/본인 동아리 부스에는 별점을 남길 수 없어요/);
     assert.match(await m.page.locator('.detail-hero').innerText(),/스탬프 적립 완료/);
     await screenshot(m.page,width,'own-club-detail');
     await m.page.evaluate(()=>navigateTo('reviews'));

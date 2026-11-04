@@ -52,7 +52,7 @@ const nfcManagement = (() => {
 
   function editor() {
     const booth = boothById(selectedId);
-    if (!booth) return '<section class="nfc-editor"><p>관리할 부스를 선택해 주십시오.</p></section>';
+    if (!booth) return '<section class="nfc-editor"><p>관리할 부스를 선택해 주세요.</p></section>';
     const draft = draftFor(booth);
     return `<section class="nfc-editor" aria-labelledby="nfcEditorTitle" data-editing-booth="${escapeHtml(booth.id)}">
       <header><div><span class="nfc-eyebrow">선택한 부스 · ${booth.floor}층</span><h2 id="nfcEditorTitle" tabindex="-1">${escapeHtml(nameFor(booth))}</h2><p>${escapeHtml(booth.location)}</p></div>${icon("scan")}</header>
@@ -137,20 +137,20 @@ const nfcManagement = (() => {
     const draft = draftFor(booth);
     const tag = draft.tag.trim().toUpperCase();
     const duplicate = state.db.booths.find(item => item.id !== booth.id && String(item.nfcTagId || "").toUpperCase() === tag);
-    let error = !tagPattern.test(tag) ? "NFC- 다음에 영문, 숫자, 하이픈을 1~64자 입력해 주십시오." : "";
-    if (duplicate) error = `${nameFor(duplicate)}에 이미 등록된 태그입니다. 다른 ID를 사용해 주십시오.`;
-    if (!BOOTH_STATUS[draft.status]) error = "부스 운영 상태를 확인해 주십시오.";
+    let error = !tagPattern.test(tag) ? "NFC- 다음에 영문, 숫자, 하이픈을 1~64자 입력해 주세요." : "";
+    if (duplicate) error = `${nameFor(duplicate)}에 이미 등록된 태그입니다. 다른 ID를 사용해 주세요.`;
+    if (!BOOTH_STATUS[draft.status]) error = "부스 운영 상태를 확인해 주세요.";
     if (error) { showResult(booth.id, { tone: "error", title: "저장하지 못했습니다", body: error }); return false; }
     const nextDb = { ...state.db, booths: state.db.booths.map(item => item.id === booth.id
       ? { ...item, nfcTagId: tag, nfcEnabled: draft.enabled, status: draft.status } : item) };
     if (!persistDb(nextDb)) {
-      showResult(booth.id, { tone: "error", title: "기기 저장 공간을 확인해 주십시오", body: "변경 내용을 저장하지 못했습니다. 기존 설정과 입력값을 유지합니다." });
+      showResult(booth.id, { tone: "error", title: "기기 저장 공간을 확인해 주세요", body: "변경 내용을 저장하지 못했습니다. 기존 설정과 입력값을 유지합니다." });
       return false;
     }
     state.db = nextDb;
     drafts.delete(booth.id);
     showResult(booth.id, { tone: "success", title: "데모 설정을 저장했습니다", body: tag !== booth.nfcTagId
-      ? "태그 ID가 변경되었습니다. 카드의 테스트 URL도 다시 기록해 주십시오. 기존 스탬프는 유지됩니다."
+      ? "태그 ID가 변경되었습니다. 카드의 테스트 URL도 다시 기록해 주세요. 기존 스탬프는 유지됩니다."
       : "이 기기의 데모에 반영했습니다. 기존 스탬프는 유지됩니다." });
     refresh();
     return true;
@@ -160,7 +160,7 @@ const nfcManagement = (() => {
     if (!allowed()) return null;
     const booth = boothById(id);
     if (!booth) return null;
-    if (dirty(booth)) { showResult(id, { tone: "error", title: "변경 내용을 먼저 저장해 주십시오", body: "점검과 모의 적립은 저장된 설정으로 진행합니다." }); return null; }
+    if (dirty(booth)) { showResult(id, { tone: "error", title: "변경 내용을 먼저 저장해 주세요", body: "점검과 모의 적립은 저장된 설정으로 진행합니다." }); return null; }
     const checks = [
       { ok: tagPattern.test(booth.nfcTagId || ""), label: "태그 ID 형식" },
       { ok: state.db.booths.filter(item => String(item.nfcTagId || "").toUpperCase() === String(booth.nfcTagId || "").toUpperCase()).length === 1, label: "부스와 태그가 1:1로 연결됨" },
@@ -187,7 +187,7 @@ const nfcManagement = (() => {
         ? result.result === "ALREADY_EARNED" ? "중복 방지 확인" : "모의 적립 성공"
         : "모의 적립 실패", body: result.ok ? "현재 관리자 데모 계정으로 확인했습니다. 학생 기록과 서버에는 반영하지 않았습니다." : result.message });
     } catch {
-      if (allowed() && state.user.id === actor) showResult(id, { tone: "error", title: "점검을 완료하지 못했습니다", body: "결과를 확인한 뒤 다시 시도해 주십시오." });
+      if (allowed() && state.user.id === actor) showResult(id, { tone: "error", title: "점검을 완료하지 못했습니다", body: "결과를 확인한 뒤 다시 시도해 주세요." });
     } finally { busy = false; if (button?.isConnected) button.disabled = false; }
   }
 
@@ -195,14 +195,14 @@ const nfcManagement = (() => {
     if (!allowed()) return;
     const booth = boothById(id);
     if (!booth?.nfcTagId) return;
-    if (dirty(booth)) { showResult(id, { tone: "error", title: "변경 내용을 먼저 저장해 주십시오", body: "복사할 URL은 저장된 태그 ID를 사용합니다." }); return; }
+    if (dirty(booth)) { showResult(id, { tone: "error", title: "변경 내용을 먼저 저장해 주세요", body: "복사할 URL은 저장된 태그 ID를 사용합니다." }); return; }
     try {
       await navigator.clipboard.writeText(demoUrl(booth));
-      showResult(id, { tone: "success", title: "데모 URL 복사 완료", body: "실제 서버용 태그가 아닙니다. 같은 설정의 개인 웹 데모에서 사용하십시오." });
+      showResult(id, { tone: "success", title: "데모 URL 복사 완료", body: "실제 서버용 태그가 아닙니다. 같은 설정의 개인 웹 데모에서 사용하세요." });
     } catch {
       const input = document.querySelector("#nfcDemoUrl");
       input?.focus(); input?.select();
-      showResult(id, { tone: "info", title: "URL을 선택했습니다", body: "자동 복사를 사용할 수 없습니다. 선택한 URL을 직접 복사해 주십시오." });
+      showResult(id, { tone: "info", title: "URL을 선택했습니다", body: "자동 복사를 사용할 수 없습니다. 선택한 URL을 직접 복사해 주세요." });
     }
   }
 

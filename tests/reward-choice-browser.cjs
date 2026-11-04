@@ -85,7 +85,7 @@ const base=`http://127.0.0.1:${Number(process.env.REWARD_PREVIEW_PORT||5193)}`;
         assert.equal(await form.count(),0);
       } else if(mode==='missing'||mode==='legacy') {
         await page.locator('[data-voucher-filter="available"]').click();
-        await page.getByText('보유한 바우처가 없습니다',{exact:true}).waitFor();
+        await page.getByText('보유한 바우처가 없어요',{exact:true}).waitFor();
         assert.equal(await page.locator('#rewardChoiceForm,[data-ops-claim]').count(),0);
       } else {
         await openOperatorTool(page,'rules');

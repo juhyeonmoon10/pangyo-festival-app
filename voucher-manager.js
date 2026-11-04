@@ -56,7 +56,7 @@ const festivalVoucherManager = (() => {
     if (!kinds().length) return '';
     return `<section class="ops-section voucher-manager"><h2>바우처 사용 승인</h2>
       <p class="web-muted">${kinds().map(k => h(ROLES[k])).join(' · ')}</p>
-      <p>학생 바우처 화면의 QR을 카메라로 스캔하거나 인증키 8자리를 입력해 확인한 뒤, 상품을 전달하고 사용 완료로 처리합니다. ${kinds().map(k => NAMES[k]).join('·')} 바우처만 승인할 수 있고, 본인 바우처는 승인할 수 없습니다.</p>
+      <p>학생 바우처 화면의 QR을 카메라로 스캔하거나 인증키 8자리를 입력해 확인한 뒤, 상품을 전달하고 사용 완료로 처리해요. ${kinds().map(k => NAMES[k]).join('·')} 바우처만 승인할 수 있고, 본인 바우처는 승인할 수 없어요.</p>
       <button type="button" class="primary-btn full-action" data-vm-camera ${busy ? 'disabled' : ''}>${icon('scan')} QR 스캔으로 승인</button>
       <form class="ops-form" data-vm-redeem><label>인증키 (8자리)<input class="input ops-code-input" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="11" placeholder="예: AB12CD34"></label>
         ${slot('vm-redeem')}<button class="ghost-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('ticket')} 인증키로 확인</button></form></section>`;
@@ -65,24 +65,24 @@ const festivalVoucherManager = (() => {
   async function redeem(form) {
     if (busy) return;
     const code = form.elements.code.value.toUpperCase().replace(/[\s-]/g, '');
-    if (!CODE.test(code)) { report('vm-redeem', '인증키 8자리를 확인해 주십시오.'); return; }
+    if (!CODE.test(code)) { report('vm-redeem', '인증키 8자리를 확인해 주세요.'); return; }
     const button = form.querySelector('button[type=submit]'), actor = state.user?.id;
     busy = true; button.disabled = true; note = null;
     showSpot('vm-redeem', '확인하는 중...', 'info');
     try {
       const preview = await ops().read('voucher_code_check', { code });
       if (state.user?.id !== actor || !form.isConnected) return;
-      if (!preview.ok) { report('vm-redeem', preview.code === 'VOUCHER_INVALID' ? '맞지 않거나 시간이 지난 인증키입니다. 학생 화면의 새 인증키를 확인해 주십시오.' : preview.message); return; }
+      if (!preview.ok) { report('vm-redeem', preview.code === 'VOUCHER_INVALID' ? '맞지 않거나 시간이 지난 인증키예요. 학생 화면의 새 인증키를 확인해 주세요.' : preview.message); return; }
       const p = preview.data;
-      if (!p.valid) { report('vm-redeem', p.state === 'used' ? '이미 사용한 바우처입니다.' : p.state === 'void' ? '취소된 바우처입니다.' : p.state === 'expired' ? '만료된 바우처입니다.' : !p.eventOpen ? '축제가 운영 중이 아니어서 사용할 수 없습니다.' : '사용할 수 없는 바우처입니다.'); return; }
+      if (!p.valid) { report('vm-redeem', p.state === 'used' ? '이미 사용한 바우처예요.' : p.state === 'void' ? '취소된 바우처예요.' : p.state === 'expired' ? '만료된 바우처예요.' : !p.eventOpen ? '축제가 운영 중이 아니어서 사용할 수 없어요.' : '사용할 수 없는 바우처예요.'); return; }
       showSpot('vm-redeem', '');
-      if (!confirm(`${p.title}\n${p.participant}${p.studentNumber ? ` (${p.studentNumber})` : ''}\n상품을 전달하고 사용 완료로 처리하시겠습니까?`)) return;
+      if (!confirm(`${p.title}\n${p.participant}${p.studentNumber ? ` (${p.studentNumber})` : ''}\n상품을 전달하고 사용 완료로 처리할까요?`)) return;
       showSpot('vm-redeem', '처리하는 중...', 'info');
       const r = await ops().write('voucher_code_redeem', { code });
       if (state.user?.id !== actor || !form.isConnected) return;
       if (!r.ok) { report('vm-redeem', r.message); return; }
       form.reset();
-      report('vm-redeem', `${r.data.participant || '학생'} 학생의 ${r.data.title}을(를) 사용 완료로 처리했습니다.`, 'success');
+      report('vm-redeem', `${r.data.participant || '학생'} 학생의 ${r.data.title}을(를) 사용 완료로 처리했어요.`, 'success');
       festivalVoucherScan.approved(r.data);
     } finally { busy = false; if (button.isConnected) button.disabled = false; }
   }
@@ -94,7 +94,7 @@ const festivalVoucherManager = (() => {
     const response = await ops().voucherManagers('list');
     adminLoading = false;
     if (response.ok) { adminList = response.data.items || []; adminFailure = ''; }
-    else adminFailure = response.code === 'OPS_NOT_READY' ? '바우처 담당자는 서버 업데이트 후 지정할 수 있습니다.' : response.message;
+    else adminFailure = response.code === 'OPS_NOT_READY' ? '바우처 담당자는 서버 업데이트 후 지정할 수 있어요.' : response.message;
     render();
   }
 
@@ -105,16 +105,16 @@ const festivalVoucherManager = (() => {
         <div><strong>${h(m.name)} (${h(m.studentNumber || '학번 없음')})</strong><small>${h(ROLES[m.kind] || m.kind)}${m.active ? '' : ' · 소속 확인이 취소돼 권한 중지됨'}</small></div>
         <div class="sun-actions"><button type="button" class="ghost-btn danger" data-vm-revoke="${i}">해제</button></div>
         ${adminSlot(managerSpot(m))}</li>`).join('')}</ul>`
-        : '<p class="ops-empty">아직 지정한 바우처 담당자가 없습니다.</p>'}</section>`
+        : '<p class="ops-empty">아직 지정한 바우처 담당자가 없어요.</p>'}</section>`
       : adminFailure ? `<p class="ops-alert" role="alert">${h(adminFailure)}</p><button type="button" class="ghost-btn" data-vm-admin-retry>${icon('refresh')} 다시 불러오기</button>` : '<p role="status">불러오는 중...</p>';
     const open = candidate ? Object.keys(ROLES).filter(k => !candidate.kinds.includes(k)) : [];
     const pick = candidate ? (candidate.verified
       ? `<form class="ops-form" data-vm-grant><p class="ops-recipient-chosen">${icon('check')} <strong>${h(candidate.name)} (${h(candidate.studentNumber)})</strong> · ${h(candidate.realName || '')}</p>
           ${candidate.kinds.length ? `<p class="web-muted">이미 맡은 권한: ${candidate.kinds.map(k => h(ROLES[k])).join(', ')}</p>` : ''}
           ${open.length ? `<label>맡길 권한<select class="select" name="kind">${open.map(k => `<option value="${k}">${h(ROLES[k])}</option>`).join('')}</select></label>
-          ${adminSlot('vm-grant')}<button class="primary-btn" type="submit">${icon('plus')} 바우처 담당자로 지정</button>` : '<p class="web-muted">두 권한을 모두 맡고 있습니다.</p>'}</form>`
-      : `<p class="ops-alert" role="alert">${h(candidate.name)} (${h(candidate.studentNumber)}) 학생은 소속 확인이 끝나지 않았습니다. 소속 관리에서 먼저 확인해 주십시오.</p>`) : '';
-    return `<div data-vm-root><section class="ops-section"><h2>바우처 담당자 지정</h2><p>바우처 사용 승인만 맡는 권한입니다. 푸드트럭 바우처 담당자는 푸드트럭 바우처만, 포토부스 바우처 담당자는 포토부스 바우처만 사용 완료로 처리할 수 있습니다. 소속 확인이 끝난 학생에게만 맡길 수 있습니다.</p>
+          ${adminSlot('vm-grant')}<button class="primary-btn" type="submit">${icon('plus')} 바우처 담당자로 지정</button>` : '<p class="web-muted">두 권한을 모두 맡고 있어요.</p>'}</form>`
+      : `<p class="ops-alert" role="alert">${h(candidate.name)} (${h(candidate.studentNumber)}) 학생은 소속 확인이 끝나지 않았어요. 소속 관리에서 먼저 확인해 주세요.</p>`) : '';
+    return `<div data-vm-root><section class="ops-section"><h2>바우처 담당자 지정</h2><p>바우처 사용 승인만 맡는 권한이에요. 푸드트럭 바우처 담당자는 푸드트럭 바우처만, 포토부스 바우처 담당자는 포토부스 바우처만 사용 완료로 처리할 수 있어요. 소속 확인이 끝난 학생에게만 맡길 수 있어요.</p>
       <form class="ops-form" data-vm-find><label>학생 학번<input class="input" name="studentNumber" inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" required autocomplete="off" placeholder="학번 5자리" value="${h(adminQuery?.studentNumber)}"></label>
         <label>Google 이메일 (같은 학번 계정이 여러 개일 때만)<input class="input" name="email" type="email" maxlength="320" autocomplete="off" value="${h(adminQuery?.email)}"></label>
         ${adminSlot('vm-find')}<button class="ghost-btn" type="submit">${icon('search')} 학생 확인</button></form>${pick}</section>${list}</div>`;
@@ -170,13 +170,13 @@ const festivalVoucherManager = (() => {
       admin.querySelector('[data-vm-grant]')?.addEventListener('submit', e => {
         e.preventDefault();
         const kind = e.currentTarget.elements.kind?.value, who = candidate.name;
-        if (!ROLES[kind] || !confirm(`${who} 학생을 ${ROLES[kind]}로 지정하시겠습니까? ${NAMES[kind]} 바우처를 사용 완료로 처리할 수 있습니다.`)) return;
-        adminAct('grant', { account: candidate.account, kind }, 'vm-grant', () => { candidate = null; adminQuery = null; return ['vm-find', `${who} 학생을 ${ROLES[kind]}로 지정했습니다.`]; });
+        if (!ROLES[kind] || !confirm(`${who} 학생을 ${ROLES[kind]}로 지정할까요? ${NAMES[kind]} 바우처를 사용 완료로 처리할 수 있어요.`)) return;
+        adminAct('grant', { account: candidate.account, kind }, 'vm-grant', () => { candidate = null; adminQuery = null; return ['vm-find', `${who} 학생을 ${ROLES[kind]}로 지정했어요.`]; });
       });
       admin.querySelectorAll('[data-vm-revoke]').forEach(b => b.addEventListener('click', () => {
         const m = adminList[Number(b.dataset.vmRevoke)];
-        if (!m || !confirm(`${m.name} 학생의 ${ROLES[m.kind] || m.kind} 지정을 해제하시겠습니까?`)) return;
-        adminAct('revoke', { account: { studentNumber: m.studentNumber, email: m.email }, kind: m.kind }, managerSpot(m), () => ['vm-list', `${m.name} 학생의 ${ROLES[m.kind] || m.kind} 지정을 해제했습니다.`]);
+        if (!m || !confirm(`${m.name} 학생의 ${ROLES[m.kind] || m.kind} 지정을 해제할까요?`)) return;
+        adminAct('revoke', { account: { studentNumber: m.studentNumber, email: m.email }, kind: m.kind }, managerSpot(m), () => ['vm-list', `${m.name} 학생의 ${ROLES[m.kind] || m.kind} 지정을 해제했어요.`]);
       }));
     }
   }

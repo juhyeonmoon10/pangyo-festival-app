@@ -21,10 +21,10 @@ function setup(code) {
 }
 
 for(const [code,title] of [
-  ['BOOTH_CLOSED','부스가 운영 중이 아닙니다'],
-  ['EVENT_CLOSED','축제가 운영 중이 아닙니다'],
-  ['OPS_NOT_READY','축제 운영 정보를 확인할 수 없습니다'],
-  ['NFC_DISABLED','방문 인증이 잠시 중지되었습니다'],
+  ['BOOTH_CLOSED','부스가 운영 중이 아니에요'],
+  ['EVENT_CLOSED','축제가 운영 중이 아니에요'],
+  ['OPS_NOT_READY','축제 운영 정보를 확인할 수 없어요'],
+  ['NFC_DISABLED','방문 인증이 잠시 중지됐어요'],
 ]) test(`${code} is an intentional stop, not a generic processing error`,async()=>{
   const app=setup(code); const result=await app.scan();
   assert.equal(result.ok,false); assert.equal(app.claims.length,1);

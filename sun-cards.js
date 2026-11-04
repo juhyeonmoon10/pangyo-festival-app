@@ -11,9 +11,9 @@ const festivalSunCards = (() => {
     .map(b => [boothKeyFor(b), catalogBooth(b)?.name || b.name]);
   const boothName = key => booths().find(([k]) => k === key)?.[1] || key;
   const REASONS = {
-    format: '보안 카드 주소 형식이 아닙니다. 카드에 쓴 주소에 picc_data와 cmac이 있는지 확인해 주십시오.',
-    meta: '카드의 SDM Meta Read 키(Key 1)가 서버 키와 다르거나, PICC 데이터 암호화(UID·카운터)가 꺼져 있습니다.',
-    mac: '카드의 SDM File Read 키(Key 2)가 서버 키와 다르거나, CMAC 위치·입력 위치가 가이드와 다릅니다.',
+    format: '보안 카드 주소 형식이 아니에요. 카드에 쓴 주소에 picc_data와 cmac이 있는지 확인해 주세요.',
+    meta: '카드의 SDM Meta Read 키(Key 1)가 서버 키와 다르거나, PICC 데이터 암호화(UID·카운터)가 꺼져 있어요.',
+    mac: '카드의 SDM File Read 키(Key 2)가 서버 키와 다르거나, CMAC 위치·입력 위치가 가이드와 달라요.',
   };
 
   function reset() {
@@ -29,7 +29,7 @@ const festivalSunCards = (() => {
 
   async function load() {
     if (loading) return;
-    if (!api()?.sun) { failure = '서버 연결을 확인할 수 없습니다. 새로고침해 주십시오.'; render(); return; }
+    if (!api()?.sun) { failure = '서버 연결을 확인할 수 없어요. 새로고침해 주세요.'; render(); return; }
     loading = true; failure = '';
     const actor = state.user?.id;
     const response = await api().sun('status');
@@ -74,7 +74,7 @@ const festivalSunCards = (() => {
     if (reader) { stopReading(); render(); return; }
     if (!window.isSecureContext || !('NDEFReader' in window)) return;
     const controller = new AbortController();
-    reader = controller; say('check', '카드를 휴대폰 뒷면에 대 주십시오.', 'info', true);
+    reader = controller; say('check', '카드를 휴대폰 뒷면에 대 주세요.', 'info', true);
     try {
       const ndef = new NDEFReader();
       ndef.onreading = event => {
@@ -84,20 +84,20 @@ const festivalSunCards = (() => {
           const read = FestivalSun.parse(new TextDecoder().decode(record.data));
           if (read) { stopReading(); note = null; inspect(read); return; }
         }
-        say('check', '이 카드에는 보안 카드 주소가 없습니다. 가이드대로 작성했는지 확인해 주십시오.', 'error');
+        say('check', '이 카드에는 보안 카드 주소가 없어요. 가이드대로 작성했는지 확인해 주세요.', 'error');
       };
-      ndef.onreadingerror = () => say('check', '카드를 읽지 못했습니다. 다시 가까이 대 주십시오.', 'error');
+      ndef.onreadingerror = () => say('check', '카드를 읽지 못했어요. 다시 가까이 대 주세요.', 'error');
       await ndef.scan({ signal: controller.signal });
     } catch (error) {
       if (controller.signal.aborted) return;
       stopReading();
-      say('check', error.name === 'NotAllowedError' ? 'NFC 권한을 허용해 주십시오.' : 'NFC를 시작하지 못했습니다. 휴대폰의 NFC 설정을 확인해 주십시오.', 'error', true);
+      say('check', error.name === 'NotAllowedError' ? 'NFC 권한을 허용해 주세요.' : 'NFC를 시작하지 못했어요. 휴대폰의 NFC 설정을 확인해 주세요.', 'error', true);
     }
   }
 
   function keySection() {
     if (!status.configured) {
-      return `<section class="ops-section"><h2>1. 카드 키 만들기</h2><p>카드와 서버가 함께 쓰는 AES-128 키 두 개를 만듭니다. 키는 서버 금고(Vault)에만 저장됩니다.</p>
+      return `<section class="ops-section"><h2>1. 카드 키 만들기</h2><p>카드와 서버가 함께 쓰는 AES-128 키 두 개를 만들어요. 키는 서버 금고(Vault)에만 저장돼요.</p>
         <button type="button" class="primary-btn" data-sun-keys-create ${busy ? 'disabled' : ''}>${icon('lock')} 키 만들기</button>${slot('keys')}
         <details class="sun-details"><summary>이미 카드에 쓴 키가 있으면 직접 입력</summary>
           <form class="ops-form" data-sun-keys-form>
@@ -112,10 +112,10 @@ const festivalSunCards = (() => {
         <button type="button" class="ghost-btn" data-sun-enable="${!status.enabled}" ${busy ? 'disabled' : ''}>${status.enabled ? '보안 카드 적립 중지' : '보안 카드 적립 다시 사용'}</button>
         <button type="button" class="ghost-btn" data-sun-keys-reveal ${busy ? 'disabled' : ''}>${icon('lock')} ${keys ? '키 숨기기' : '카드 작성용 키 보기'}</button>
       </div>${slot('keys')}
-      ${keys ? `<div class="sun-keys" role="group" aria-label="카드 작성용 키"><p class="ops-alert" role="alert">화면을 공유하거나 촬영하지 마십시오. 키를 본 기록이 남습니다.</p>
+      ${keys ? `<div class="sun-keys" role="group" aria-label="카드 작성용 키"><p class="ops-alert" role="alert">화면을 공유하거나 촬영하지 마세요. 키를 본 기록이 남아요.</p>
         ${[['SDM Meta Read 키 · Key 1', keys.metaKey], ['SDM File Read 키 · Key 2', keys.fileKey]].map(([label, value]) => `<label>${label}<span class="sun-key"><code class="sun-mono">${h(value.toUpperCase())}</code><button type="button" class="icon-btn" data-sun-copy="${h(value.toUpperCase())}" aria-label="${label} 복사">${icon('copy')}</button></span></label>`).join('')}</div>` : ''}
       <details class="sun-details" ${note?.at === 'keysForm' ? 'open' : ''}><summary>키 교체</summary>
-        <p>키를 바꾸면 지금까지 작성한 카드가 모두 인식되지 않습니다. 카드를 새 키로 다시 작성해야 합니다.</p>
+        <p>키를 바꾸면 지금까지 작성한 카드가 모두 인식되지 않아요. 카드를 새 키로 다시 작성해야 해요.</p>
         <form class="ops-form" data-sun-keys-form data-replace><label>확인 문구 ("키 교체")<input class="input" name="confirm" required autocomplete="off"></label>
           ${slot('keysForm')}<button class="ghost-btn" type="submit">새 키 만들기</button></form>
       </details></section>`;
@@ -124,9 +124,9 @@ const festivalSunCards = (() => {
   function writeSection() {
     let layout;
     try { layout = FestivalSun.layout(location.origin); }
-    catch { return '<section class="ops-section"><h2>2. 카드에 쓸 내용</h2><p class="sun-hint">축제 사이트(https 주소)에서 이 화면을 열면 카드에 쓸 주소와 위치 값이 보입니다.</p></section>'; }
+    catch { return '<section class="ops-section"><h2>2. 카드에 쓸 내용</h2><p class="sun-hint">축제 사이트(https 주소)에서 이 화면을 열면 카드에 쓸 주소와 위치 값이 보여요.</p></section>'; }
     const row = (label, value) => `<div><dt>${label}</dt><dd><code class="sun-mono">${h(value)}</code></dd></div>`;
-    return `<section class="ops-section"><h2>2. 카드에 쓸 내용</h2><p>모든 카드에 같은 내용을 씁니다. 자세한 순서는 NTAG 424 DNA 카드 작성 가이드를 따라 주십시오.</p>
+    return `<section class="ops-section"><h2>2. 카드에 쓸 내용</h2><p>모든 카드에 같은 내용을 써요. 자세한 순서는 NTAG 424 DNA 카드 작성 가이드를 따라 주세요.</p>
       <dl class="sun-layout">
         ${row('주소 (URL 레코드)', layout.url)}
         ${row('PICC 데이터 위치 (PICCDataOffset)', `${layout.piccOffset} (0x${layout.piccOffset.toString(16).toUpperCase()})`)}
@@ -143,10 +143,10 @@ const festivalSunCards = (() => {
     if (!inspected) return '';
     const r = inspected.result;
     if (!r) return '<p role="status">카드를 확인하는 중...</p>';
-    if (!r.ok) return `<div class="sun-inspect is-error" role="alert"><strong>${icon('notice')} 확인되지 않은 카드</strong><p>${h(REASONS[r.reason] || '카드를 확인하지 못했습니다.')}</p></div>`;
+    if (!r.ok) return `<div class="sun-inspect is-error" role="alert"><strong>${icon('notice')} 확인되지 않은 카드</strong><p>${h(REASONS[r.reason] || '카드를 확인하지 못했어요.')}</p></div>`;
     const card = r.card;
     const facts = `<p>UID <code class="sun-mono">${h(r.uid)}</code> · 읽기 ${Number(r.counter)}회째 · CMAC ${r.macMode === 'input' ? '주소 문자열 포함' : '빈 입력'}</p>`
-      + (r.fresh ? '' : '<p>이 주소는 이미 사용되었습니다. 학생이 적립하려면 카드를 다시 찍어야 합니다.</p>');
+      + (r.fresh ? '' : '<p>이 주소는 이미 사용됐어요. 학생이 적립하려면 카드를 다시 찍어야 해요.</p>');
     if (card) return `<div class="sun-inspect" role="status"><strong>${icon('check')} 등록된 카드 · ${h(boothName(card.boothKey))}${card.label ? ` · ${h(card.label)}` : ''}${card.revokedAt ? ' · 사용 중지됨' : ''}</strong>${facts}</div>`;
     return `<div class="sun-inspect" role="status"><strong>${icon('check')} 정상 카드 · 아직 등록 전</strong>${facts}
       <form class="ops-form" data-sun-register>
@@ -160,12 +160,12 @@ const festivalSunCards = (() => {
     let last = null;
     try { last = FestivalSun.fromToken(sessionStorage.getItem(SUN_LAST_READ_KEY) || ''); } catch { /* Optional. */ }
     const canRead = window.isSecureContext && 'NDEFReader' in window;
-    return `<section class="ops-section"><h2>3. 카드 확인·등록</h2><p>작성한 카드를 찍어 서버 키로 확인하고 부스에 연결합니다. 확인만으로는 카드 주소가 사용되지 않습니다.</p>
+    return `<section class="ops-section"><h2>3. 카드 확인·등록</h2><p>작성한 카드를 찍어 서버 키로 확인하고 부스에 연결해요. 확인만으로는 카드 주소가 사용되지 않아요.</p>
       <div class="sun-actions">
         ${canRead ? `<button type="button" class="primary-btn" data-sun-read>${icon('scan')} ${reader ? '읽기 중지' : '카드 읽기'}</button>` : ''}
         ${last ? `<button type="button" class="ghost-btn" data-sun-last>${icon('refresh')} 방금 찍은 카드 확인</button>` : ''}
       </div>
-      ${canRead ? '' : '<p class="sun-hint">이 브라우저는 카드를 직접 읽지 못합니다. 카드를 휴대폰에 대서 열린 주소를 붙여 넣거나, 카드를 찍은 뒤 이 화면으로 돌아와 "방금 찍은 카드 확인"을 눌러 주십시오.</p>'}
+      ${canRead ? '' : '<p class="sun-hint">이 브라우저는 카드를 직접 읽지 못해요. 카드를 휴대폰에 대서 열린 주소를 붙여 넣거나, 카드를 찍은 뒤 이 화면으로 돌아와 "방금 찍은 카드 확인"을 눌러 주세요.</p>'}
       <form class="ops-form" data-sun-paste><label>카드 주소 붙여넣기<input class="input sun-mono" name="address" required autocomplete="off" spellcheck="false" placeholder="https://…#picc_data=…&cmac=…"></label>
         ${slot('check')}<button class="ghost-btn" type="submit">${icon('search')} 주소 확인</button></form>
       ${inspectView()}</section>`;
@@ -181,12 +181,12 @@ const festivalSunCards = (() => {
         <label>메모<input class="input" name="label" maxlength="40" value="${h(c.label)}" autocomplete="off"></label>
         ${slot(`card:${c.uid}`)}<div class="sun-actions"><button class="ghost-btn" type="submit">${icon('save')} 저장</button>
           <button type="button" class="ghost-btn" data-sun-toggle="${h(c.uid)}" data-revoked="${c.revokedAt ? 'true' : 'false'}">${c.revokedAt ? '다시 사용' : '사용 중지'}</button></div>
-      </form></details></li>`).join('')}</ul>` : '<p class="ops-empty">아직 등록한 카드가 없습니다.</p>'}</section>`;
+      </form></details></li>`).join('')}</ul>` : '<p class="ops-empty">아직 등록한 카드가 없어요.</p>'}</section>`;
   }
 
   function view() {
     if (owner !== (state.user?.id || null)) reset();
-    const intro = `<h1>보안 NFC 카드</h1><p class="sun-intro">NTAG 424 DNA 카드는 찍을 때마다 암호화된 1회용 주소를 만듭니다. 주소를 복사해 다른 사람에게 보내도 적립되지 않습니다. 일반 NFC 태그와 따로 관리됩니다.</p>`;
+    const intro = `<h1>보안 NFC 카드</h1><p class="sun-intro">NTAG 424 DNA 카드는 찍을 때마다 암호화된 1회용 주소를 만들어요. 주소를 복사해 다른 사람에게 보내도 적립되지 않아요. 일반 NFC 태그와 따로 관리돼요.</p>`;
     if (failure) return `<div class="ops-body" data-sun-root>${intro}<p class="ops-alert" role="alert">${h(failure)}</p><button type="button" class="ghost-btn" data-sun-refresh>${icon('refresh')} 다시 불러오기</button></div>`;
     if (!status) return `<div class="ops-body" data-sun-root aria-busy="true">${intro}<p role="status">불러오는 중...</p></div>`;
     return `<div class="ops-body" data-sun-root>${intro}${keySection()}${status.configured ? writeSection() + checkSection() + listSection() : ''}</div>`;
@@ -198,12 +198,12 @@ const festivalSunCards = (() => {
     if (!isAdminUser()) return;
     if (!status && !failure && !loading) queueMicrotask(load);
     root.querySelector('[data-sun-refresh]')?.addEventListener('click', () => { failure = ''; render(); load(); });
-    root.querySelector('[data-sun-keys-create]')?.addEventListener('click', () => act('keys_create', {}, 'keys', () => ['keys', '키를 만들었습니다. 카드 작성용 키를 보고 카드에 써 주십시오.']));
+    root.querySelector('[data-sun-keys-create]')?.addEventListener('click', () => act('keys_create', {}, 'keys', () => ['keys', '키를 만들었어요. 카드 작성용 키를 보고 카드에 써 주세요.']));
     root.querySelectorAll('[data-sun-keys-form]').forEach(form => form.addEventListener('submit', event => {
       event.preventDefault();
       const body = Object.fromEntries(new FormData(form));
-      if (form.hasAttribute('data-replace') && !confirm('키를 바꾸면 지금까지 작성한 카드가 모두 인식되지 않습니다. 계속하시겠습니까?')) return;
-      act('keys_create', body, 'keysForm', () => { keys = null; return ['keys', form.hasAttribute('data-replace') ? '새 키로 바꿨습니다. 카드를 새 키로 다시 작성해 주십시오.' : '입력한 키를 저장했습니다.']; });
+      if (form.hasAttribute('data-replace') && !confirm('키를 바꾸면 지금까지 작성한 카드가 모두 인식되지 않아요. 계속할까요?')) return;
+      act('keys_create', body, 'keysForm', () => { keys = null; return ['keys', form.hasAttribute('data-replace') ? '새 키로 바꿨어요. 카드를 새 키로 다시 작성해 주세요.' : '입력한 키를 저장했어요.']; });
     }));
     root.querySelector('[data-sun-keys-reveal]')?.addEventListener('click', () => {
       if (keys) { keys = null; render(); return; }
@@ -211,12 +211,12 @@ const festivalSunCards = (() => {
     });
     root.querySelector('[data-sun-enable]')?.addEventListener('click', event => {
       const enabled = event.currentTarget.dataset.sunEnable === 'true';
-      if (!enabled && !confirm('보안 카드 적립을 중지하시겠습니까? 일반 NFC 태그는 영향을 받지 않습니다.')) return;
-      act('enable', { enabled }, 'keys', () => ['keys', enabled ? '보안 카드 적립을 다시 사용합니다.' : '보안 카드 적립을 중지했습니다.']);
+      if (!enabled && !confirm('보안 카드 적립을 중지할까요? 일반 NFC 태그는 영향을 받지 않아요.')) return;
+      act('enable', { enabled }, 'keys', () => ['keys', enabled ? '보안 카드 적립을 다시 사용해요.' : '보안 카드 적립을 중지했어요.']);
     });
     root.querySelectorAll('[data-sun-copy]').forEach(button => button.addEventListener('click', async () => {
       const at = button.dataset.sunCopyAt || 'keys';
-      try { await navigator.clipboard.writeText(button.dataset.sunCopy); say(at, '복사했습니다.', 'success', false); } catch { say(at, '복사하지 못했습니다. 직접 선택해 복사해 주십시오.', 'error'); }
+      try { await navigator.clipboard.writeText(button.dataset.sunCopy); say(at, '복사했어요.', 'success', false); } catch { say(at, '복사하지 못했어요. 직접 선택해 복사해 주세요.', 'error'); }
     }));
     root.querySelector('[data-sun-read]')?.addEventListener('click', readCard);
     root.querySelector('[data-sun-last]')?.addEventListener('click', () => {
@@ -233,21 +233,21 @@ const festivalSunCards = (() => {
       const form = event.currentTarget, read = inspected?.read;
       if (!read) return;
       act('register', { ...FestivalSun.payload(read), booth: form.elements.booth.value, label: form.elements.label.value.trim() },
-        'register', data => { inspected = null; return ['check', `${boothName(data.boothKey)}에 카드를 등록했습니다.`]; });
+        'register', data => { inspected = null; return ['check', `${boothName(data.boothKey)}에 카드를 등록했어요.`]; });
     });
     root.querySelectorAll('[data-sun-edit]').forEach(form => form.addEventListener('submit', async event => {
       event.preventDefault();
       const uid = form.dataset.sunEdit, card = status.items.find(c => c.uid === uid);
       if (!card) return;
       const booth = form.elements.booth.value, label = form.elements.label.value.trim(), at = `card:${uid}`;
-      if (booth !== card.boothKey && !await act('move', { uid, booth }, at, () => [at, '부스를 바꿨습니다.'])) return;
-      if (label !== card.label) await act('label', { uid, label }, at, () => [at, '메모를 저장했습니다.']);
+      if (booth !== card.boothKey && !await act('move', { uid, booth }, at, () => [at, '부스를 바꿨어요.'])) return;
+      if (label !== card.label) await act('label', { uid, label }, at, () => [at, '메모를 저장했어요.']);
     }));
     root.querySelectorAll('[data-sun-toggle]').forEach(button => button.addEventListener('click', () => {
       const restore = button.dataset.revoked === 'true';
-      if (!restore && !confirm('이 카드를 사용 중지하시겠습니까? 학생이 찍어도 적립되지 않습니다.')) return;
+      if (!restore && !confirm('이 카드를 사용 중지할까요? 학생이 찍어도 적립되지 않아요.')) return;
       const at = `card:${button.dataset.sunToggle}`;
-      act(restore ? 'restore' : 'revoke', { uid: button.dataset.sunToggle }, at, () => [at, restore ? '카드를 다시 사용합니다.' : '카드를 사용 중지했습니다.']);
+      act(restore ? 'restore' : 'revoke', { uid: button.dataset.sunToggle }, at, () => [at, restore ? '카드를 다시 사용해요.' : '카드를 사용 중지했어요.']);
     }));
   }
 

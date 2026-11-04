@@ -106,13 +106,13 @@ try {
   const nf=a.page.locator('[data-ops-form=notice_save]');
   await nf.waitFor();
   await nf.locator('[name=title]').fill('부스 운영 시간 안내');
-  await nf.locator('[name=body]').fill('오늘 부스는 오후 4시까지 운영해요.\n사진을 확인해 주십시오.');
+  await nf.locator('[name=body]').fill('오늘 부스는 오후 4시까지 운영해요.\n사진을 확인해 주세요.');
   await nf.locator('[name=important]').check();
   await nf.locator('[data-notice-file]').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:PNG});
   await nf.locator('.ops-notice-images li').first().waitFor();
   await check(a.page,'notice-editor');
   await nf.locator('button[type=submit]').click();
-  await a.page.getByText('공지를 등록했습니다.',{exact:false}).waitFor();
+  await a.page.getByText('공지를 등록했어요.',{exact:false}).waitFor();
   const saved=(await db.query('select id,images from festival_ops.notices')).rows[0];
   assert.equal(saved.images.length,1); assert.deepEqual(uploads,saved.images);
   flows.push('notice photo upload');
@@ -123,7 +123,7 @@ try {
   await find.waitFor();
   await find.locator('[name=studentNumber]').fill('21001');
   await find.locator('button[type=submit]').click();
-  await a.page.getByText('소속 확인이 끝나지 않았습니다',{exact:false}).waitFor();
+  await a.page.getByText('소속 확인이 끝나지 않았어요',{exact:false}).waitFor();
   await find.locator('[name=studentNumber]').fill('11001');
   await find.locator('button[type=submit]').click();
   const grant=a.page.locator('[data-bm-grant]');
@@ -131,7 +131,7 @@ try {
   assert.equal(await grant.locator('[name=booth]').inputValue(),CLUB);
   await grant.locator('[name=canApprove]').check();
   await grant.locator('button[type=submit]').click();
-  await a.page.getByText('부스 담당자로 지정했습니다',{exact:false}).waitFor();
+  await a.page.getByText('부스 담당자로 지정했어요',{exact:false}).waitFor();
   await a.page.getByText('스탬프 수동 승인 허용',{exact:false}).first().waitFor();
   await check(a.page,'grant');
   flows.push('grant with approval');
@@ -145,7 +145,7 @@ try {
   await manage.click();
   const form=m.page.locator('[data-manager-save]');
   await form.waitFor();
-  await form.locator('[name=description]').fill('코딩 동아리 인벨릭스의 부스입니다.');
+  await form.locator('[name=description]').fill('코딩 동아리 인벨릭스의 부스예요.');
   await form.locator('[name="program.title"]').fill('미니 해커톤 체험');
   // Operating hours with the clock picker.
   await form.locator('[data-hour-row] [name=hourFrom]').fill('10:00');
@@ -158,9 +158,9 @@ try {
   await form.locator('[name=room]').selectOption('다목적강당');
   await check(m.page,'manager-profile');
   await form.locator('button[type=submit]').click();
-  await m.page.getByText('부스 정보를 저장했습니다.',{exact:false}).waitFor();
+  await m.page.getByText('부스 정보를 저장했어요.',{exact:false}).waitFor();
   const booth=(await db.query('select description,program,floor,room,location,image from festival_ops.booths where key=$1',[CLUB])).rows[0];
-  assert.equal(booth.description,'코딩 동아리 인벨릭스의 부스입니다.'); assert.equal(booth.program.title,'미니 해커톤 체험');
+  assert.equal(booth.description,'코딩 동아리 인벨릭스의 부스예요.'); assert.equal(booth.program.title,'미니 해커톤 체험');
   assert.equal(booth.floor,3); assert.equal(booth.room,'다목적강당'); assert.equal(booth.location,'3층 다목적강당');
   assert.deepEqual(boothUploads,[booth.image]); assert.equal(booth.program.hours,'10:00–15:00');
   assert.match(await m.page.locator('[data-manager-photo] img').getAttribute('src'),/festival-booths\/booths\//);
@@ -171,7 +171,7 @@ try {
   await m.page.locator('[data-manager-approve] [name=reason]').fill('부스 체험 완료');
   await check(m.page,'manager');
   await m.page.locator('[data-manager-approve] button[type=submit]').click();
-  await m.page.getByText('스탬프 1개를 적립했습니다',{exact:false}).waitFor();
+  await m.page.getByText('스탬프 1개를 적립했어요',{exact:false}).waitFor();
   const visit=(await db.query('select method,actor_id from festival_ops.visits where user_id=$1 and booth_key=$2',[visitor.uid,CLUB])).rows[0];
   assert.equal(visit.method,'manual'); assert.equal(visit.actor_id,lead.uid);
   flows.push('manager edit','manager approval');

@@ -378,9 +378,9 @@ function isOwnClubBooth(boothId) {
 }
 
 function reviewEligibilityMessage(policy) {
-  return ({ OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없습니다.",
-    REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주십시오.",
-    AUTH_REQUIRED: "로그인 후 작성할 수 있습니다." })[policy.reason] || "리뷰 작성 가능 여부를 확인 중입니다.";
+  return ({ OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
+    REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주세요.",
+    AUTH_REQUIRED: "로그인 후 작성할 수 있어요." })[policy.reason] || "리뷰 작성 가능 여부를 확인 중이에요.";
 }
 
 function serverReviewState(boothId) {
@@ -397,8 +397,8 @@ function reviewsPublic(boothId) {
 }
 
 function reviewAuthorText(policy) {
-  return reviewsPublic(state.selectedBoothId) ? `${policy.authorName} 이름으로 공개됩니다.`
-    : `${policy.authorName} 이름으로 남습니다. 리뷰가 공개되면 다른 참여자도 볼 수 있습니다.`;
+  return reviewsPublic(state.selectedBoothId) ? `${policy.authorName} 이름으로 공개돼요.`
+    : `${policy.authorName} 이름으로 남아요. 리뷰가 공개되면 다른 참여자도 볼 수 있어요.`;
 }
 
 function isAdminOnlyNfcSource(source) {
@@ -654,7 +654,7 @@ const seed = {
       id: "notice-1",
       eventId: EVENT.id,
       severity: "info",
-      title: "축제 준비 중입니다",
+      title: "축제 준비 중이에요",
       body: "현재 화면은 개인 UI 테스트 버전입니다. 실제 행사 정보는 운영진 확정 후 반영됩니다.",
       publishedAt: "2026-07-13T00:00:00.000Z",
     },
@@ -877,9 +877,9 @@ function nfcFailure(code, message, options = {}) {
 const mockStampGateway = {
   async claimNfc({ eventId, userId, nfcToken, idempotencyKey }) {
     const requestId = makeId();
-    if (!userId) return nfcFailure("AUTH_REQUIRED", "로그인이 필요합니다.", { status: 401, requestId });
+    if (!userId) return nfcFailure("AUTH_REQUIRED", "로그인이 필요해요.", { status: 401, requestId });
     if (!/^[A-Za-z0-9._:-]{8,128}$/.test(String(idempotencyKey || ""))) {
-      return nfcFailure("INVALID_IDEMPOTENCY_KEY", "요청 정보가 올바르지 않습니다.", { status: 400, requestId });
+      return nfcFailure("INVALID_IDEMPOTENCY_KEY", "요청 정보가 올바르지 않아요.", { status: 400, requestId });
     }
 
     const scope = `nfc:${eventId}`;
@@ -891,7 +891,7 @@ const mockStampGateway = {
     ));
     if (previous) {
       if (previous.tokenFingerprint !== tokenFingerprint) {
-        return nfcFailure("IDEMPOTENCY_KEY_REUSED", "같은 요청을 다른 태그에 다시 쓸 수 없습니다.", { status: 409, requestId });
+        return nfcFailure("IDEMPOTENCY_KEY_REUSED", "같은 요청을 다른 태그에 다시 쓸 수 없어요.", { status: 409, requestId });
       }
       return { ...cloneData(previous.response), replayed: true };
     }
@@ -912,10 +912,10 @@ const mockStampGateway = {
     };
 
     if (eventId !== state.db.event.id) {
-      return finish(nfcFailure("EVENT_NOT_FOUND", "현재 축제와 맞지 않는 요청입니다.", { status: 404, requestId }));
+      return finish(nfcFailure("EVENT_NOT_FOUND", "현재 축제와 맞지 않는 요청이에요.", { status: 404, requestId }));
     }
     if (typeof nfcToken !== "string" || !nfcToken || nfcToken.length > 512) {
-      return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그입니다.", { requestId }));
+      return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그예요.", { requestId }));
     }
 
     const tagId = tagIdFromMockNfcToken(nfcToken);
@@ -923,19 +923,19 @@ const mockStampGateway = {
       ? state.db.booths.find((item) => item.eventId === eventId && item.nfcTagId === tagId)
       : null;
     if (!booth) {
-      return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그입니다.", { requestId }));
+      return finish(nfcFailure("NFC_TAG_INVALID", "등록되지 않았거나 잘못된 NFC 태그예요.", { requestId }));
     }
     if (booth.nfcEnabled === false) {
-      return finish(nfcFailure("NFC_TAG_DISABLED", "이 부스의 NFC 적립이 중지돼 있습니다.", { boothId: booth.id, requestId }));
+      return finish(nfcFailure("NFC_TAG_DISABLED", "이 부스의 NFC 적립이 중지돼 있어요.", { boothId: booth.id, requestId }));
     }
     if (state.db.event.emergencyMode) {
-      return finish(nfcFailure("EMERGENCY_MODE", "비상 모드에서는 NFC 적립이 잠시 중지됩니다.", { status: 503, boothId: booth.id, requestId }));
+      return finish(nfcFailure("EMERGENCY_MODE", "비상 모드에서는 NFC 적립이 잠시 중지돼요.", { status: 503, boothId: booth.id, requestId }));
     }
     if (!["active", "rehearsal"].includes(state.db.event.status)) {
       return finish(nfcFailure("EVENT_NOT_ACTIVE", "현재 행사가 방문 적립 가능한 상태가 아닙니다.", { boothId: booth.id, requestId }));
     }
     if (booth.status !== "open") {
-      return finish(nfcFailure("BOOTH_NOT_OPEN", `${booth.name}은(는) ${statusInfo(booth.status).label} 상태입니다.`, { boothId: booth.id, requestId }));
+      return finish(nfcFailure("BOOTH_NOT_OPEN", `${booth.name}은(는) ${statusInfo(booth.status).label} 상태예요.`, { boothId: booth.id, requestId }));
     }
 
     const existing = state.db.stamps.find((stamp) => (
@@ -984,14 +984,14 @@ const mockStampGateway = {
 
 const stampGateway = isServerMode() ? {
   async claimNfc({ nfcToken }) {
-    if (!festivalAccount) return nfcFailure("AUTH_REQUIRED", "로그인이 필요합니다.");
+    if (!festivalAccount) return nfcFailure("AUTH_REQUIRED", "로그인이 필요해요.");
     const actingUser = state.user?.id;
     const result = await festivalAccount.claim(nfcToken);
     if (!result.ok) return result;
-    if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었습니다. 다시 확인해 주십시오.");
+    if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었어요. 다시 확인해 주세요.");
     festivalOpsUI.markVisitPending();
     await festivalOpsUI.refresh(false);
-    if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었습니다. 다시 확인해 주십시오.");
+    if (state.user?.id !== actingUser) return nfcFailure("AUTH_REQUIRED", "계정이 변경되었어요. 다시 확인해 주세요.");
     serverCompletedBooths = result.completedBooths;
     const booth = boothForKey(result.boothKey);
     return { ...result, boothId: booth?.id || null, earnedAt: null, syncPending: festivalOpsUI.visitSyncPending() };
@@ -999,24 +999,24 @@ const stampGateway = isServerMode() ? {
 } : mockStampGateway;
 
 const NFC_ERROR_TITLES = {
-  NFC_TAG_INVALID: "등록되지 않은 태그입니다",
-  NFC_TAG_DISABLED: "사용 중지된 태그입니다",
-  NFC_TAG_EXPIRED: "사용 기간이 지난 태그입니다",
-  BOOTH_NOT_OPEN: "지금은 적립할 수 없습니다",
-  BOOTH_CLOSED: "부스가 운영 중이 아닙니다",
-  EVENT_NOT_ACTIVE: "행사가 운영 중이 아닙니다",
-  EVENT_CLOSED: "축제가 운영 중이 아닙니다",
-  OPS_NOT_READY: "축제 운영 정보를 확인할 수 없습니다",
-  NFC_DISABLED: "방문 인증이 잠시 중지되었습니다",
-  OWN_CLUB_STAMP: "본인 동아리 부스입니다",
-  EMERGENCY_MODE: "방문 적립이 잠시 중지되었습니다",
-  IDEMPOTENCY_KEY_REUSED: "요청을 다시 확인해 주십시오",
-  NETWORK_ERROR: "네트워크 연결이 불안정합니다",
-  SUN_DISABLED: "보안 카드 적립이 잠시 중지되었습니다",
-  SUN_CARD_INVALID: "확인되지 않은 카드입니다",
-  SUN_CARD_UNKNOWN: "등록되지 않은 보안 카드입니다",
-  SUN_CARD_STOPPED: "사용 중지된 보안 카드입니다",
-  SUN_CARD_REPLAYED: "이미 사용한 카드 주소입니다",
+  NFC_TAG_INVALID: "등록되지 않은 태그예요",
+  NFC_TAG_DISABLED: "사용 중지된 태그예요",
+  NFC_TAG_EXPIRED: "사용 기간이 지난 태그예요",
+  BOOTH_NOT_OPEN: "지금은 적립할 수 없어요",
+  BOOTH_CLOSED: "부스가 운영 중이 아니에요",
+  EVENT_NOT_ACTIVE: "행사가 운영 중이 아니에요",
+  EVENT_CLOSED: "축제가 운영 중이 아니에요",
+  OPS_NOT_READY: "축제 운영 정보를 확인할 수 없어요",
+  NFC_DISABLED: "방문 인증이 잠시 중지됐어요",
+  OWN_CLUB_STAMP: "본인 동아리 부스예요",
+  EMERGENCY_MODE: "방문 적립이 잠시 중지됐어요",
+  IDEMPOTENCY_KEY_REUSED: "요청을 다시 확인해 주세요",
+  NETWORK_ERROR: "네트워크 연결이 불안정해요",
+  SUN_DISABLED: "보안 카드 적립이 잠시 중지됐어요",
+  SUN_CARD_INVALID: "확인되지 않은 카드예요",
+  SUN_CARD_UNKNOWN: "등록되지 않은 보안 카드예요",
+  SUN_CARD_STOPPED: "사용 중지된 보안 카드예요",
+  SUN_CARD_REPLAYED: "이미 사용한 카드 주소예요",
 };
 
 let nfcQueue = Promise.resolve();
@@ -1034,33 +1034,33 @@ const nfcAdapter = {
       source: claim?.source || "ui",
     };
     if (isAdminOnlyNfcSource(request.source) && !isAdminUser()) {
-      const denied = nfcFailure("ADMIN_REQUIRED", "모의 방문 인증은 관리자만 사용할 수 있습니다.", { status: 403 });
+      const denied = nfcFailure("ADMIN_REQUIRED", "모의 방문 인증은 관리자만 사용할 수 있어요.", { status: 403 });
       state.pendingNfcClaim = null;
       if (state.user) {
         state.scanResult = {
           type: "blocked",
-          title: "관리자 전용 기능입니다",
+          title: "관리자 전용 기능이에요",
           body: denied.message,
         };
         showNfcFeedback();
       } else {
-        state.loginError = "모의 방문 인증은 관리자 계정으로 로그인해야 사용할 수 있습니다.";
+        state.loginError = "모의 방문 인증은 관리자 계정으로 로그인해야 사용할 수 있어요.";
         state.route = "login";
       }
       render();
       return denied;
     }
     if (!request.nfcToken) {
-      state.scanResult = { type: "error", title: "태그 정보를 읽지 못했습니다", body: "다시 인식하거나 운영자에게 수동 승인을 요청하십시오." };
+      state.scanResult = { type: "error", title: "태그 정보를 읽지 못했어요", body: "다시 인식하거나 운영자에게 수동 승인을 요청하세요." };
       if (state.user) showNfcFeedback();
       else { state.route = "login"; render(); }
-      return nfcFailure("NFC_TAG_INVALID", "태그 정보가 비어 있습니다.");
+      return nfcFailure("NFC_TAG_INVALID", "태그 정보가 비어 있어요.");
     }
     if (!state.user) {
       state.pendingNfcClaim = request;
       if (isServerMode()) festivalAccount?.savePending(request);
       state.route = "login";
-      state.loginError = "NFC 태그가 인식되었습니다. 로그인하면 같은 요청 식별자로 자동 적립을 이어갑니다.";
+      state.loginError = "NFC 태그가 인식됐어요. 로그인하면 같은 요청 식별자로 자동 적립을 이어갑니다.";
       render();
       return { ok: false, queued: true };
     }
@@ -1080,7 +1080,7 @@ const nfcAdapter = {
       if (isServerMode()) festivalAccount?.savePending(request);
       state.user = null;
       state.route = "login";
-      state.loginError = "로그인이 만료되었습니다. 다시 로그인하면 방문 인증을 이어갑니다.";
+      state.loginError = "로그인이 만료됐어요. 다시 로그인하면 방문 인증을 이어갑니다.";
       render();
       return result;
     }
@@ -1092,12 +1092,12 @@ const nfcAdapter = {
         type: duplicate ? "duplicate" : "success",
         boothId: result.boothId,
         syncPending: Boolean(result.syncPending),
-        title: duplicate ? "이미 적립한 부스입니다" : "스탬프 1개 적립 완료",
-        body: result.syncPending ? "방문 기록은 저장되었습니다. 스탬프 수를 갱신하지 못해 다시 불러와야 합니다." : duplicate
-          ? "기존 방문 기록을 그대로 유지했습니다."
+        title: duplicate ? "이미 적립한 부스예요" : "스탬프 1개 적립 완료",
+        body: result.syncPending ? "방문 기록은 저장됐어요. 스탬프 수를 갱신하지 못해 다시 불러와야 해요." : duplicate
+          ? "기존 방문 기록을 그대로 유지했어요."
           : result.replayed
-            ? "같은 요청의 기존 성공 결과를 다시 불러왔습니다."
-            : "방문을 인증하고 스탬프 1개를 적립했습니다.",
+            ? "같은 요청의 기존 성공 결과를 다시 불러왔어요."
+            : "방문을 인증하고 스탬프 1개를 적립했어요.",
       };
     } else {
       state.pendingNfcClaim = result.retryable ? request : null;
@@ -1105,7 +1105,7 @@ const nfcAdapter = {
       state.scanResult = {
         type: blocked ? "blocked" : "error",
         boothId: result.boothId,
-        title: NFC_ERROR_TITLES[result.code] || "방문 인증을 처리하지 못했습니다",
+        title: NFC_ERROR_TITLES[result.code] || "방문 인증을 처리하지 못했어요",
         body: result.message,
         retryable: Boolean(result.retryable),
       };
@@ -1190,7 +1190,7 @@ async function retryVisitSync(event) {
   if(state.user?.id!==actor) return;
   if(!festivalOpsUI.visitSyncPending()) {
     if(state.scanResult===result && result?.syncPending) {
-      result.syncPending=false; result.body='저장된 방문 기록과 스탬프 수를 확인했습니다.';
+      result.syncPending=false; result.body='저장된 방문 기록과 스탬프 수를 확인했어요.';
       if(document.querySelector('#nfcFeedback')) showNfcFeedback();
     }
     refreshVisitIndicators();
@@ -1327,9 +1327,9 @@ function updatePendingReviewCount() {
 }
 
 function pendingReviewText() {
-  if (isServerMode() && !serverMyReviews) return "방문한 부스를 확인하는 중입니다";
+  if (isServerMode() && !serverMyReviews) return "방문한 부스를 확인하는 중이에요";
   const pending = unreviewedBooths().length;
-  return pending ? `별점을 기다리는 부스 ${pending}개` : "방문한 부스에 별점을 남겨 주십시오";
+  return pending ? `별점을 기다리는 부스 ${pending}개` : "방문한 부스에 별점을 남겨주세요";
 }
 
 function updateReviewSection(boothId) {
@@ -1359,7 +1359,7 @@ function updateReviewSection(boothId) {
     compose.querySelector("textarea").disabled = !enabled;
     compose.querySelector("#submitReview").disabled = !enabled || state.reviewBusy;
     compose.querySelector("#submitReview").textContent = !policy.allowed ? "리뷰 작성 제한" : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료";
-    compose.querySelector(".review-guidance").textContent = !policy.allowed ? reviewEligibilityMessage(policy) : enabled ? "별점은 필수, 글 후기는 선택입니다." : "방문 인증 후 작성할 수 있습니다.";
+    compose.querySelector(".review-guidance").textContent = !policy.allowed ? reviewEligibilityMessage(policy) : enabled ? "별점은 필수, 글 후기는 선택이에요." : "방문 인증 후 작성할 수 있어요.";
     const identity = compose.querySelector(".review-identity");
     identity.textContent = policy.allowed ? reviewAuthorText(policy) : "";
     identity.hidden = !policy.allowed;
@@ -1376,7 +1376,7 @@ function updateReviewSection(boothId) {
     const submit = document.querySelector("#submitReview");
     if (submit) {
       submit.disabled = !enabled || state.reviewBusy;
-      submit.textContent = !policy.allowed ? "리뷰 작성 제한" : own.content?.trim() ? "이미 등록한 후기입니다" : "글 후기 등록";
+      submit.textContent = !policy.allowed ? "리뷰 작성 제한" : own.content?.trim() ? "이미 등록한 후기예요" : "글 후기 등록";
     }
   }
 }
@@ -1396,10 +1396,10 @@ function reviewCountText(info) {
 }
 
 function reviewListMarkup(info) {
-  if (info.status === "loading") return `<div class="review-empty"><strong>후기를 불러오는 중입니다</strong></div>`;
-  if (info.status === "error") return `<div class="review-empty"><strong>후기를 불러오지 못했습니다</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주십시오.")}</p></div>`;
-  if (info.hidden) return `<p class="review-private-note">${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개입니다. 운영진이 공개하면 볼 수 있습니다.</p>${info.reviews.filter(review => review.mine).map(reviewView).join("")}`;
-  if (!info.reviews.length) return `<div class="review-empty"><strong>아직 등록된 후기가 없습니다</strong></div>`;
+  if (info.status === "loading") return `<div class="review-empty"><strong>후기를 불러오는 중이에요</strong></div>`;
+  if (info.status === "error") return `<div class="review-empty"><strong>후기를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p></div>`;
+  if (info.hidden) return `<p class="review-private-note">${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요.</p>${info.reviews.filter(review => review.mine).map(reviewView).join("")}`;
+  if (!info.reviews.length) return `<div class="review-empty"><strong>아직 등록된 후기가 없어요</strong></div>`;
   return info.reviews.map(reviewView).join("");
 }
 
@@ -1530,7 +1530,7 @@ function loginView() {
 function googleForm() {
   return `
     <div class="auth-card">
-      ${state.pendingNfcClaim ? `<p class="success-text" role="status">${icon("stamp")}<span>방문 태그를 읽었습니다.<br />로그인하면 방문 인증이 이어집니다.</span></p>` : ""}
+      ${state.pendingNfcClaim ? `<p class="success-text" role="status">${icon("stamp")}<span>방문 태그를 읽었어요.<br />로그인하면 방문 인증이 이어집니다.</span></p>` : ""}
       ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
       <button id="googleLogin" type="button" class="primary-btn google-btn" aria-busy="${Boolean(state.loginBusy)}" ${state.loginBusy ? "disabled" : ""}>
         ${isServerMode() ? `<svg class="google-symbol" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65Z"/><path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.79-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"/></svg>` : `<span class="google-symbol" aria-hidden="true">${icon("user")}</span>`}
@@ -1554,9 +1554,9 @@ function profileForm() {
       <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>Google 계정</strong><span>${escapeHtml(google.email)}</span></div></div>
       ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
       <div class="input-stack">
-        ${missingName ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했습니다. 이름을 한 번만 입력해 주십시오.</p>` : ""}
-        ${isServerMode() ? `<p class="subtitle" data-identity-note>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인합니다. 이름은 명단과 같게 적어 주십시오.</p>` : ""}
-        ${detected.length ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 ${detected.join(", ")}을(를) 찾았습니다. 맞으면 '등록하고 시작'을 눌러 주십시오.</p>` : ""}
+        ${missingName ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}
+        ${isServerMode() ? `<p class="subtitle" data-identity-note>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인해요. 이름은 명단과 같게 적어 주세요.</p>` : ""}
+        ${detected.length ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 ${detected.join(", ")}을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>` : ""}
         <label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? (missingName ? "" : google.displayName) ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" maxlength="5" value="${escapeHtml(google.studentNumber || "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         ${isServerMode() ? "" : `<label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>`}
@@ -1575,10 +1575,10 @@ function identityGateForm() {
     <div class="auth-card identity-gate" data-identity-gate>
       <h2>소속 동아리 확인</h2>
       <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>Google 계정</strong><span>${escapeHtml(google?.email || "")}</span></div></div>
-      <p class="subtitle">1·2학년은 창체 동아리 명단으로 소속 동아리를 확인해야 축제에 참여할 수 있습니다. 이 단계는 건너뛸 수 없습니다.</p>
+      <p class="subtitle">1·2학년은 창체 동아리 명단으로 소속 동아리를 확인해야 축제에 참여할 수 있어요. 이 단계는 건너뛸 수 없어요.</p>
       ${gate.note ? `<p class="error-text" role="alert">${escapeHtml(gate.note)}</p>` : ""}
       <div class="input-stack">
-        ${gate.status === "loading" ? `<p class="subtitle" role="status">소속 동아리를 확인하는 중입니다...</p>`
+        ${gate.status === "loading" ? `<p class="subtitle" role="status">소속 동아리를 확인하는 중이에요...</p>`
           : gate.status === "error" ? `<button id="identityRetry" type="button" class="primary-btn">${icon("refresh")} 다시 시도</button>`
           : locked ? ""
           : `<label class="field">이름 (동아리 명단과 같게)<input id="identityName" class="input" maxlength="60" autocomplete="name" spellcheck="false" value="${escapeHtml(gate.nameDraft || "")}" ${off} /></label>
@@ -1586,7 +1586,7 @@ function identityGateForm() {
         <button id="identitySubmit" type="button" class="primary-btn" aria-busy="${Boolean(gate.busy)}" ${off}>${gate.busy ? "확인 중..." : "소속 확인하고 시작"}</button>`}
         <button id="backToGoogle" type="button" class="ghost-btn" ${off}>구글 계정 다시 선택</button>
       </div>
-      <p class="login-note">학번이 틀렸거나 명단의 이름과 다르면 고쳐서 다시 확인해 주십시오. 그래도 안 되면 운영 부스에 문의해 주십시오.</p>
+      <p class="login-note">학번이 틀렸거나 명단의 이름과 다르면 고쳐서 다시 확인해 주세요. 그래도 안 되면 운영 부스에 문의해 주세요.</p>
     </div>
   `;
 }
@@ -1606,16 +1606,16 @@ function homeView() {
       </section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       <section class="home-map" aria-label="학교 부스 지도">
-        <div class="section-heading"><h2>어디부터 가 보시겠습니까?</h2><button type="button" class="icon-btn" id="mapSearchBtn" aria-label="부스 검색" title="부스 검색">${icon("search")}</button></div>
+        <div class="section-heading"><h2>어디부터 가볼까?</h2><button type="button" class="icon-btn" id="mapSearchBtn" aria-label="부스 검색" title="부스 검색">${icon("search")}</button></div>
         ${floorTabsView()}
         ${mapCanvasView(visibleBooths(), mapPlanForFloor(state.floor))}
         <div class="home-map-caption"><span>${state.floor}층 · ${floorPlaceNote(state.floor)}</span><button type="button" data-route="map">지도 크게 보기 ${icon("external")}</button></div>
       </section>
       <section class="home-notice" aria-label="공지사항">
-        ${icon("notice")}<div><span>공지사항</span><strong>${notice ? escapeHtml(notice.title) : "새로운 공지를 기다리고 있습니다"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div>
+        ${icon("notice")}<div><span>공지사항</span><strong>${notice ? escapeHtml(notice.title) : "새로운 공지를 기다리고 있어요"}</strong>${notice ? `<p>${escapeHtml(notice.body)}</p>` : ""}</div>
       </section>
       <button type="button" class="home-review-action" data-open-reviews>
-        <span class="review-action-icon">${icon("message")}</span><span><strong>오늘의 부스는 어떠셨습니까?</strong><small>${escapeHtml(pendingReviewText())}</small></span>${icon("arrow")}
+        <span class="review-action-icon">${icon("message")}</span><span><strong>오늘의 부스는 어땠나요?</strong><small>${escapeHtml(pendingReviewText())}</small></span>${icon("arrow")}
       </button>
       ${state.searchOpen ? searchOverlay(searchResults()) : ""}
       ${bottomNav("home")}
@@ -1632,8 +1632,8 @@ function reviewPickerView() {
   return `<div class="review-picker-backdrop" data-close-reviews>
     <section class="review-picker" role="dialog" aria-modal="true" aria-labelledby="reviewPickerTitle">
       <header><div><span class="eyebrow">MY VISITS</span><h2 id="reviewPickerTitle">방문 기록 평가하기</h2></div><button type="button" class="icon-btn" data-close-reviews aria-label="닫기">${icon("close")}</button></header>
-      ${isServerMode() && !serverMyReviews ? `<p class="notice">이미 남긴 별점을 확인하는 중입니다. 목록이 곧 정확해집니다.</p>` : ""}
-      <div class="review-picker-list">${booths.length ? booths.map(booth => `<button type="button" data-review-booth="${booth.id}"><span><strong>${catalogName(booth)}</strong><small>${escapeHtml(booth.location)}</small></span>${icon("arrow")}</button>`).join("") : `<div class="empty-state">${icon("star")}<h3>${repo.stampsForUser(state.user.id).length ? "모든 별점을 남겼습니다" : "아직 방문한 부스가 없습니다"}</h3><p>부스를 방문하면 이곳에서 평가할 수 있습니다.</p></div>`}</div>
+      ${isServerMode() && !serverMyReviews ? `<p class="notice">이미 남긴 별점을 확인하는 중이에요. 목록이 곧 정확해집니다.</p>` : ""}
+      <div class="review-picker-list">${booths.length ? booths.map(booth => `<button type="button" data-review-booth="${booth.id}"><span><strong>${catalogName(booth)}</strong><small>${escapeHtml(booth.location)}</small></span>${icon("arrow")}</button>`).join("") : `<div class="empty-state">${icon("star")}<h3>${repo.stampsForUser(state.user.id).length ? "모든 별점을 남겼어요" : "아직 방문한 부스가 없어요"}</h3><p>부스를 방문하면 이곳에서 평가할 수 있어요.</p></div>`}</div>
     </section></div>`;
 }
 
@@ -1649,8 +1649,8 @@ function noticeBanner(notice) {
 function emergencyBanner() {
   return `
     <section class="emergency-banner" role="alert">
-      <strong>비상 모드가 켜졌습니다</strong>
-      <p>방문 적립이 제한됩니다. 현장 운영자의 안내를 따라 주십시오.</p>
+      <strong>비상 모드가 켜졌어요</strong>
+      <p>방문 적립이 제한돼요. 현장 운영자의 안내를 따라 주세요.</p>
     </section>
   `;
 }
@@ -1683,9 +1683,9 @@ function scanView() {
   const completedTests = testBooths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   return `
     <main class="screen p0-page scan-screen">
-      ${festivalWeb.header("방문 인증", "NFC 태그로 방문을 확인합니다")}
+      ${festivalWeb.header("방문 인증", "NFC 태그로 방문을 확인해요")}
       ${festivalWeb.scanControls()}
-      ${isServerMode() ? "" : `<section class="demo-boundary"><strong>체험용 방문 인증</strong><span>앱을 닫으면 이 기록은 사라집니다.</span></section>`}
+      ${isServerMode() ? "" : `<section class="demo-boundary"><strong>체험용 방문 인증</strong><span>앱을 닫으면 이 기록은 사라져요.</span></section>`}
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       <section class="scan-pad ${result ? `has-result ${result.type}` : ""}">
         ${result ? `
@@ -1699,8 +1699,8 @@ function scanView() {
         ` : `
           <div class="nfc-waves" aria-hidden="true"><i></i><i></i><b>N</b></div>
           <span>태그 대기 중</span>
-          <h2>NFC 태그를 인식하면<br />결과가 여기에 표시됩니다</h2>
-          <p>NFC를 읽지 못하면 부스 운영자에게 수동 승인을 요청하십시오.</p>
+          <h2>NFC 태그를 인식하면<br />결과가 여기에 표시돼요</h2>
+          <p>NFC를 읽지 못하면 부스 운영자에게 수동 승인을 요청하세요.</p>
         `}
       </section>
       ${showMockNfcTools ? `<section class="nfc-test-panel" aria-labelledby="nfcTestTitle">
@@ -1725,9 +1725,9 @@ function scanView() {
         ${state.nfcTestMessage ? `<p class="nfc-test-message" role="status" aria-live="polite">${escapeHtml(state.nfcTestMessage)}</p>` : ""}
       </section>` : ""}
       <section class="manual-help">
-        <span>인식되지 않습니까?</span>
-        <strong>운영자에게 현장 확인을 요청하십시오</strong>
-        <p>${isServerMode() ? "앱 내 수동 승인은 아직 준비 중입니다. 현재 태그와 부스를 운영자에게 알려 주십시오." : "실서비스에서는 운영자가 담당 부스와 단기 학생 코드를 확인한 뒤 승인합니다."}</p>
+        <span>인식되지 않나요?</span>
+        <strong>운영자에게 현장 확인을 요청하세요</strong>
+        <p>${isServerMode() ? "앱 내 수동 승인은 아직 준비 중입니다. 현재 태그와 부스를 운영자에게 알려주세요." : "실서비스에서는 운영자가 담당 부스와 단기 학생 코드를 확인한 뒤 승인합니다."}</p>
       </section>
       ${bottomNav("scan")}
     </main>
@@ -1754,7 +1754,7 @@ function profileView() {
       </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "관리 마법사 열기" : "관리 마법사 열기"}</button>` : ""}
       ${typeof festivalBoothManager !== "undefined" ? festivalBoothManager.profileButton() : ""}
-      <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(v => festivalWeb.visitRow(v)).join('') : '<p class="web-muted">아직 방문 기록이 없습니다.</p>'}</section>
+      <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(v => festivalWeb.visitRow(v)).join('') : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
       ${bottomNav("profile")}
@@ -2036,7 +2036,7 @@ function mapView() {
             <span class="map-sheet-chevron" aria-hidden="true">${icon("back")}</span>
           </span>
         </button>
-        <div class="booth-list" id="floorBoothList">${list.length ? list.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}</div>
+        <div class="booth-list" id="floorBoothList">${list.length ? list.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없어요.</div>`}</div>
       </section>
       ${bottomNav("map")}
     </main>
@@ -2059,7 +2059,7 @@ function searchOverlay(booths) {
         <span id="searchResultQuery">${state.search ? `"${escapeHtml(state.search)}"` : "전체 부스"}</span>
       </div>
       <div class="search-result-list" id="searchResultList">
-        ${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`}
+        ${booths.length ? booths.map(boothItem).join("") : `<div class="empty-list">조건에 맞는 부스가 없어요.</div>`}
       </div>
     </section>
   `;
@@ -2085,7 +2085,7 @@ function updateSearchOverlay() {
   if (count) count.innerHTML = `${listCountText(booths)} · 방문 <span data-floor-stamp-count>${booths.filter(b => repo.hasStamp(state.user.id, b.id)).length}</span>`;
   resultList.innerHTML = booths.length
     ? booths.map(boothItem).join("")
-    : `<div class="empty-list">조건에 맞는 부스가 없습니다.</div>`;
+    : `<div class="empty-list">조건에 맞는 부스가 없어요.</div>`;
   resultList.scrollTop = 0;
   bindBoothListButtons(resultList);
 }
@@ -2106,8 +2106,8 @@ function floorPlaceNote(floor) {
 function mapEmptyCard() {
   return `
     <div class="map-empty-card">
-      <strong>조건에 맞는 부스가 없습니다</strong>
-      <span>검색어를 지우고 다시 확인해 보십시오.</span>
+      <strong>조건에 맞는 부스가 없어요</strong>
+      <span>검색어를 지우고 다시 확인해보세요.</span>
       <button type="button" id="clearEmptySearch">검색 초기화</button>
     </div>
   `;
@@ -2221,7 +2221,7 @@ function detailView() {
             ${isServerMode() ? "" : `<p class="catalog-position" data-catalog-position="${booth.id}">${escapeHtml(catalogPositionText(booth))}</p>`}
           </div>
         </div>
-        <div class="meta"><span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span> ${stamped ? "스탬프 적립 완료" : "아직 방문하지 않았습니다"}</div>
+        <div class="meta"><span class="stamp ${stamped ? "on" : ""}">${icon("stamp")}</span> ${stamped ? "스탬프 적립 완료" : "아직 방문하지 않았어요"}</div>
         <div class="detail-metrics" aria-label="부스 평가와 방문 상태">
           <span><small>별점</small><strong data-review-average>${escapeHtml(reviewAverageText(rating))}</strong></span>
           <span><small>${isServerMode() ? "리뷰" : "평가"}</small><strong data-review-count>${escapeHtml(reviewCountText(rating))}</strong></span>
@@ -2230,7 +2230,7 @@ function detailView() {
         <button type="button" class="ghost-btn full-action detail-review-link" data-open-booth-reviews="${escapeHtml(booth.id)}">${icon("message")}<span>리뷰 보기</span><b data-review-count-link>${escapeHtml(reviewCountText(rating))}</b>${icon("arrow")}</button>
         <button type="button" class="text-link festival-locate" data-locate-booth="${escapeHtml(booth.id)}">${icon('map')} 지도에서 위치 보기</button>
       </section>
-      <p class="detail-data-note">${isServerMode() ? (booth.placed ? "부스 위치는 부스 담당자가 등록했습니다." : "지도 위치는 임시 배치입니다. 실제 부스 위치는 운영 안내를 확인해 주십시오.") : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
+      <p class="detail-data-note">${isServerMode() ? (booth.placed ? "부스 위치는 부스 담당자가 등록했어요." : "지도 위치는 임시 배치예요. 실제 부스 위치는 운영 안내를 확인해 주세요.") : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
       <section class="panel section">
         <h2>부스 소개</h2>
         <p class="subtitle">${escapeHtml(booth.description)}</p>
@@ -2239,8 +2239,8 @@ function detailView() {
       <section class="panel section">
         <h2>방문 인증</h2>
         ${stamped
-          ? `<p class="success-text">이 부스의 방문 기록이 축제 패스에 저장되었습니다.</p>`
-          : `<p class="notice">부스의 NFC 태그를 휴대폰에 대서 방문을 인증해 주십시오. 인식되지 않으면 운영자에게 수동 승인을 요청할 수 있습니다.</p>`}
+          ? `<p class="success-text">이 부스의 방문 기록이 축제 패스에 저장됐어요.</p>`
+          : `<p class="notice">부스의 NFC 태그를 휴대폰에 대서 방문을 인증해 주세요. 인식되지 않으면 운영자에게 수동 승인을 요청할 수 있어요.</p>`}
         <button type="button" class="${stamped ? "ghost-btn" : "primary-btn"} full-action" ${mockNfcToken ? `data-nfc-token="${escapeHtml(mockNfcToken)}" data-nfc-source="detail-action"` : `data-route="${stamped ? "stamps" : "scan"}"`}>${mockNfcToken ? (stamped ? "인증 결과 다시 확인" : "NFC 모의 방문 인증") : stamped ? "내 스탬프 보기" : "NFC 방문 인증"}</button>
       </section>
       ${reviewSectionMarkup(booth, { stamped, reviewed, rating })}
@@ -2252,19 +2252,19 @@ function detailView() {
 function reviewSectionMarkup(booth, { stamped, reviewed, rating }) {
   if (isOwnClubBooth(booth.id)) return `<section class="panel section review-section own-club-review" id="boothReviewSection">
         <div class="review-heading"><h2>리뷰</h2></div>
-        <p class="review-guidance">본인 동아리 부스에는 별점을 남길 수 없습니다.</p>
+        <p class="review-guidance">본인 동아리 부스에는 별점을 남길 수 없어요.</p>
         <div class="review-list">${reviewListMarkup(rating)}</div>
       </section>`;
   return `
       <section class="panel section review-section" id="boothReviewSection">
         <div class="review-heading">
-          <h2>어떤 경험이었습니까?</h2>
+          <h2>어떤 경험이었나요?</h2>
         </div>
         ${reviewed && festivalWeb.ownReview(booth.id)?.content?.trim()
-          ? `<p class="review-guidance success">별점과 글 후기를 모두 남겼습니다. 고맙습니다!</p>`
+          ? `<p class="review-guidance success">별점과 글 후기를 모두 남겼어요. 고마워요!</p>`
           : reviewForm({
             enabled: stamped,
-            message: reviewed ? "별점은 이미 저장되었습니다. 못 쓴 글 후기를 이어서 남겨 주십시오." : stamped ? "방문한 부스를 평가해 주십시오. 글 후기는 나중에 써도 됩니다." : "방문 인증 후 별점을 남길 수 있습니다.",
+            message: reviewed ? "별점은 이미 저장됐어요. 못 쓴 글 후기를 이어서 남겨주세요." : stamped ? "방문한 부스를 평가해 주세요. 글 후기는 나중에 써도 돼요." : "방문 인증 후 별점을 남길 수 있어요.",
           })}
         <div class="review-list">${reviewListMarkup(rating)}</div>
       </section>
@@ -2286,7 +2286,7 @@ function reviewForm({ enabled, message }) {
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star ${value >= n ? "on" : ""}" data-rating="${n}" aria-label="${n}점" aria-pressed="${value === n}" ${enabled && !own ? "" : "disabled"}>${icon("star")}</button>`).join("")}
       </div>
       <label class="review-field" for="reviewContent">글 후기 <small>선택 · 최대 500자</small></label>
-      <textarea id="reviewContent" class="textarea" maxlength="500" placeholder="좋았던 경험을 나눠 주십시오." ${enabled ? "" : "disabled"}>${escapeHtml(state.reviewDraft)}</textarea>
+      <textarea id="reviewContent" class="textarea" maxlength="500" placeholder="좋았던 경험을 나눠주세요." ${enabled ? "" : "disabled"}>${escapeHtml(state.reviewDraft)}</textarea>
       ${isServerMode() ? `<p class="web-review-hint">글 후기 최초 등록 시 ${festivalOpsUI.snapshot()?.event?.review_points || 0}P · 부스당 한 번</p>` : `<p class="web-review-hint">글 후기 최초 등록 시 체험 ${festivalWeb.REVIEW_POINTS}P · 부스당 한 번</p>`}
       <p class="review-feedback" id="reviewFeedback" role="status" aria-live="polite"></p>
       <button id="submitReview" type="button" class="primary-btn full-action" ${enabled && !state.reviewBusy ? "" : "disabled"}>${state.reviewBusy ? "등록 중..." : !policy.allowed ? "리뷰 작성 제한" : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료"}</button>
@@ -2359,17 +2359,17 @@ function boothReviewsView() {
 }
 
 function missingBoothView() {
-  return `<main class="screen web-page">${festivalWeb.header("부스를 찾을 수 없습니다")}<p class="web-muted">주소를 확인하거나 지도에서 부스를 다시 선택해 주십시오.</p><button class="primary-btn" data-route="map">${icon("map")} 부스 지도</button>${bottomNav("map")}</main>`;
+  return `<main class="screen web-page">${festivalWeb.header("부스를 찾을 수 없어요")}<p class="web-muted">주소를 확인하거나 지도에서 부스를 다시 선택해 주세요.</p><button class="primary-btn" data-route="map">${icon("map")} 부스 지도</button>${bottomNav("map")}</main>`;
 }
 
 function boothReviewsBody(boothId) {
   const info = ratingInfo(boothId);
-  if (info.status === "error") return `<div class="review-empty"><strong>리뷰를 불러오지 못했습니다</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주십시오.")}</p><button type="button" class="ghost-btn" data-reload-booth-reviews>${icon("refresh")} 다시 불러오기</button></div>`;
-  if (info.status !== "ready" && !info.reviews.length) return `<div class="review-empty"><strong>리뷰를 불러오는 중입니다</strong></div>`;
+  if (info.status === "error") return `<div class="review-empty"><strong>리뷰를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p><button type="button" class="ghost-btn" data-reload-booth-reviews>${icon("refresh")} 다시 불러오기</button></div>`;
+  if (info.status !== "ready" && !info.reviews.length) return `<div class="review-empty"><strong>리뷰를 불러오는 중이에요</strong></div>`;
   if (info.hidden) {
     const own = info.reviews.filter(review => review.mine);
-    return `<section class="booth-review-summary booth-review-private" aria-label="리뷰 공개 상태"><p>${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개입니다. 운영진이 공개하면 볼 수 있습니다.</p></section>
-    <section class="booth-review-list" aria-label="내 리뷰">${own.length ? own.map(boothReviewItem).join("") : '<div class="review-empty"><strong>아직 남긴 리뷰가 없습니다</strong><p>방문한 부스에 별점을 남기면 여기에서 내 리뷰를 볼 수 있습니다.</p></div>'}</section>`;
+    return `<section class="booth-review-summary booth-review-private" aria-label="리뷰 공개 상태"><p>${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요.</p></section>
+    <section class="booth-review-list" aria-label="내 리뷰">${own.length ? own.map(boothReviewItem).join("") : '<div class="review-empty"><strong>아직 남긴 리뷰가 없어요</strong><p>방문한 부스에 별점을 남기면 여기에서 내 리뷰를 볼 수 있어요.</p></div>'}</section>`;
   }
   const reviews = info.reviews;
   const total = info.count;
@@ -2391,9 +2391,9 @@ function boothReviewsBody(boothId) {
       }).join("")}</ol>` : ""}
     </section>
     <section class="booth-review-list" aria-label="리뷰 목록">
-      ${shown.length ? shown.map(boothReviewItem).join("") : `<div class="review-empty"><strong>아직 등록된 리뷰가 없습니다</strong><p>방문한 참여자가 별점을 남기면 여기에 표시됩니다.</p></div>`}
+      ${shown.length ? shown.map(boothReviewItem).join("") : `<div class="review-empty"><strong>아직 등록된 리뷰가 없어요</strong><p>방문한 참여자가 별점을 남기면 여기에 표시돼요.</p></div>`}
       ${!state.boothReviewsExpanded && reviews.length > PREVIEW ? '<button type="button" class="booth-review-more" data-booth-reviews-more>리뷰 모두 보기</button>' : ""}
-      ${state.boothReviewsExpanded && reviews.length < total ? `<p class="booth-review-note">최근 리뷰 ${reviews.length}개를 보여 주고 있습니다.</p>` : ""}
+      ${state.boothReviewsExpanded && reviews.length < total ? `<p class="booth-review-note">최근 리뷰 ${reviews.length}개를 보여 주고 있어요.</p>` : ""}
     </section>
   `;
 }
@@ -2418,7 +2418,7 @@ function serverAdminView() {
       ${festivalOpsUI.navigation()}
       <section class="nfc-manager">
         <header class="nfc-manager-heading"><div><h1>NFC 태그 발급</h1><p>부스 카드에 기록할 서명 주소를 만듭니다</p></div><span class="nfc-demo-badge">서버 연결</span></header>
-        <p class="nfc-scope-note">발급한 주소는 학생 계정에서 방문 인증에 쓰입니다. 화면을 공유하거나 촬영하지 마십시오.</p>
+        <p class="nfc-scope-note">발급한 주소는 학생 계정에서 방문 인증에 쓰여요. 화면을 공유하거나 촬영하지 마세요.</p>
         ${booths.length ? `
         <form id="serverAdminForm" novalidate>
           <label class="field" for="serverAdminBooth">부스
@@ -2430,7 +2430,7 @@ function serverAdminView() {
             <input class="input" id="serverAdminLabel" maxlength="40" autocomplete="off" placeholder="예: 정문 카드" value="${escapeHtml(serverAdmin.label)}" />
           </label>
           <div class="nfc-save-row">
-            <span id="serverAdminStatus" role="status">${serverAdmin.busy ? "발급하는 중입니다" : "발급 준비됨"}</span>
+            <span id="serverAdminStatus" role="status">${serverAdmin.busy ? "발급하는 중이에요" : "발급 준비됨"}</span>
             <button type="submit" class="primary-btn" id="serverAdminIssue" ${serverAdmin.busy ? "disabled" : ""}>${icon("scan")} 태그 발급</button>
           </div>
         </form>
@@ -2444,9 +2444,9 @@ function serverAdminView() {
               <button type="button" class="icon-btn" data-server-admin="copy" aria-label="발급 주소 복사" title="발급 주소 복사">${icon("copy")}</button>
             </div>
           </label>
-          <p class="nfc-field-note">NFC 쓰기 앱에서 URL(URI) 레코드로 기록하십시오. 길이 ${result.url.length}자 · NTAG215 이상이 필요합니다.</p>` : ""}
+          <p class="nfc-field-note">NFC 쓰기 앱에서 URL(URI) 레코드로 기록하세요. 길이 ${result.url.length}자 · NTAG215 이상이 필요해요.</p>` : ""}
         </section>` : ""}
-        ` : `<p class="nfc-empty">서버 카탈로그에 연결된 부스가 없습니다.</p>`}
+        ` : `<p class="nfc-empty">서버 카탈로그에 연결된 부스가 없어요.</p>`}
         ${issuedTagsSection(booths)}
       </section>
       ${bottomNav("admin")}
@@ -2492,9 +2492,9 @@ function tagRegisterSection() {
   const nfc = window.isSecureContext && "NDEFReader" in window;
   return `<section class="nfc-register" aria-labelledby="serverTagRegisterTitle">
       <h3 id="serverTagRegisterTitle">기존 카드 등록</h3>
-      <p>이 목록이 생기기 전에 발급한 카드는 서버에 기록이 없습니다. 카드를 읽거나 카드 주소를 붙여 넣으면 목록에 추가돼 관리할 수 있습니다. 스탬프는 적립되지 않습니다.</p>
+      <p>이 목록이 생기기 전에 발급한 카드는 서버에 기록이 없어요. 카드를 읽거나 카드 주소를 붙여 넣으면 목록에 추가돼 관리할 수 있어요. 스탬프는 적립되지 않아요.</p>
       <button type="button" class="${serverAdmin.tagReading ? "primary-btn" : "ghost-btn"} nfc-register-read" data-server-tag-read ${nfc ? "" : "disabled"}>${icon("scan")} ${serverAdmin.tagReading ? "카드 읽기 중지" : "NFC로 카드 읽기"}</button>
-      ${nfc ? (serverAdmin.tagReading ? '<p class="nfc-field-note">카드를 휴대폰 뒷면에 차례로 대십시오. 읽을 때마다 등록됩니다.</p>' : "") : '<p class="nfc-field-note">NFC 읽기는 안드로이드 크롬에서만 됩니다. 다른 기기에서는 카드 주소를 붙여 넣어 주십시오.</p>'}
+      ${nfc ? (serverAdmin.tagReading ? '<p class="nfc-field-note">카드를 휴대폰 뒷면에 차례로 대세요. 읽을 때마다 등록돼요.</p>' : "") : '<p class="nfc-field-note">NFC 읽기는 안드로이드 크롬에서만 돼요. 다른 기기에서는 카드 주소를 붙여 넣어 주세요.</p>'}
       <form class="nfc-register-form" data-server-tag-register>
         <input class="input" name="address" autocomplete="off" spellcheck="false" placeholder="카드 주소 붙여넣기 (…#t=nf1.…)" aria-label="카드 주소" />
         <input class="input" name="label" maxlength="40" autocomplete="off" placeholder="메모 (선택)" aria-label="카드 메모" />
@@ -2523,23 +2523,23 @@ async function registerServerTag(text, label = "") {
   if (!isServerMode() || !state.user || !isAdminUser()) return false;
   const token = extractTagToken(text);
   if (!token) {
-    Object.assign(serverAdmin, { registerNote: "카드 주소를 확인해 주십시오. 주소 끝에 #t=nf1.로 시작하는 부분이 있어야 합니다.", registerTone: "error" });
+    Object.assign(serverAdmin, { registerNote: "카드 주소를 확인해 주세요. 주소 끝에 #t=nf1.로 시작하는 부분이 있어야 해요.", registerTone: "error" });
     renderTagRegisterStatus();
     return false;
   }
   const actingUser = state.user.id;
   const generation = serverTagGeneration;
-  Object.assign(serverAdmin, { registerNote: "확인하는 중입니다...", registerTone: "" });
+  Object.assign(serverAdmin, { registerNote: "확인하는 중이에요...", registerTone: "" });
   renderTagRegisterStatus();
   let response;
   try {
     response = await festivalAccount.nfcTags("register", label ? { token, label } : { token });
   } catch {
-    response = { ok: false, message: "카드를 등록하지 못했습니다. 연결을 확인하고 다시 시도해 주십시오." };
+    response = { ok: false, message: "카드를 등록하지 못했어요. 연결을 확인하고 다시 시도해 주세요." };
   }
   if (state.user?.id !== actingUser || !isAdminUser() || generation !== serverTagGeneration) return false;
   Object.assign(serverAdmin, response.ok
-    ? { registerNote: `${tagBoothName(response.boothKey)} 카드를 ${response.added ? "목록에 추가했습니다" : "확인했습니다. 이미 목록에 있습니다"}.`, registerTone: "success" }
+    ? { registerNote: `${tagBoothName(response.boothKey)} 카드를 ${response.added ? "목록에 추가했어요" : "확인했어요. 이미 목록에 있어요"}.`, registerTone: "success" }
     : { registerNote: response.message, registerTone: "error" });
   if (response.ok) await loadServerTags();
   else renderTagRegisterStatus();
@@ -2566,7 +2566,7 @@ async function toggleServerTagReading() {
   const controller = new AbortController();
   serverTagReader = controller;
   serverAdmin.tagReading = true;
-  Object.assign(serverAdmin, { registerNote: "카드를 대 주십시오.", registerTone: "" });
+  Object.assign(serverAdmin, { registerNote: "카드를 대 주세요.", registerTone: "" });
   render();
   try {
     const reader = new NDEFReader();
@@ -2577,19 +2577,19 @@ async function toggleServerTagReading() {
         const text = new TextDecoder(record.encoding || "utf-8").decode(record.data);
         if (extractTagToken(text)) { registerServerTag(text); return; }
       }
-      Object.assign(serverAdmin, { registerNote: "축제 방문 태그가 아닙니다.", registerTone: "error" });
+      Object.assign(serverAdmin, { registerNote: "축제 방문 태그가 아니에요.", registerTone: "error" });
       renderTagRegisterStatus();
     };
     reader.onreadingerror = () => {
       if (controller.signal.aborted) return;
-      Object.assign(serverAdmin, { registerNote: "카드를 읽지 못했습니다. 다시 가까이 대 주십시오.", registerTone: "error" });
+      Object.assign(serverAdmin, { registerNote: "카드를 읽지 못했어요. 다시 가까이 대 주세요.", registerTone: "error" });
       renderTagRegisterStatus();
     };
     await reader.scan({ signal: controller.signal });
   } catch {
     if (controller.signal.aborted) return;
     stopServerTagReading();
-    Object.assign(serverAdmin, { registerNote: "NFC를 켤 수 없습니다. 휴대폰 NFC 설정과 권한을 확인해 주십시오.", registerTone: "error" });
+    Object.assign(serverAdmin, { registerNote: "NFC를 켤 수 없어요. 휴대폰 NFC 설정과 권한을 확인해 주세요.", registerTone: "error" });
     render();
   }
 }
@@ -2599,14 +2599,14 @@ function issuedTagsSection(booths) {
   const heading = `<div class="nfc-section-title"><h2>발급된 태그</h2><button type="button" class="icon-btn" data-server-tags-refresh aria-label="발급된 태그 새로고침" title="새로고침" ${serverAdmin.tagsLoading ? "disabled" : ""}>${icon("refresh")}</button></div>`;
   if (!tags) {
     return `<section class="nfc-issued" id="serverTagList" aria-busy="${serverAdmin.tagsLoading}">${heading}
-      ${serverAdmin.tagsError ? `<p class="ops-alert" role="alert">${escapeHtml(serverAdmin.tagsError)}</p>` : '<p class="nfc-empty" role="status">발급된 태그를 불러오는 중입니다.</p>'}</section>`;
+      ${serverAdmin.tagsError ? `<p class="ops-alert" role="alert">${escapeHtml(serverAdmin.tagsError)}</p>` : '<p class="nfc-empty" role="status">발급된 태그를 불러오는 중이에요.</p>'}</section>`;
   }
   const count = status => tags.filter(tag => tag.status === status).length;
   const shown = tags.filter(tag => (serverAdmin.tagBooth === "all" || tag.boothKey === serverAdmin.tagBooth)
     && (serverAdmin.tagStatus === "all" || tag.status === serverAdmin.tagStatus));
   const boothOptions = [...new Map(booths.map(booth => [boothKeyFor(booth), catalogBooth(booth)?.name || booth.name])).entries()];
   return `<section class="nfc-issued" id="serverTagList" aria-busy="${serverAdmin.tagsLoading}">${heading}
-    ${serverAdmin.tagsEnabled ? "" : '<p class="ops-alert" role="alert">NFC 방문 인증이 서버에서 중지돼 있습니다. 주소 보기와 새 발급이 되지 않습니다.</p>'}
+    ${serverAdmin.tagsEnabled ? "" : '<p class="ops-alert" role="alert">NFC 방문 인증이 서버에서 중지돼 있어요. 주소 보기와 새 발급이 되지 않아요.</p>'}
     ${serverAdmin.tagsError ? `<p class="ops-alert" role="alert">${escapeHtml(serverAdmin.tagsError)}</p>` : ""}
     <dl class="nfc-summary">${[["전체", tags.length], ["사용 중", count("active")], ["사용 중지", count("revoked")], ["만료", count("expired")]].map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl>
     <div class="nfc-manager-filters">
@@ -2614,18 +2614,18 @@ function issuedTagsSection(booths) {
       <label for="serverTagStatus">상태<select class="select" id="serverTagStatus">${Object.entries({ all: "전체 상태", ...TAG_STATUS_LABELS }).map(([value, label]) => `<option value="${value}" ${serverAdmin.tagStatus === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
       <span role="status">${shown.length}개</span>
     </div>
-    ${shown.length ? `<ul class="nfc-issued-list">${shown.map(issuedTagItem).join("")}</ul>` : `<p class="nfc-empty">${tags.length ? "조건에 맞는 태그가 없습니다." : "아직 목록에 있는 태그가 없습니다. 이전에 발급한 카드는 아래에서 등록해 주십시오."}</p>`}
-    <p class="nfc-field-note">사용 중지한 카드로는 스탬프가 적립되지 않습니다. 이미 적립된 스탬프는 그대로입니다.</p>
+    ${shown.length ? `<ul class="nfc-issued-list">${shown.map(issuedTagItem).join("")}</ul>` : `<p class="nfc-empty">${tags.length ? "조건에 맞는 태그가 없어요." : "아직 목록에 있는 태그가 없어요. 이전에 발급한 카드는 아래에서 등록해 주세요."}</p>`}
+    <p class="nfc-field-note">사용 중지한 카드로는 스탬프가 적립되지 않아요. 이미 적립된 스탬프는 그대로예요.</p>
     ${tagRegisterSection()}
   </section>`;
 }
 
 function adminView() {
   if (isServerMode()) {
-    if (!isAdminUser()) return `<main class="screen"><h1>운영자 전용</h1><p>이 계정에는 운영자 권한이 없습니다. 담당 선생님이나 운영진에게 문의해 주십시오.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
+    if (!isAdminUser()) return `<main class="screen"><h1>운영자 전용</h1><p>이 계정에는 운영자 권한이 없어요. 담당 선생님이나 운영진에게 문의해 주세요.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
     return festivalOpsUI.admin();
   }
-  if (!canUseMockNfcTools()) return `<main class="screen"><h1>관리자 접근 제한</h1><p>서버 관리자 기능은 아직 연결되지 않았습니다.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
+  if (!canUseMockNfcTools()) return `<main class="screen"><h1>관리자 접근 제한</h1><p>서버 관리자 기능은 아직 연결되지 않았어요.</p><button class="primary-btn" data-route="home">홈으로</button></main>`;
   const tabs = [
     ["dashboard", "현황"],
     ["booths", "NFC 관리"],
@@ -2672,7 +2672,7 @@ function adminPanel() {
       <section class="admin-hero">
         <span class="admin-eyebrow">Festival Control</span>
         <h1>운영 현황</h1>
-        <p>부스 운영 상태와 NFC 방문 인증 현황을 확인합니다.</p>
+        <p>부스 운영 상태와 NFC 방문 인증 현황을 확인해요.</p>
       </section>
       <section class="stats-grid admin-stats">
         <div class="stat"><span>총 방문 인증</span><strong>${totalVisits}</strong><small>스탬프 발급 수</small></div>
@@ -2720,12 +2720,12 @@ function adminPanel() {
             <select id="manualBooth" class="select">${state.db.booths.map((booth) => `<option value="${escapeHtml(booth.id)}">${escapeHtml(booth.name)} · ${escapeHtml(booth.location)}</option>`).join("")}</select>
             <button id="manualApproveStamp" type="button" class="primary-btn">수동 승인 기록</button>
           </div>
-        ` : `<p class="notice">먼저 학생 계정으로 로그인한 기록이 필요합니다.</p>`}
+        ` : `<p class="notice">먼저 학생 계정으로 로그인한 기록이 필요해요.</p>`}
       </section>
-      ${state.db.stamps.length ? `<section class="admin-table section">${[...state.db.stamps].reverse().map(visitRow).join("")}</section>` : adminEmpty("아직 방문 기록이 없습니다.", "NFC 인식 또는 수동 승인 후 여기에 표시됩니다.")}
+      ${state.db.stamps.length ? `<section class="admin-table section">${[...state.db.stamps].reverse().map(visitRow).join("")}</section>` : adminEmpty("아직 방문 기록이 없어요.", "NFC 인식 또는 수동 승인 후 여기에 표시돼요.")}
     `;
   }
-  if (!regularUsers.length) return adminEmpty("아직 참여자가 없습니다.", "사용자가 로그인하고 학생 정보를 등록하면 여기에 표시됩니다.");
+  if (!regularUsers.length) return adminEmpty("아직 참여자가 없어요.", "사용자가 로그인하고 학생 정보를 등록하면 여기에 표시돼요.");
   return `
     ${state.adminMessage ? `<p class="admin-inline-message" role="status">${escapeHtml(state.adminMessage)}</p>` : ""}
     <section class="admin-table">${regularUsers.map(userRow).join("")}</section>
@@ -2786,7 +2786,7 @@ function userRow(user) {
       <div class="row-metrics"><span>방문 인증 ${stampCount}개</span><span>별점 등록 ${completeCount}개</span></div>
       ${user.exchangedAt
         ? `<p class="exchange-complete">${formatReviewDate(user.exchangedAt)} 간식 교환 완료</p>`
-        : `<p class="web-muted">바우처 교환은 아직 이용할 수 없습니다.</p>`}
+        : `<p class="web-muted">바우처 교환은 아직 이용할 수 없어요.</p>`}
     </div>
   `;
 }
@@ -2901,7 +2901,7 @@ function bindEvents() {
       state.searchOpen = false;
       state.reviewPickerOpen = false;
       if (button.dataset.route === "admin" && state.user?.role !== "admin") {
-        state.loginError = "관리자 계정으로 로그인해야 들어갈 수 있습니다.";
+        state.loginError = "관리자 계정으로 로그인해야 들어갈 수 있어요.";
         navigateTo("login", { replace: true });
         return;
       }
@@ -3408,7 +3408,7 @@ function bindMapDrag() {
 }
 
 async function resetLogin() {
-  if (nfcManagement.hasDrafts() && !window.confirm("저장하지 않은 NFC 설정이 있습니다. 변경을 버리고 로그아웃하시겠습니까?")) return false;
+  if (nfcManagement.hasDrafts() && !window.confirm("저장하지 않은 NFC 설정이 있어요. 변경을 버리고 로그아웃할까요?")) return false;
   stopServerTagReading();
   if (isServerMode()) {
     if (state.loginBusy) return false;
@@ -3418,7 +3418,7 @@ async function resetLogin() {
       if (response?.error) throw response.error;
     } catch {
       state.loginBusy = false;
-      state.loginError = "로그아웃을 확인하지 못했습니다. 연결을 확인하고 다시 시도해 주십시오.";
+      state.loginError = "로그아웃을 확인하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
       render();
       return false;
     }
@@ -3459,7 +3459,7 @@ function reportUnfinishedSignIn() {
   // The native callback arrives moments after the app returns to the front; wait for it first.
   setTimeout(() => {
     if (state.user || state.authStep === "profile" || state.authStep === "identity" || state.loginBusy) return;
-    state.loginError = "로그인 결과를 확인하지 못했습니다. 다시 시도하거나 운영자에게 이 웹사이트의 로그인 복귀 주소 등록을 확인해 주십시오.";
+    state.loginError = "로그인 결과를 확인하지 못했어요. 다시 시도하거나 운영자에게 이 웹사이트의 로그인 복귀 주소 등록을 확인해 주세요.";
     state.route = "login";
     render();
   }, 2000);
@@ -3475,7 +3475,7 @@ async function startGoogleLogin(intent = "student") {
   render();
   try {
     if (isServerMode()) {
-      if (!festivalAccount) throw new Error("로그인 모듈을 불러오지 못했습니다. 새로고침해 주십시오.");
+      if (!festivalAccount) throw new Error("로그인 모듈을 불러오지 못했어요. 새로고침해 주세요.");
       try { window.FestivalRouter?.remember(sessionStorage, pendingNavigation || { route: "home" }); } catch { /* Login still works without storage. */ }
       await festivalAccount.signIn();
       signInStartedAt = Date.now();
@@ -3513,7 +3513,7 @@ async function startGoogleLogin(intent = "student") {
     consumePendingNfc();
   } catch (error) {
     state.loginBusy = false;
-    state.loginError = error.message || "로그인 처리 중 문제가 생겼습니다.";
+    state.loginError = error.message || "로그인 처리 중 문제가 생겼어요.";
     state.route = "login";
     render();
   }
@@ -3544,14 +3544,14 @@ async function completeProfile() {
   }
   const schoolId = document.querySelector("#schoolId").value.trim();
   if (!name || !studentNumber || !schoolId) {
-    state.loginError = "이름, 학번, 아이디를 모두 입력해 주십시오.";
+    state.loginError = "이름, 학번, 아이디를 모두 입력해주세요.";
     render();
     return;
   }
   const sameStudent = state.db.users.find((user) => user.studentNumber === studentNumber && user.googleUid !== google.uid);
   const sameSchoolId = state.db.users.find((user) => user.schoolId === schoolId && user.googleUid !== google.uid);
   if (sameStudent || sameSchoolId) {
-    state.loginError = "이미 다른 구글 계정에 등록된 학번 또는 아이디입니다.";
+    state.loginError = "이미 다른 구글 계정에 등록된 학번 또는 아이디예요.";
     render();
     return;
   }
@@ -3706,32 +3706,32 @@ async function submitReview() {
   const policy = reviewEligibility(boothId);
   if (!policy.allowed) { setFeedback(reviewEligibilityMessage(policy)); return; }
   if (!Number.isInteger(state.reviewRating) || state.reviewRating < 1 || state.reviewRating > 5) {
-    setFeedback("별점을 선택해 주십시오. 글 후기는 쓰지 않아도 괜찮습니다.");
+    setFeedback("별점을 선택해 주세요. 글 후기는 쓰지 않아도 괜찮아요.");
     document.querySelector("[data-rating]")?.focus();
     return;
   }
   if (content.length > 500) {
-    setFeedback("리뷰는 500자 이하로 작성해 주십시오.");
+    setFeedback("리뷰는 500자 이하로 작성해주세요.");
     input?.focus();
     return;
   }
   if (!repo.hasStamp(state.user.id, boothId)) {
-    setFeedback("부스를 방문해야 리뷰를 쓸 수 있습니다.");
+    setFeedback("부스를 방문해야 리뷰를 쓸 수 있어요.");
     return;
   }
   const existing = festivalWeb.ownReview(boothId);
-  if (existing?.content?.trim()) { setFeedback("이미 글 후기를 남긴 부스입니다."); return; }
-  if (existing && !content) { setFeedback("별점은 저장되어 있습니다. 추가할 글 후기를 입력해 주십시오."); return; }
+  if (existing?.content?.trim()) { setFeedback("이미 글 후기를 남긴 부스예요."); return; }
+  if (existing && !content) { setFeedback("별점은 저장되어 있어요. 추가할 글 후기를 입력해 주세요."); return; }
   if (isServerMode()) {
     const booth = state.db.booths.find(item => item.id === boothId);
     const key = boothKeyFor(booth);
     if (!key) {
-      setFeedback("이 부스는 아직 별점을 등록할 수 없습니다.");
+      setFeedback("이 부스는 아직 별점을 등록할 수 없어요.");
       return;
     }
     const actingUser = state.user.id;
     state.reviewBusy = true;
-    setFeedback("등록하는 중입니다...", "info");
+    setFeedback("등록하는 중이에요...", "info");
     document.querySelector("#submitReview")?.setAttribute("disabled", "true");
     const response = await festivalAccount.submitReview(key, state.reviewRating, content);
     state.reviewBusy = false;
@@ -3760,7 +3760,7 @@ async function submitReview() {
   if (current) { current.content = content; current.authorName ||= policy.authorName; current.updatedAt = new Date().toISOString(); }
   else next.reviews.push({ id: makeId(), userId: state.user.id, boothId, rating: state.reviewRating, content, authorName: policy.authorName, createdAt: new Date().toISOString() });
   if (!writeSessionStorage(SESSION_KEY, JSON.stringify(Object.fromEntries(SESSION_FIELDS.map(field => [field, next[field] || []]))))) {
-    setFeedback("저장 공간을 사용할 수 없습니다. 글을 유지했으니 다시 시도해 주십시오."); return;
+    setFeedback("저장 공간을 사용할 수 없어요. 글을 유지했으니 다시 시도해 주세요."); return;
   }
   state.db = next;
   festivalWeb.syncRewards();
@@ -3776,7 +3776,7 @@ function addBooth() {
   if (!name) return;
   const nfcTagId = document.querySelector("#boothNfc").value.trim() || `NFC-${Date.now()}`;
   if (state.db.booths.some((booth) => booth.nfcTagId === nfcTagId)) {
-    state.adminMessage = "이미 등록된 NFC 태그 ID입니다.";
+    state.adminMessage = "이미 등록된 NFC 태그 ID예요.";
     render();
     return;
   }
@@ -3799,7 +3799,7 @@ function addBooth() {
     category: "custom",
   });
   saveDb();
-  state.adminMessage = "부스가 추가되었습니다.";
+  state.adminMessage = "부스가 추가됐어요.";
   render();
 }
 
@@ -3819,13 +3819,13 @@ function saveNfcTag(id) {
   const next = document.getElementById(`nfc-${id}`).value.trim();
   if (!next) return;
   if (state.db.booths.some((item) => item.id !== id && item.nfcTagId === next)) {
-    state.adminMessage = "이미 다른 부스에 등록된 NFC 태그 ID입니다.";
+    state.adminMessage = "이미 다른 부스에 등록된 NFC 태그 ID예요.";
     render();
     return;
   }
   booth.nfcTagId = next;
   saveDb();
-  state.adminMessage = `${booth.name} NFC 태그가 저장되었습니다.`;
+  state.adminMessage = `${booth.name} NFC 태그가 저장됐어요.`;
   render();
 }
 
@@ -3836,7 +3836,7 @@ function saveBoothStatus(id) {
   if (!booth || !select || !BOOTH_STATUS[select.value]) return;
   booth.status = select.value;
   saveDb();
-  state.adminMessage = `${booth.name} 상태를 ${statusInfo(booth.status).label}(으)로 바꿨습니다.`;
+  state.adminMessage = `${booth.name} 상태를 ${statusInfo(booth.status).label}(으)로 바꿨어요.`;
   render();
 }
 
@@ -3848,7 +3848,7 @@ function manualApproveStamp() {
   const booth = state.db.booths.find((item) => item.id === boothId);
   if (!user || !booth) return;
   if (repo.hasStamp(user.id, booth.id)) {
-    state.adminMessage = `${user.name} 학생은 이미 ${booth.name} 방문 인증을 완료했습니다.`;
+    state.adminMessage = `${user.name} 학생은 이미 ${booth.name} 방문 인증을 완료했어요.`;
     render();
     return;
   }
@@ -3864,7 +3864,7 @@ function manualApproveStamp() {
     createdAt: earnedAt,
   });
   saveDb();
-  state.adminMessage = `${user.name} 학생의 ${booth.name} 방문을 수동 승인했습니다.`;
+  state.adminMessage = `${user.name} 학생의 ${booth.name} 방문을 수동 승인했어요.`;
   render();
 }
 
@@ -3882,8 +3882,8 @@ function resetNfcTestStamps() {
   if (removed) saveDb();
   state.scanResult = null;
   state.nfcTestMessage = removed
-    ? `테스트 스탬프 ${removed}개를 초기화했습니다.`
-    : "초기화할 테스트 스탬프가 없습니다.";
+    ? `테스트 스탬프 ${removed}개를 초기화했어요.`
+    : "초기화할 테스트 스탬프가 없어요.";
   render();
 }
 
@@ -3900,7 +3900,7 @@ async function loadServerTags() {
   if (state.user?.id !== actingUser || !isAdminUser()) return;
   if (response.ok) Object.assign(serverAdmin, { tags: response.items, tagsEnabled: response.enabled, tagsError: "" });
   else serverAdmin.tagsError = response.code === "SERVER_NOT_READY"
-    ? "발급된 태그 관리를 위한 서버 업데이트가 아직 적용되지 않았습니다." : response.message;
+    ? "발급된 태그 관리를 위한 서버 업데이트가 아직 적용되지 않았어요." : response.message;
   if (state.route === "admin") render();
 }
 
@@ -3909,8 +3909,8 @@ async function serverTagAction(action, id) {
   if (!tag || serverAdmin.tagBusy) return;
   if (action === "edit" || action === "cancel") { serverAdmin.editingTag = action === "edit" ? id : null; render(); return; }
   const name = `${tagBoothName(tag.boothKey)}${tag.label ? ` (${tag.label})` : ""}`;
-  if (action === "revoke" && !confirm(`${name} 태그를 사용 중지하시겠습니까?\n이 카드로는 더 이상 스탬프를 적립할 수 없습니다. 이미 적립된 스탬프는 유지됩니다.`)) return;
-  if (action === "restore" && !confirm(`${name} 태그를 다시 사용하시겠습니까?\n이 카드로 다시 스탬프를 적립할 수 있습니다.`)) return;
+  if (action === "revoke" && !confirm(`${name} 태그를 사용 중지할까요?\n이 카드로는 더 이상 스탬프를 적립할 수 없어요. 이미 적립된 스탬프는 유지돼요.`)) return;
+  if (action === "restore" && !confirm(`${name} 태그를 다시 사용할까요?\n이 카드로 다시 스탬프를 적립할 수 있어요.`)) return;
   const payload = { id };
   if (action === "label") payload.label = String(document.querySelector(`[data-tag-label-form="${id}"] [name="label"]`)?.value || "").trim();
   const actingUser = state.user.id;
@@ -3929,7 +3929,7 @@ async function serverTagAction(action, id) {
   serverAdmin.tagNote = null;
   if (action === "url") {
     serverAdmin.result = { tone: "success", title: `${name} 태그 주소`,
-      body: "이미 발급한 태그와 같은 주소입니다. 카드를 다시 기록할 때 사용하십시오.",
+      body: "이미 발급한 태그와 같은 주소예요. 카드를 다시 기록할 때 사용하세요.",
       // Kept in memory only, like a newly issued address.
       url: festivalWeb.webTagUrl(response.token) };
     render();
@@ -3943,7 +3943,7 @@ async function serverTagAction(action, id) {
 async function issueServerTag() {
   if (!isServerMode() || !isAdminUser() || serverAdmin.busy || !festivalAccount) return;
   if (!festivalWeb.webTagUrl("check")) {
-    serverAdmin.result = { tone: "error", title: "HTTPS 웹 주소가 필요합니다", body: "공개된 HTTPS 축제 웹사이트에서 태그를 발급하십시오. 로컬 미리보기나 APK 주소로는 발급하지 않습니다." };
+    serverAdmin.result = { tone: "error", title: "HTTPS 웹 주소가 필요해요", body: "공개된 HTTPS 축제 웹사이트에서 태그를 발급하세요. 로컬 미리보기나 APK 주소로는 발급하지 않아요." };
     render(); return;
   }
   const boothId = document.querySelector("#serverAdminBooth")?.value || serverAdmin.boothId;
@@ -3951,7 +3951,7 @@ async function issueServerTag() {
   const key = boothKeyFor(booth);
   serverAdmin.boothId = boothId;
   if (!key) {
-    serverAdmin.result = { tone: "error", title: "발급할 수 없습니다", body: "서버 카탈로그에 연결된 부스가 아닙니다." };
+    serverAdmin.result = { tone: "error", title: "발급할 수 없어요", body: "서버 카탈로그에 연결된 부스가 아닙니다." };
     render();
     return;
   }
@@ -3968,12 +3968,12 @@ async function issueServerTag() {
   serverAdmin.result = response.ok
     ? {
       tone: "success",
-      title: `${catalogBooth(booth)?.name || booth.name}${label ? ` (${label})` : ""} 태그를 발급했습니다`,
-      body: "유효기한 없이 발급했습니다. 카드에 기록한 뒤 다시 읽어 주소가 온전한지 확인하십시오.",
+      title: `${catalogBooth(booth)?.name || booth.name}${label ? ` (${label})` : ""} 태그를 발급했어요`,
+      body: "유효기한 없이 발급했어요. 카드에 기록한 뒤 다시 읽어 주소가 온전한지 확인하세요.",
       // Kept in memory only: the signed token is never written to storage or logs.
       url: festivalWeb.webTagUrl(response.token),
     }
-    : { tone: "error", title: "발급하지 못했습니다", body: response.message };
+    : { tone: "error", title: "발급하지 못했어요", body: response.message };
   if (response.ok) serverAdmin.label = "";
   render();
   if (response.ok) loadServerTags();
@@ -3984,7 +3984,7 @@ async function copyServerTagUrl() {
   if (!url) return;
   try {
     await navigator.clipboard.writeText(url);
-    serverAdmin.result = { ...serverAdmin.result, body: "발급 주소를 복사했습니다. NFC 쓰기 앱에 URL 레코드로 붙여 넣으십시오." };
+    serverAdmin.result = { ...serverAdmin.result, body: "발급 주소를 복사했어요. NFC 쓰기 앱에 URL 레코드로 붙여 넣으세요." };
     render();
   } catch {
     const input = document.querySelector("#serverAdminUrl");
@@ -3993,8 +3993,8 @@ async function copyServerTagUrl() {
     let copied = false;
     try { copied = document.execCommand("copy"); } catch { copied = false; }
     serverAdmin.result = { ...serverAdmin.result, body: copied
-      ? "발급 주소를 복사했습니다. NFC 쓰기 앱에 URL 레코드로 붙여 넣으십시오."
-      : "자동 복사를 사용할 수 없습니다. 선택된 주소를 길게 눌러 복사해 주십시오." };
+      ? "발급 주소를 복사했어요. NFC 쓰기 앱에 URL 레코드로 붙여 넣으세요."
+      : "자동 복사를 사용할 수 없어요. 선택된 주소를 길게 눌러 복사해 주세요." };
     render();
     if (!copied) document.querySelector("#serverAdminUrl")?.select();
   }
@@ -4136,7 +4136,7 @@ async function submitIdentityGate() {
   const studentNumber = document.querySelector("#identityStudentNumber")?.value.trim() || "";
   gate.nameDraft = name;
   gate.studentNumber = studentNumber;
-  if (!name) { gate.note = "이름을 동아리 명단과 같게 입력해 주십시오."; render(); return; }
+  if (!name) { gate.note = "이름을 동아리 명단과 같게 입력해 주세요."; render(); return; }
   gate.busy = true;
   gate.note = "";
   render();
@@ -4171,14 +4171,14 @@ async function initializeAccount() {
     window.FestivalNativeAuth = {
       async receiveCallback(url) {
         try { await initialized.catch(() => {}); applyServerProfile(await festivalAccount.receiveCallback(url)); }
-        catch { state.loginError = "로그인을 완료하지 못했습니다. Google 계정으로 다시 시도해 주십시오."; render(); }
+        catch { state.loginError = "로그인을 완료하지 못했어요. Google 계정으로 다시 시도해 주세요."; render(); }
       },
     };
     if (state.pendingNfcClaim) festivalAccount.savePending(state.pendingNfcClaim);
     else state.pendingNfcClaim = festivalAccount.pending();
     applyServerProfile(await initialized);
   } catch (error) {
-    state.loginError = window.FestivalAccount?.normalizeError(error).message || "로그인 연결을 확인하지 못했습니다.";
+    state.loginError = window.FestivalAccount?.normalizeError(error).message || "로그인 연결을 확인하지 못했어요.";
   } finally { state.loginBusy = false; render(); }
 }
 
@@ -4204,7 +4204,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.55";
+const APP_RELEASE = "1.56";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;
@@ -4220,7 +4220,7 @@ function watchDeployment() {
       const banner = document.createElement("div");
       banner.className = "app-update-banner";
       banner.setAttribute("role", "status");
-      banner.innerHTML = `<span>새 버전(${escapeHtml(version)})이 배포되었습니다. 새로고침하면 바로 적용됩니다.</span><button type="button" class="primary-btn">새로고침</button>`;
+      banner.innerHTML = `<span>새 버전(${escapeHtml(version)})이 배포됐어요. 새로고침하면 바로 적용돼요.</span><button type="button" class="primary-btn">새로고침</button>`;
       banner.querySelector("button").onclick = () => location.reload();
       document.body.append(banner);
     } catch { /* Offline or blocked: the next check retries. */ }

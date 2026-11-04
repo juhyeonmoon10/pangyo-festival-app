@@ -115,7 +115,7 @@ try {
     await db.query('select festival_ops.import_review_roster($1,$2,$3)',[eventId,{format:1,sourceSha256:'a'.repeat(64),catalogKeys:catalog,
       records:[{studentNumber,realName:'가상학생',clubs:['인벨릭스'],boothKeys:['인벨릭스'],status:'ready',issues:[],sourceCells:['Synthetic!A1']}]},admin.uid]);
     await routeTo(a.page,'admin');
-    await a.page.getByText('운영 중인 부스가 없어 방문 인증이 중지돼 있습니다.',{exact:true}).waitFor();
+    await a.page.getByText('운영 중인 부스가 없어 방문 인증이 중지돼 있어요.',{exact:true}).waitFor();
     await screenshot(a.page,width,'single-festival-dashboard');
     await openOperatorTool(a.page,'settings');
     await a.page.locator('[data-ops-form=event_save]').waitFor();
@@ -125,7 +125,7 @@ try {
     const writesBefore=a.calls.length;
     await settings.locator('[name=version]').evaluate(input=>input.value='0');
     await settings.locator('button[type=submit]').click();
-    await a.page.getByText('축제 정보를 다시 불러온 뒤 저장해 주십시오.',{exact:true}).waitFor();
+    await a.page.getByText('축제 정보를 다시 불러온 뒤 저장해 주세요.',{exact:true}).waitFor();
     assert.equal(a.calls.length,writesBefore,'Version zero must never reach the server creation path');
     await settings.locator('[name=version]').evaluate((input,value)=>input.value=value,version);
     await openOperatorTool(a.page,'catalog');
@@ -164,7 +164,7 @@ try {
     await roster.locator('[name=studentNumber]').fill('19999');
     assert.equal(await roster.locator('button[type=submit]').isDisabled(),true);
     await roster.locator('[data-roster-find]').click();
-    await roster.getByText('명단에 없는 학번입니다.',{exact:true}).waitFor();
+    await roster.getByText('명단에 없는 학번이에요.',{exact:true}).waitFor();
     await roster.locator('[name=studentNumber]').fill(studentNumber);
     await roster.locator('[data-roster-find]').click();
     await roster.getByText('명단 대조 완료',{exact:true}).waitFor();
@@ -172,7 +172,7 @@ try {
     await roster.locator('[name=reason]').fill('합성 계정 본인 확인');
     const beforeLink=a.calls.filter(c=>c.p_action==='save').length;
     await roster.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
-    await roster.getByText('명단과 계정을 연결했습니다.',{exact:true}).waitFor();
+    await roster.getByText('명단과 계정을 연결했어요.',{exact:true}).waitFor();
     assert.equal(a.calls.filter(c=>c.p_action==='save').length,beforeLink+1);
     const policy=await rpc(student,'select public.festival_ops_read($1,$2) value',['reviews',{booth:'인벨릭스'}]);
     assert.equal(policy.reviewPolicy.reason,'OWN_CLUB_REVIEW');
@@ -194,7 +194,7 @@ try {
     assert.ok(await approval.locator('[data-recipient-pick]').count()>=2,'The list shows the students and the operator');
     await screenshot(a.page,width,'manual-visit-list');
     await approval.locator('button[type=submit]').click();
-    await approval.getByText('처리할 학생을 목록에서 골라 주십시오.',{exact:true}).waitFor();
+    await approval.getByText('처리할 학생을 목록에서 골라 주세요.',{exact:true}).waitFor();
     assert.equal(a.calls.filter(c=>c.p_action==='visit_approve').length,beforeApproval);
     const search=async(form,query)=>{ await form.locator('[name=recipientQuery]').fill(query); await form.locator('[data-recipient-find]').click(); };
     const pick=async(form,sid)=>{
@@ -206,7 +206,7 @@ try {
     assert.ok((await approval.locator('.ops-recipient-chosen').innerText()).includes('(29999) · 내 계정'));
     await approval.locator('[data-recipient-change]').click();
     await search(approval,'19999');
-    await approval.getByText('찾는 학생이 없습니다. 이름이나 학번을 다시 확인해 주십시오.',{exact:true}).waitFor();
+    await approval.getByText('찾는 학생이 없어요. 이름이나 학번을 다시 확인해 주세요.',{exact:true}).waitFor();
     await search(approval,'격리 학생');
     await approval.locator(`[data-recipient-pick="${linked}"]`).waitFor();
     await pick(approval,linked);
@@ -214,22 +214,22 @@ try {
     await screenshot(a.page,width,'manual-visit-participant');
     // The student's own club booth is refused, with the reason.
     await approval.locator('button[type=submit]').click();
-    await approval.getByText('본인 동아리 부스는 스탬프를 적립할 수 없습니다.',{exact:true}).waitFor();
+    await approval.getByText('본인 동아리 부스는 스탬프를 적립할 수 없어요.',{exact:true}).waitFor();
     await approval.locator('[name=booth]').selectOption('모멘트');
     assert.equal(await approval.locator('[name=reason]').inputValue(),'현장 학생 본인 확인');
     await approval.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
-    await a.page.getByText('격리 학생님에게 스탬프 1개를 적립했습니다.',{exact:true}).waitFor();
+    await a.page.getByText('격리 학생님에게 스탬프 1개를 적립했어요.',{exact:true}).waitFor();
     const approvals=a.calls.filter(c=>c.p_action==='visit_approve');
     assert.equal(approvals.length,beforeApproval+2);
     assert.deepEqual([approvals.at(-1).p_payload.studentNumber,'userId' in approvals.at(-1).p_payload],[linked,false]);
     await approval.locator('[name=booth]').selectOption('모멘트');
     await approval.locator('[name=reason]').fill('동일 방문 재확인');
     await approval.locator('button[type=submit]').click();
-    await a.page.getByText('이미 적립한 부스입니다. 스탬프는 1개만 유지됩니다.',{exact:true}).waitFor();
+    await a.page.getByText('이미 적립한 부스예요. 스탬프는 1개만 유지돼요.',{exact:true}).waitFor();
     await approval.locator('[name=reason]').fill('대상 변경 후 재확인');
     await db.query('update public.users set auth_user_id=null where id=$1',[student.uid]);
     await approval.locator('button[type=submit]').click();
-    await approval.getByText('이 학번으로 가입한 계정이 없습니다. 학번을 다시 확인해 주십시오.',{exact:true}).waitFor();
+    await approval.getByText('이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.',{exact:true}).waitFor();
     assert.equal(await approval.locator('[data-recipient-result]').innerText(),'');
     await db.query('update public.users set auth_user_id=$1 where id=$2',[student.id,student.uid]);
     await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);state.route='stamps';render();});
@@ -254,7 +254,7 @@ try {
     await roster.locator('[data-roster-revoke]').waitFor();
     await roster.locator('[name=reason]').fill('합성 계정 확인 취소');
     await roster.locator('[data-roster-revoke]').click();
-    await roster.getByText('확인을 취소했습니다.',{exact:true}).waitFor();
+    await roster.getByText('확인을 취소했어요.',{exact:true}).waitFor();
     await a.page.locator('.ops-dialog [aria-label=닫기]').click();
 
     a.control.slowKind='participants';
@@ -272,20 +272,20 @@ try {
     await f.locator('[name=target]').fill('3'); await f.locator('[name=stock]').fill('20');
     await f.locator('[name=expiresAt]').fill('2099-01-01T15:00'); await f.locator('[name=enabled]').check();
     await f.locator('button[type=submit]').click();
-    await a.page.getByText('저장했습니다.',{exact:true}).waitFor();
+    await a.page.getByText('저장했어요.',{exact:true}).waitFor();
     await screenshot(a.page,width,'voucher-rules');
     await tab(a.page,'vouchers','[data-ops-form=voucher_issue]');
     const issue=a.page.locator('[data-ops-form=voucher_issue]');
     await issue.locator('[name=ruleId]').selectOption({label:`테스트 이용권 ${width}`});
     await issue.locator('[name=reason]').fill('격리 발급 검증');
     await issue.locator('button[type=submit]').click();
-    await issue.getByText('처리할 학생을 목록에서 골라 주십시오.',{exact:true}).waitFor();
+    await issue.getByText('처리할 학생을 목록에서 골라 주세요.',{exact:true}).waitFor();
     assert.equal(await issue.locator('input[type=number]').count(),0);
     await pick(issue,signup);
     assert.equal(await issue.locator('[name=reason]').inputValue(),'격리 발급 검증');
     const before=a.calls.filter(x=>x.p_action==='voucher_issue').length;
     await issue.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
-    await a.page.getByText('바우처를 발급했습니다.',{exact:true}).waitFor();
+    await a.page.getByText('바우처를 발급했어요.',{exact:true}).waitFor();
     assert.equal(a.calls.filter(x=>x.p_action==='voucher_issue').length-before,1);
     const mine=await rpc(student,'select public.festival_ops_read($1,$2) value',['me',{}]);
     assert.equal(mine.vouchers.length,1); assert.equal(mine.vouchers[0].state,'available');
@@ -296,12 +296,12 @@ try {
     await s.page.locator('[data-ops-qr]').click(); await s.page.locator('.ops-qr svg').waitFor();
     assert.match(s.control.qrToken,/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);
     assert.equal((await s.page.locator('.ops-voucher-code').innerText()).replace(/\s/g,''),s.control.qrToken);
-    assert.match(await s.page.locator('.ops-code-timer').innerText(),/초 후 새 인증키로 바뀝니다/);
+    assert.match(await s.page.locator('.ops-code-timer').innerText(),/초 후 새 인증키로 바뀌어요/);
     // The async clipboard is commonly blocked in in-app browsers; the selection fallback must still copy.
     await s.page.evaluate(()=>{window.__copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>Promise.reject(new Error('blocked'))}});
       document.addEventListener('copy',e=>window.__copied.push(document.getSelection().toString() || e.target?.value || document.activeElement?.value));});
     await s.page.locator('[data-copy-code]').click();
-    await s.page.locator('.ops-copy-status').getByText('인증키를 복사했습니다.').waitFor();
+    await s.page.locator('.ops-copy-status').getByText('인증키를 복사했어요.').waitFor();
     assert.deepEqual(await s.page.evaluate(()=>window.__copied),[s.control.qrToken]);
     await screenshot(s.page,width,'voucher-code');
     // Manual entry tolerates lowercase and a separating space.
@@ -315,7 +315,7 @@ try {
     await a.page.locator('[data-voucher-approved-ok]').click();
     assert.equal(await a.page.locator('.voucher-scan-dialog').count(),0);
     // The student's open voucher dialog notices the redemption within one 5-second check.
-    await s.page.locator('.ops-voucher-done.used').getByText('사용이 완료되었습니다').waitFor({timeout:9000});
+    await s.page.locator('.ops-voucher-done.used').getByText('사용이 완료되었어요').waitFor({timeout:9000});
     assert.equal(await s.page.locator('.ops-qr, .ops-voucher-code, [data-copy-code]').count(),0);
     await screenshot(s.page,width,'voucher-used-live');
     await s.page.locator('[data-voucher-done]').click();
@@ -342,7 +342,7 @@ try {
     await pick(adjustment,signup);
     const beforePoints=a.calls.filter(c=>c.p_action==='points_adjust').length;
     await adjustment.evaluate(f=>{f.requestSubmit();f.requestSubmit();});
-    await a.page.getByText('저장했습니다.',{exact:true}).waitFor();
+    await a.page.getByText('저장했어요.',{exact:true}).waitFor();
     assert.equal(a.calls.filter(c=>c.p_action==='points_adjust').length,beforePoints+1);
     assert.deepEqual([a.calls.filter(c=>c.p_action==='points_adjust').at(-1).p_payload.studentNumber,'userId' in a.calls.filter(c=>c.p_action==='points_adjust').at(-1).p_payload],[signup,false]);
 

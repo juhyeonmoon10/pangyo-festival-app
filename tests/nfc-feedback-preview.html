@@ -44,7 +44,7 @@
       const booth = state.db.booths.find(item => item.officialClubId) || state.db.booths[0];
       serverCompletedBooths = [boothKeyFor(booth)];
       state.scanResult = { type: duplicate ? 'duplicate' : 'success', boothId: booth.id,
-        title: '스탬프가 완성되었습니다', body: '방문 기록을 보관했습니다.' };
+        title: '스탬프가 완성됐어요', body: '방문 기록을 보관했어요.' };
       showNfcFeedback();
     }
     document.querySelector('#fixtureComplete').onclick = () => fixtureComplete();

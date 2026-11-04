@@ -140,7 +140,7 @@ async function popup(page,title) {
   const rows=Object.fromEntries(await list.locator('div').evaluateAll(ds=>ds.map(d=>[d.querySelector('dt').textContent,d.querySelector('dd').textContent])));
   assert.equal(rows['바우처'],title); assert.equal(rows['이름'],'가상방문'); assert.equal(rows['학번'],'21001');
   assert.match(rows['승인 일시'],/^\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{2}:\d{2}$/);
-  assert.match(await page.locator('.voucher-scan-dialog .ops-voucher-done strong').innerText(),/사용 승인이 완료되었습니다/);
+  assert.match(await page.locator('.voucher-scan-dialog .ops-voucher-done strong').innerText(),/사용 승인이 완료되었어요/);
   return async()=>{ await page.locator('[data-voucher-approved-ok]').click(); await page.waitForFunction(()=>!document.querySelector('.voucher-scan-dialog')); };
 }
 
@@ -246,7 +246,7 @@ globalThis.gameStub=async(url,p)=>{
     if(url.searchParams.get('select')==='price') return {json:[{price:stockRows[0].price-200}]};
     return {json:Array.from({length:7},(_,i)=>({created_at:new Date(t0-30*60000+i*5*60000).toISOString(),price:2800+i*40,version:i+1})).reverse()};
   }
-  if(url.pathname==='/rest/v1/news') return {json:[{id:1,title:'창업특허연구소 시제품 공개',content:'오후 2시에 시제품을 공개합니다.',stock_id:1,created_at:new Date(t0-600000).toISOString()}]};
+  if(url.pathname==='/rest/v1/news') return {json:[{id:1,title:'창업특허연구소 시제품 공개',content:'오후 2시에 시제품을 공개해요.',stock_id:1,created_at:new Date(t0-600000).toISOString()}]};
   if(name==='festival_blackjack_state') return {json:bjView()};
   // 1.49: the festival queue takes no stake while waiting; the stake goes at the match (startTable).
   if(name==='festival_blackjack_join') { bjGame={id:randomUUID(),status:'waiting',queued:true,stake:300,version:0,createdAt:new Date().toISOString(),myCards:[],myTotal:0,myDone:false,opponentName:null,opponentCards:[],opponentTotal:null,opponentDone:false,turn:null,turnDeadline:null,result:null,payout:null}; return {json:bjView()}; }
@@ -304,7 +304,7 @@ try {
   await navCheck(page,'games');
   assert.equal(await page.locator('.game-stock-list li').count(),20);
   // 1.51: the rule line, visitors per club, and "방문 전" on a club not visited
-  assert.match(await page.locator('.game-rule-note').textContent(),/방문한 동아리만 사고팔 수 있습니다[.] 가격은 1분마다 0[.]3%씩 내려가고, 방문 학생이 10명 늘 때마다 5% 오릅니다/);
+  assert.match(await page.locator('.game-rule-note').textContent(),/방문한 동아리만 사고팔 수 있어요[.] 가격은 1분마다 0[.]3%씩 내려가고, 방문 학생이 10명 늘 때마다 5% 올라요/);
   assert.match(await page.locator('[data-game-stock="1"]').textContent(),/방문 13명/);
   assert.match(await page.locator('[data-game-stock="3"]').textContent(),/방문 2명 · 방문 전/);
   assert.doesNotMatch(await page.locator('[data-game-stock="2"]').textContent(),/방문 전/);
@@ -324,7 +324,7 @@ try {
   await shot(page,'stock-visited-tab');
   for(const s of stockRows) s.visited=false;
   await page.locator('[data-game-refresh]').click();
-  await page.waitForFunction(()=>/아직 방문한 동아리가 없습니다/.test(document.querySelector('.festival-empty')?.textContent||''));
+  await page.waitForFunction(()=>/아직 방문한 동아리가 없어요/.test(document.querySelector('.festival-empty')?.textContent||''));
   assert.equal(await page.locator('.festival-empty [data-route="map"]').count(),1);
   await shot(page,'stock-visited-empty');
   stockRows.forEach((s,i)=>{ s.visited=i!==2; });
@@ -348,7 +348,7 @@ try {
   await page.locator('[data-trade-confirm]').click();
   await page.waitForFunction(()=>!document.querySelector('dialog.game-trade-dialog'));
   await page.waitForFunction(()=>document.querySelector('[data-spot="game-trade"]')?.dataset.tone==='success');
-  assert.match(await page.locator('[data-spot="game-trade"]').textContent(),/3주 매수가 3,000P에 확정되었습니다/);
+  assert.match(await page.locator('[data-spot="game-trade"]').textContent(),/3주 매수가 3,000P에 확정됐어요/);
   assert.equal(wallet.money,91000);
   assert.match(await page.locator('.game-holding').textContent(),/3주/);
   assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('pangyo-games-pending-trade')).length),0,'settled trade leaves no pending key');
@@ -364,13 +364,13 @@ try {
   assert.match(await page.locator('.game-quote-status').textContent(),/방문 전/);
   assert.equal(await page.locator('[data-game-trade="buy"]').isDisabled(),true);
   assert.equal(await page.locator('[data-game-trade="sell"]').isDisabled(),true);
-  assert.match(await page.locator('.game-stock-detail').textContent(),/이 동아리 부스를 방문하면 사고팔 수 있습니다/);
+  assert.match(await page.locator('.game-stock-detail').textContent(),/이 동아리 부스를 방문하면 사고팔 수 있어요/);
   await shot(page,'stock-not-visited');
   // Retry of an unresolved trade reuses its key and is answered once
   await page.evaluate(()=>{state.route='gamesStock';render();});
   await page.waitForSelector('[data-game-retry]');
   await page.locator('[data-game-retry]').click();
-  await page.waitForFunction(()=>/확인할 이전 거래가 없습니다/.test(document.querySelector('[data-spot="game-retry"]')?.textContent||''));
+  await page.waitForFunction(()=>/확인할 이전 거래가 없어요/.test(document.querySelector('[data-spot="game-retry"]')?.textContent||''));
   await shot(page,'stock-history');
   // Blackjack: lobby, waiting, table, reveal, result
   bjRules={maxDraws:2}; // the per-game card limit from 관리 마법사 (1.49: no per-turn limit)
@@ -380,8 +380,8 @@ try {
   assert.match(await page.locator('.game-rules').textContent(),/게임 도중 화면을 나가면 몰수패/);
   // 1.49: simultaneous rounds; the stake is taken at the match
   assert.match(await page.locator('.game-rules').textContent(),/매 라운드 두 사람이 동시에 히트/);
-  assert.match(await page.locator('.game-rules').textContent(),/한 번 고르면 바꿀 수 없습니다/);
-  assert.match(await page.locator('.game-rules').textContent(),/판돈 300P는 짝이 지어질 때 빠집니다[.] 1분 안에 상대를 찾지 못하면 매칭이 취소됩니다/);
+  assert.match(await page.locator('.game-rules').textContent(),/한 번 고르면 바꿀 수 없어요/);
+  assert.match(await page.locator('.game-rules').textContent(),/판돈 300P는 짝이 지어질 때 빠져요[.] 1분 안에 상대를 찾지 못하면 매칭이 취소돼요/);
   assert.match(await page.locator('.game-rules').textContent(),/같은 상대에게 다시 하자고/);
   assert.doesNotMatch(await page.locator('.game-rules').textContent(),/차례/);
   assert.doesNotMatch(await page.locator('.festival-games').textContent(),/3분/);
@@ -401,13 +401,13 @@ try {
   await shot(page,'bj-waiting');
   // Cancelling says so; a matching that timed out on the server says it was not matched. Nothing to give back.
   await page.locator('[data-bj="cancel"]').click();
-  await page.waitForFunction(()=>/대기를 취소했습니다[.]/.test(document.querySelector('.festival-games').textContent));
-  assert.doesNotMatch(await page.locator('.festival-games').textContent(),/돌려받았습니다/);
+  await page.waitForFunction(()=>/대기를 취소했어요[.]/.test(document.querySelector('.festival-games').textContent));
+  assert.doesNotMatch(await page.locator('.festival-games').textContent(),/돌려받았어요/);
   await page.locator('[data-bj="join"]').click();
   await page.waitForSelector('.game-bj-waiting');
   Object.assign(bjGame,{status:'cancelled',ended:'expired'});
-  await page.waitForFunction(()=>/1분 안에 상대를 찾지 못해 매칭이 취소되었습니다[.]/.test(document.querySelector('.festival-games').textContent),null,{timeout:5000});
-  assert.doesNotMatch(await page.locator('.festival-games').textContent(),/돌려받았습니다/);
+  await page.waitForFunction(()=>/1분 안에 상대를 찾지 못해 매칭이 취소됐어요[.]/.test(document.querySelector('.festival-games').textContent),null,{timeout:5000});
+  assert.doesNotMatch(await page.locator('.festival-games').textContent(),/돌려받았어요/);
   await shot(page,'bj-match-timeout');
   await page.locator('[data-bj="join"]').click();
   await page.waitForSelector('.game-bj-waiting');
@@ -419,7 +419,7 @@ try {
   // 1.41: the opponent's whole name. 1.49: round 1, both choose; only the per-game limit is shown
   assert.equal(await page.locator('.game-bj-seat-head strong').first().textContent(),'21001가상방');
   assert.equal((await page.locator('.game-bj-round').textContent()).trim(),'라운드 1');
-  assert.match(await page.locator('.game-bj-turn').textContent(),/히트나 스탠드를 골라 주십시오[.] 둘 다 고르면 함께 공개됩니다/);
+  assert.match(await page.locator('.game-bj-turn').textContent(),/히트나 스탠드를 골라 주세요[.] 둘 다 고르면 함께 공개돼요/);
   assert.match(await page.locator('.game-bj-ready').textContent(),/고르는 중/);
   assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 2장/);
   assert.doesNotMatch(await page.locator('.game-bj-table').textContent(),/차례/);
@@ -427,7 +427,7 @@ try {
   await shot(page,'bj-table');
   // My choice waits for the opponent and cannot be changed
   await page.locator('[data-bj="hit"]').click();
-  await page.waitForFunction(()=>/선택 완료 · 상대를 기다립니다/.test(document.querySelector('.game-bj-turn')?.textContent||''));
+  await page.waitForFunction(()=>/선택 완료 · 상대를 기다려요/.test(document.querySelector('.game-bj-turn')?.textContent||''));
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),false);
   assert.equal(await page.locator('[data-bj="stand"]').isEnabled(),false);
   assert.equal(await page.locator('[data-bj="hit"].is-chosen').count(),1);
@@ -440,9 +440,9 @@ try {
   assert.match(await page.locator('.game-bj-total').first().textContent(),/22/);
   assert.equal(await page.locator('.game-bj-seat').first().locator('.game-card').count(),3);
   assert.equal((await page.locator('.game-bj-round').textContent()).trim(),'라운드 2');
-  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트입니다[.] 히트나 스탠드를 골라 주십시오/);
+  assert.match(await page.locator('.game-bj-turn').textContent(),/버스트예요[.] 히트나 스탠드를 골라 주세요/);
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),true,'hit stays available after a bust');
-  assert.match(await page.locator('.festival-games .sr-only[aria-live]').textContent(),/버스트! 22점[.] 상대가 히트했습니다/);
+  assert.match(await page.locator('.festival-games .sr-only[aria-live]').textContent(),/버스트! 22점[.] 상대가 히트했어요/);
   await shot(page,'bj-reveal');
   // The opponent is ready first: "선택 완료" shows, never what they chose
   opponentChooses('stand');
@@ -455,7 +455,7 @@ try {
   assert.match(await page.locator('.game-bj-ready').textContent(),/멈춤/);
   assert.match(await page.locator('.game-bj-badge').first().textContent(),/스탠드/);
   assert.equal(await page.locator('[data-bj="hit"]').isEnabled(),false,'no more cards after the per-game limit');
-  assert.match(await page.locator('.game-bj-turn').textContent(),/더 받을 수 있는 카드가 없습니다/);
+  assert.match(await page.locator('.game-bj-turn').textContent(),/더 받을 수 있는 카드가 없어요/);
   assert.match(await page.locator('.game-bj-draw').textContent(),/이번 판에 더 받을 수 있는 카드 0장/);
   assert.deepEqual(bjActions,['hit','hit']);
   await shot(page,'bj-card-limit');
@@ -558,11 +558,11 @@ try {
   wallet.money+=600;
   Object.assign(bjGame,{status:'finished',myDone:true,opponentDone:true,opponentCards:[25,4],opponentTotal:18,result:'win',payout:600,forfeit:'opponent',roundDeadline:null,version:++bjVersion});
   await page.waitForSelector('.game-bj-outcome.win',{timeout:10000});
-  assert.match(await page.locator('.game-bj-outcome').textContent(),/상대가 게임을 나가 몰수패했습니다/);
+  assert.match(await page.locator('.game-bj-outcome').textContent(),/상대가 게임을 나가 몰수패했어요/);
   await shot(page,'bj-forfeit-win');
   await page.locator('[data-bj-ok]').click();
   await page.waitForSelector('.game-bj-result.win');
-  assert.match(await page.locator('.game-bj-result').textContent(),/상대가 게임을 나가 몰수패했습니다/);
+  assert.match(await page.locator('.game-bj-result').textContent(),/상대가 게임을 나가 몰수패했어요/);
   await page.evaluate(()=>navigateTo('games')); await page.waitForSelector('.game-list');
   // 1.41 관리 마법사 → 미니게임 관리
   const ops=await pageFor(admin);
@@ -572,14 +572,14 @@ try {
   await shot(ops.page,'admin-minigames-stock');
   // halt one stock (the confirm dialog is accepted by the harness)
   await ops.page.locator('[data-instrument="1"]').click();
-  await ops.page.waitForFunction(()=>/거래를 정지했습니다/.test(document.querySelector('[data-games-admin]').textContent));
+  await ops.page.waitForFunction(()=>/거래를 정지했어요/.test(document.querySelector('[data-games-admin]').textContent));
   assert.deepEqual(adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').map(c=>[c[1].p_action,c[1].p_payload]),[['INSTRUMENT_SET',{stockId:'1',status:'halted'}]]);
   assert.equal(stockRows[0].tradingStatus,'halted');
   // publish a new price
   await ops.page.locator('[data-price="2"]').evaluate(f=>{ f.closest('details').open=true; });
   await ops.page.locator('[data-price="2"] input[name="price"]').fill('4321');
   await ops.page.locator('[data-price="2"] button[type="submit"]').click();
-  await ops.page.waitForFunction(()=>/4,321P로 발행했습니다/.test(document.querySelector('[data-games-admin]').textContent));
+  await ops.page.waitForFunction(()=>/4,321P로 발행했어요/.test(document.querySelector('[data-games-admin]').textContent));
   const published=adminCalls.find(c=>c[0]==='orbit_admin_publish_stock_price')[1];
   assert.equal(published.p_stock_id,2); assert.equal(published.p_price,4321); assert.ok(published.p_idempotency_key.length>=8);
   // a lost answer is asked again with the same request key
@@ -589,7 +589,7 @@ try {
   const lost=adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1];
   await shot(ops.page,'admin-minigames-pending');
   await ops.page.locator('[data-games-pending]').click();
-  await ops.page.waitForFunction(()=>!document.querySelector('[data-games-pending]') && /일시정지 상태로 바꿨습니다/.test(document.querySelector('[data-games-admin]').textContent));
+  await ops.page.waitForFunction(()=>!document.querySelector('[data-games-pending]') && /일시정지 상태로 바꿨어요/.test(document.querySelector('[data-games-admin]').textContent));
   assert.equal(adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1].p_idempotency_key,lost.p_idempotency_key);
   assert.equal(market.status,'paused');
   // 호재·악재 for one stock
@@ -602,7 +602,7 @@ try {
   await ops.page.locator('[data-stock-event] input[name="title"]').fill('심장박동 부스 일시 휴식');
   await ops.page.locator('[data-stock-event] textarea[name="description"]').fill('30분 동안 운영을 쉬어요.');
   await ops.page.locator('[data-stock-event] button[type="submit"]').click();
-  await ops.page.waitForFunction(()=>/이벤트를 등록했습니다/.test(document.querySelector('[data-games-admin]').textContent));
+  await ops.page.waitForFunction(()=>/이벤트를 등록했어요/.test(document.querySelector('[data-games-admin]').textContent));
   const ev=adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1];
   assert.equal(ev.p_action,'CREATE_EVENT'); assert.equal(ev.p_payload.stockId,'3'); assert.equal(ev.p_payload.eventType,'BAD'); assert.equal(ev.p_payload.impact,10);
   assert.equal(Date.parse(ev.p_payload.endsAt)-Date.parse(ev.p_payload.startsAt),3600000);
@@ -614,9 +614,9 @@ try {
   assert.equal(await ops.page.locator('[data-stock-news] [data-effect]').isHidden(),true);
   await ops.page.locator('[data-stock-news] select[name="priority"]').selectOption('URGENT');
   await ops.page.locator('[data-stock-news] input[name="title"]').fill('거래 일시 중단 안내');
-  await ops.page.locator('[data-stock-news] textarea[name="content"]').fill('점검으로 잠시 거래를 멈춥니다.');
+  await ops.page.locator('[data-stock-news] textarea[name="content"]').fill('점검으로 잠시 거래를 멈춰요.');
   await ops.page.locator('[data-stock-news] button[type="submit"]').click();
-  await ops.page.waitForFunction(()=>/뉴스를 등록했습니다/.test(document.querySelector('[data-games-admin]').textContent));
+  await ops.page.waitForFunction(()=>/뉴스를 등록했어요/.test(document.querySelector('[data-games-admin]').textContent));
   const nw=adminCalls.filter(c=>c[0]==='orbit_admin_stock_mutate').at(-1)[1];
   assert.deepEqual([nw.p_action,nw.p_payload.priority,nw.p_payload.effectType,nw.p_payload.targetScope,nw.p_payload.impact],['CREATE_NEWS','URGENT','NONE',null,null]);
   await shot(ops.page,'admin-minigames-news');
@@ -635,7 +635,7 @@ try {
   assert.equal(await ops.page.locator('[data-bj-limits] select').count(),1);
   await ops.page.locator('[data-bj-limits] select[name="maxDraws"]').selectOption('6');
   await ops.page.locator('[data-bj-limits] button[type="submit"]').click();
-  await ops.page.waitForFunction(()=>/카드 제한을 저장했습니다/.test(document.querySelector('[data-games-admin]').textContent));
+  await ops.page.waitForFunction(()=>/카드 제한을 저장했어요/.test(document.querySelector('[data-games-admin]').textContent));
   assert.deepEqual(adminCalls.filter(c=>c[0]==='festival_blackjack_admin' && c[1].p_action==='save').map(c=>c[1].p_payload),[{maxDraws:6}]);
   assert.match(await ops.page.locator('[data-bj-limits]').textContent(),/지금: 한 판에 6장/);
   await shot(ops.page,'admin-minigames-blackjack');

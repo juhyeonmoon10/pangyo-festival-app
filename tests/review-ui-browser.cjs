@@ -19,7 +19,7 @@ fs.mkdirSync(out,{recursive:true});
       if(mode==='own') {
         // Own-club booths show no rating form at all, only the explanation.
         assert.equal(await page.locator('#boothReviewSection .review-compose,#submitReview,#reviewContent,[data-rating]').count(),0);
-        assert.match(await section.innerText(),/본인 동아리 부스에는 별점을 남길 수 없습니다/);
+        assert.match(await section.innerText(),/본인 동아리 부스에는 별점을 남길 수 없어요/);
       } else {
         assert.equal(await page.locator('#submitReview').isDisabled(),mode!=='allowed');
         assert.equal(await page.locator('#reviewContent').isDisabled(),mode!=='allowed');
@@ -58,7 +58,7 @@ fs.mkdirSync(out,{recursive:true});
       await form.locator('[name=confirmed]').check();
       await form.getByLabel('처리 사유').fill('학교 확인 명단 대조');
       await form.getByRole('button',{name:'계정에 연결'}).click();
-      await page.getByText('명단과 계정을 연결했습니다.',{exact:true}).waitFor();
+      await page.getByText('명단과 계정을 연결했어요.',{exact:true}).waitFor();
       assert.deepEqual(await page.evaluate(()=>({studentNumber:window.fixtureLastSave.studentNumber,confirmed:window.fixtureLastSave.confirmed,rosterVersion:window.fixtureLastSave.rosterVersion})),{studentNumber:'11001',confirmed:true,rosterVersion:1});
       assert.equal(await page.evaluate(()=>('realName' in window.fixtureLastSave)||('boothKeys' in window.fixtureLastSave)),false);
       const bounds=await page.locator('.ops-dialog').boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width+1);

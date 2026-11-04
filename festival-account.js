@@ -26,40 +26,40 @@
     return null;
   }
   const MESSAGES = {
-    AUTH_REQUIRED: "로그인이 필요합니다.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주십시오.",
-    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주십시오.", IDENTITY_REQUIRED: "소속 동아리 확인을 먼저 마쳐 주십시오.",
-    OPS_NOT_READY: "축제 운영 정보가 아직 준비되지 않았습니다.", PROFILE_CONFLICT: "계정 연결을 확인해야 합니다. 운영자에게 문의해 주십시오.",
-    PROFILE_UNCONFIRMED: "등록 결과를 확인하지 못했습니다. 다시 시도해 주십시오.",
-    INVALID_STUDENT_NUMBER: "학번을 1~3으로 시작하는 5자리 숫자로 입력해 주십시오.",
-    INVALID_NAME: "이름을 1~60자로 입력해 주십시오.",
-    PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했습니다. 새로고침 후 이름을 확인해 주십시오.",
-    NFC_DISABLED: "방문 인증이 일시 중지되었습니다.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주십시오.",
-    NFC_TAG_EXPIRED: "사용이 중지됐거나 교체·만료된 태그입니다.",
-    SUN_DISABLED: "보안 카드 적립이 잠시 중지되었습니다.", SUN_CARD_INVALID: "확인되지 않은 보안 카드입니다. 카드를 휴대폰에 다시 대 주십시오.",
-    SUN_CARD_UNKNOWN: "아직 등록되지 않은 보안 카드입니다. 부스 운영자에게 알려 주십시오.", SUN_CARD_STOPPED: "사용이 중지된 보안 카드입니다.",
-    SUN_CARD_REPLAYED: "이미 사용한 카드 주소입니다. 카드를 휴대폰에 다시 대 주십시오.",
-    NOT_FOUND: "대상을 찾을 수 없습니다. 목록을 새로고침해 주십시오.",
-    CLAIM_RATE_LIMITED: "짧은 시간에 너무 많은 부스를 적립해 잠시 제한되었습니다. 몇 분 뒤 다시 찍어 주십시오.",
-    VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있습니다.",
-    ALREADY_REVIEWED: "이 부스에는 이미 별점을 남겼습니다.",
-    RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주십시오.",
-    REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주십시오.",
-    OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없습니다.",
-    OWN_CLUB_STAMP: "본인 동아리 부스는 스탬프를 적립할 수 없습니다.",
-    STUDENT_NOT_FOUND: "이 학번으로 가입한 계정이 없습니다. 학번을 다시 확인해 주십시오.",
-    STUDENT_AMBIGUOUS: "같은 학번으로 가입한 계정이 여러 개입니다. 학생 본인의 계정을 골라 주십시오.",
-    REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주십시오.",
-    REVIEW_POLICY_REQUIRED: "리뷰 작성 가능 여부를 확인하지 못했습니다. 잠시 후 다시 시도해 주십시오.",
-    INVALID_INPUT: "입력한 내용을 확인해 주십시오.",
-    VERSION_CONFLICT: "명단이 변경되었습니다. 창을 닫고 다시 조회해 주십시오.",
-    SELF_ADJUSTMENT: "본인의 확인 명단은 다른 운영자에게 요청해 주십시오.",
-    ROSTER_REVIEW_REQUIRED: "명단 또는 부스 연결을 먼저 확인해야 합니다. 이름과 소속을 임의로 등록할 수 없습니다.",
-    ROSTER_ALREADY_LINKED: "이 명단은 다른 계정에 연결되어 있습니다. 담당 관리자에게 확인해 주십시오.",
-    BOOTH_NOT_FOUND: "부스 정보를 확인할 수 없습니다. 운영자에게 문의해 주십시오.",
-    ADMIN_REQUIRED: "운영자 계정만 쓸 수 있는 기능입니다.",
-    INVALID_TAG_ISSUE_REQUEST: "발급할 부스 정보를 확인해 주십시오.",
-    NFC_PERMANENT_NOT_READY: "무기한 태그 발급을 위한 서버 업데이트가 필요합니다.",
-    SERVER_NOT_READY: "아직 이용할 수 없는 기능입니다. 운영자에게 문의해 주십시오.",
+    AUTH_REQUIRED: "로그인이 필요해요.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
+    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", IDENTITY_REQUIRED: "소속 동아리 확인을 먼저 마쳐 주세요.",
+    OPS_NOT_READY: "축제 운영 정보가 아직 준비되지 않았어요.", PROFILE_CONFLICT: "계정 연결을 확인해야 해요. 운영자에게 문의해 주세요.",
+    PROFILE_UNCONFIRMED: "등록 결과를 확인하지 못했어요. 다시 시도해 주세요.",
+    INVALID_STUDENT_NUMBER: "학번을 1~3으로 시작하는 5자리 숫자로 입력해 주세요.",
+    INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
+    PROFILE_NAME_UNCONFIRMED: "변경 결과를 확인하지 못했어요. 새로고침 후 이름을 확인해 주세요.",
+    NFC_DISABLED: "방문 인증이 일시 중지됐어요.", NFC_TAG_INVALID: "유효한 방문 태그가 아닙니다. 운영자에게 확인해 주세요.",
+    NFC_TAG_EXPIRED: "사용이 중지됐거나 교체·만료된 태그예요.",
+    SUN_DISABLED: "보안 카드 적립이 잠시 중지됐어요.", SUN_CARD_INVALID: "확인되지 않은 보안 카드예요. 카드를 휴대폰에 다시 대 주세요.",
+    SUN_CARD_UNKNOWN: "아직 등록되지 않은 보안 카드예요. 부스 운영자에게 알려 주세요.", SUN_CARD_STOPPED: "사용이 중지된 보안 카드예요.",
+    SUN_CARD_REPLAYED: "이미 사용한 카드 주소예요. 카드를 휴대폰에 다시 대 주세요.",
+    NOT_FOUND: "대상을 찾을 수 없어요. 목록을 새로고침해 주세요.",
+    CLAIM_RATE_LIMITED: "짧은 시간에 너무 많은 부스를 적립해 잠시 제한됐어요. 몇 분 뒤 다시 찍어 주세요.",
+    VISIT_REQUIRED: "방문 인증을 먼저 해야 별점을 남길 수 있어요.",
+    ALREADY_REVIEWED: "이 부스에는 이미 별점을 남겼어요.",
+    RATING_REQUIRED: "별점을 1~5점 중에서 선택해 주세요.",
+    REVIEW_TOO_LONG: "글 후기는 500자 이하로 작성해 주세요.",
+    OWN_CLUB_REVIEW: "본인 동아리에는 별점과 후기를 남길 수 없어요.",
+    OWN_CLUB_STAMP: "본인 동아리 부스는 스탬프를 적립할 수 없어요.",
+    STUDENT_NOT_FOUND: "이 학번으로 가입한 계정이 없어요. 학번을 다시 확인해 주세요.",
+    STUDENT_AMBIGUOUS: "같은 학번으로 가입한 계정이 여러 개예요. 학생 본인의 계정을 골라 주세요.",
+    REVIEW_IDENTITY_REQUIRED: "홈에서 본인 소속을 먼저 확인해 주세요.",
+    REVIEW_POLICY_REQUIRED: "리뷰 작성 가능 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    INVALID_INPUT: "입력한 내용을 확인해 주세요.",
+    VERSION_CONFLICT: "명단이 변경됐어요. 창을 닫고 다시 조회해 주세요.",
+    SELF_ADJUSTMENT: "본인의 확인 명단은 다른 운영자에게 요청해 주세요.",
+    ROSTER_REVIEW_REQUIRED: "명단 또는 부스 연결을 먼저 확인해야 해요. 이름과 소속을 임의로 등록할 수 없어요.",
+    ROSTER_ALREADY_LINKED: "이 명단은 다른 계정에 연결되어 있어요. 담당 관리자에게 확인해 주세요.",
+    BOOTH_NOT_FOUND: "부스 정보를 확인할 수 없어요. 운영자에게 문의해 주세요.",
+    ADMIN_REQUIRED: "운영자 계정만 쓸 수 있는 기능이에요.",
+    INVALID_TAG_ISSUE_REQUEST: "발급할 부스 정보를 확인해 주세요.",
+    NFC_PERMANENT_NOT_READY: "무기한 태그 발급을 위한 서버 업데이트가 필요해요.",
+    SERVER_NOT_READY: "아직 이용할 수 없는 기능이에요. 운영자에게 문의해 주세요.",
   };
 
   function normalizeError(error) {
@@ -69,7 +69,7 @@
     // been applied yet. Reporting that as a network problem sends people chasing the wrong fix.
     const missing = error?.code === "PGRST202" || /schema cache/i.test(String(error?.message || ""));
     const code = known || (error?.status === 401 ? "AUTH_REQUIRED" : missing ? "SERVER_NOT_READY" : "NETWORK_ERROR");
-    return { code, message: MESSAGES[code] || "요청을 완료하지 못했습니다. 연결을 확인하고 다시 시도해 주십시오.", retryable: code === "NETWORK_ERROR" };
+    return { code, message: MESSAGES[code] || "요청을 완료하지 못했어요. 연결을 확인하고 다시 시도해 주세요.", retryable: code === "NETWORK_ERROR" };
   }
 
   function validateProfile(value) {
@@ -265,7 +265,7 @@
     }
 
     async function signIn() {
-      if (location.protocol === "file:") throw new Error("파일 미리보기에서는 로그인할 수 없습니다. 설치형 앱 또는 웹 주소에서 열어 주십시오.");
+      if (location.protocol === "file:") throw new Error("파일 미리보기에서는 로그인할 수 없어요. 설치형 앱 또는 웹 주소에서 열어 주세요.");
       const native = location.origin === "https://appassets.androidplatform.net";
       const redirectTo = native ? "pangyofestival://auth/callback" : `${location.origin}/`;
       const { data, error } = await client.auth.signInWithOAuth({ provider: "google", options: {
