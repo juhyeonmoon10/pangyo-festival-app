@@ -457,8 +457,7 @@ const festivalOpsUI = (() => {
   const identityMessages={IDENTITY_MISMATCH:'동아리 명단의 이름과 달라요. 이름을 다시 확인해 주세요.',
     ROSTER_NOT_FOUND:'가입할 때 등록한 학번이 동아리 명단에 없어요. 운영 부스에 문의해 주세요.',
     ROSTER_ALREADY_LINKED:'이 학번은 다른 계정에서 이미 확인됐어요. 운영 부스에 문의해 주세요.',
-    OPERATOR_LOCKED:'운영자가 소속 확인을 취소했어요. 운영 부스에 문의해 주세요.',
-    TOO_MANY_ATTEMPTS:'확인 시도가 너무 많아요. 1시간 뒤 다시 시도하거나 운영 부스에 문의해 주세요.'};
+    OPERATOR_LOCKED:'운영자가 소속 확인을 취소했어요. 운영 부스에 문의해 주세요.'};
   const boothNames=keys=>keys.map(key=>catalog.find(b=>b.key===key)?.name || key);
   function identityView() {
     const page=body=>`<main class="screen web-page festival-identity">${festivalWeb.header('본인 소속 확인')}${body}${bottomNav('identity')}</main>`;

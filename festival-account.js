@@ -93,7 +93,7 @@
     return { version: 1, allowed: value.allowed, reason: value.reason, authorName: value.allowed ? name : null };
   }
 
-  const IDENTITY_RESULTS = [null, "CONFIRMED", "IDENTITY_MISMATCH", "ROSTER_NOT_FOUND", "ROSTER_ALREADY_LINKED", "OPERATOR_LOCKED", "TOO_MANY_ATTEMPTS"];
+  const IDENTITY_RESULTS = [null, "CONFIRMED", "IDENTITY_MISMATCH", "ROSTER_NOT_FOUND", "ROSTER_ALREADY_LINKED", "OPERATOR_LOCKED"];
   function validateIdentityState(value) {
     const strings = list => Array.isArray(list) && list.length <= 100 && list.every(item => typeof item === "string" && item && item.length <= 300);
     if (!value || value.version !== 1 || typeof value.eventId !== "string" || !IDENTITY_RESULTS.includes(value.result)

@@ -48,7 +48,7 @@ await sql('operations-server/self-identity-and-own-club-stamps.sql');
 await sql('operations-server/student-number-display.sql');
 await sql('operations-server/student-number-only.sql');
 // 1.53: the club check is part of signing in, and stamp claims are refused until it is done.
-for(const f of ['operator-self-actions','sun-nfc','identity-required','reviews-private']) await sql(`operations-server/${f}.sql`);
+for(const f of ['operator-self-actions','sun-nfc','identity-required','reviews-private','identity-no-attempt-limit']) await sql(`operations-server/${f}.sql`);
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
