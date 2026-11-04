@@ -122,32 +122,21 @@ test('registration never reports success when the server still requires a profil
   await assert.rejects(account.updateProfile(good.name, '99999'), /INVALID_STUDENT_NUMBER/);
 });
 
-test('name changes update only the app display name and confirm the saved profile', async () => {
-  const calls = [];
-  const expected = { ...good, name: '새 이름', completedBooths: ['글빛누리'] };
-  const { account, auth } = setup(async method => { calls.push(method); return { data: expected }; });
-  auth.updateUser = async attributes => { calls.push(attributes); return { error: null }; };
-  const profile = await account.updateName('  새 이름  ');
-  assert.deepEqual(calls, [{ data: { festival_name: '새 이름' } }, 'festival_nfc_profile']);
-  assert.equal(profile.studentNumber, good.studentNumber);
-  assert.deepEqual(profile.completedBooths, expected.completedBooths);
+test('1.54: the account API has no way to change the display name', () => {
+  const { account } = setup(() => { throw Error('unexpected RPC'); });
+  assert.equal(account.updateName, undefined);
+  assert.equal(typeof account.updateProfile, 'function');
 });
 
-test('invalid name changes never reach authentication or the profile RPC', async () => {
-  const { account, auth } = setup(() => { throw Error('unexpected RPC'); });
-  auth.updateUser = () => { throw Error('unexpected write'); };
-  for (const name of ['', '   ', '가'.repeat(61), null, 42]) {
-    await assert.rejects(account.updateName(name), /INVALID_NAME/);
-  }
-});
-
-test('a failed or unconfirmed name change is not reported as saved', async () => {
-  const { account, auth } = setup(async () => ({ data: good }));
-  auth.updateUser = async () => ({ error: new Error('AUTH_REQUIRED') });
-  await assert.rejects(account.updateName('New'), /AUTH_REQUIRED/);
-  auth.updateUser = async () => ({ error: null });
-  await assert.rejects(account.updateName('New'), /PROFILE_NAME_UNCONFIRMED/);
-  assert.match(normalizeError({ message: 'PROFILE_NAME_UNCONFIRMED' }).message, /변경 결과/);
+test("1.54: review summaries say whether other participants' reviews are visible", () => {
+  const { validateReviews } = require('../festival-account.js');
+  const base = { boothKey: '글빛누리', count: 1, average: '4.0', myRating: 4,
+    reviews: [{ rating: 4, content: null, author: '홍길동', mine: true, createdAt: '2026-11-04T00:00:00Z' }] };
+  assert.equal(validateReviews({ ...base, visible: false }).visible, false);
+  assert.equal(validateReviews({ ...base, visible: true }).visible, true);
+  // An older server leaves it out; it always showed every review.
+  assert.equal(validateReviews(base).visible, true);
+  assert.throws(() => validateReviews({ ...base, visible: 'no' }), /INVALID_REVIEW_RESPONSE/);
 });
 
 test('review responses are validated before they reach the screen', () => {

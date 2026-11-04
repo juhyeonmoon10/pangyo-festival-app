@@ -149,10 +149,8 @@ const base = process.env.FESTIVAL_TEST_URL || 'http://127.0.0.1:5186/';
       await capture('home-with-records');
       await page.locator('[aria-label="내 정보"]').click();
       await capture('profile');
-      await page.locator('#editProfileName').click();
-      await page.locator('#profileName').fill('한글 이름 변경');
-      await capture('profile-edit');
-      await page.locator('#cancelNameEdit').click();
+      // 1.54: the name is set at sign-up; MY has no name editor.
+      assert.equal(await page.locator('#editProfileName, #profileName').count(), 0);
       await page.evaluate(() => navigateTo('scan'));
       assert.equal(await page.locator('.nfc-test-panel').count(), 0);
       await capture('nfc');

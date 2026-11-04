@@ -118,7 +118,8 @@
     if (!value || typeof value.boothKey !== "string" || !Number.isInteger(value.count)
       || value.count < 0 || !Array.isArray(value.reviews) || value.reviews.length > 200
       || (value.average !== null && !(Number.isFinite(Number(value.average))))
-      || (value.myRating !== null && !rating(value.myRating))) throw new Error("INVALID_REVIEW_RESPONSE");
+      || (value.myRating !== null && !rating(value.myRating))
+      || (value.visible !== undefined && typeof value.visible !== "boolean")) throw new Error("INVALID_REVIEW_RESPONSE");
     value.reviews.forEach(review => {
       if (!review || !rating(review.rating) || typeof review.author !== "string" || review.author.length > 200
         || typeof review.mine !== "boolean" || typeof review.createdAt !== "string"
@@ -128,6 +129,8 @@
     });
     return {
       boothKey: value.boothKey, count: value.count,
+      // 1.54: false while other participants' reviews are private; the summary then holds only your own.
+      visible: value.visible !== false,
       average: value.average === null ? null : Number(value.average),
       myRating: value.myRating ?? null,
       // Exact 1-5 star counts over every review; older servers omit it.
@@ -296,16 +299,6 @@
       if (updated.needsProfile || updated.name !== name || updated.studentNumber !== studentNumber) {
         throw new Error("PROFILE_UNCONFIRMED");
       }
-      return updated;
-    }
-
-    async function updateName(value) {
-      const name = typeof value === "string" ? value.trim() : "";
-      if (!name || name.length > 60) throw new Error("INVALID_NAME");
-      const { error } = await client.auth.updateUser({ data: { festival_name: name } });
-      if (error) throw error;
-      const updated = await profile();
-      if (updated.name !== name || updated.needsProfile) throw new Error("PROFILE_NAME_UNCONFIRMED");
       return updated;
     }
 
@@ -522,7 +515,7 @@
       },
     };
 
-    return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
+    return { initialize, signIn, profile, claim, updateProfile, receiveCallback, savePending, pending,
       reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, games,
       reviewIdentity: async (action, payload) => {
         try {

@@ -165,18 +165,6 @@
 .web-scan-controls button:disabled { background: #dce4df; color: #5e6e64; cursor: default; }
 
 .design-web .profile-card strong { overflow-wrap: anywhere; }
-.profile-name-section { padding: 0 0 12px; border-bottom: 1px solid var(--line); }
-.profile-name-section > .text-link { gap: 6px; color: var(--primary); font-size: 14px; min-height: 48px; }
-.profile-name-form { display: grid; gap: 8px; padding-top: 14px; }
-.profile-name-form label { font-size: 14px; font-weight: 700; }
-.profile-name-form .input { width: 100%; min-width: 0; }
-.profile-name-form p { margin: 0; font-size: 12px; line-height: 1.6; }
-.profile-name-form #profileNameHint { color: var(--muted); }
-.profile-name-form .error-text { color: #a32642; }
-.profile-name-form .error-text:empty, .profile-name-feedback:empty { display: none; }
-.profile-name-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
-.profile-name-actions button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; }
-.profile-name-feedback { margin: 8px 0 0; color: var(--primary-dark); font-size: 13px; }
 
 /* Map controls stay outside the transformed plan; the sheet meets the tab bar. */
 .design-web .map-screen { --map-header-height: 122px; --map-sheet-peek: 84px; padding: 0 16px; background: #fff; }

@@ -160,7 +160,6 @@ body.design-web {
 .design-web .web-segments button { font-size: 13px; min-height: 44px; }
 .design-web .profile-card { padding-bottom: 12px; border-bottom: 0; }
 .design-web .profile-avatar { background: var(--festival-mint); color: var(--primary); border-radius: 8px; }
-.design-web .profile-name-section { padding-block: 0 12px; }
 .design-web .profile-list { margin-block: 0; }
 .design-web .profile-shortcuts { margin-block: 20px; }
 .design-web .profile-list strong { font-size: 13px; }
@@ -651,3 +650,9 @@ body.design-web {
 .design-web .ops-form .ops-checkbox, .design-web .ops-bulk-list .ops-checkbox { min-height: 44px; }
 .design-web .ops-checkbox input { width: 24px; height: 24px; flex: none; }
 .manager-hour-row .icon-btn { top: -14px; right: -8px; width: 44px; height: 44px; }
+/* 1.54: other participants' ratings and reviews stay private until an operator opens them. */
+.review-private-note, .booth-review-private p { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; padding: 12px 14px; border-radius: 8px; background: var(--surface-2); color: var(--muted); font-size: 13px; line-height: 1.6; }
+.review-private-note svg, .booth-review-private p svg { flex: none; width: 16px; height: 16px; margin-top: 3px; }
+.booth-review-summary.booth-review-private { display: block; padding: 18px 0; }
+.booth-review-private p { margin: 0; }
+.ops-field-note { margin: -4px 0 4px; color: var(--muted); font-size: 12px; line-height: 1.6; }

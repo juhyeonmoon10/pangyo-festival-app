@@ -1,6 +1,6 @@
 /* Real operations UI. All authorization and rewards remain in guarded server RPCs. */
 const festivalOpsUI = (() => {
-  let owner=null, mine=null, catalog=[], event=null, busy=false, loading=false, loaded=false, failure='';
+  let owner=null, mine=null, catalog=[], event=null, busy=false, loading=false, loaded=false, failure='', reviewsPublicSeen=null;
   let guardData=null, notices=[], selectedNotice='';
   let tab='dashboard', data=null, offset=0, search='', selectedBooth=null, selectedRule='';
   let stream=null, cameraTimer=null, qrTimer=null, qrPoll=null, walletPoll=null;
@@ -42,7 +42,7 @@ const festivalOpsUI = (() => {
   const currentEventReady=()=>Boolean(event?.id && Number.isInteger(event.version) && event.version>0);
 
   function reset() {
-    owner=state.user?.id || null; mine=null; guardData=null; notices=[]; selectedNotice=''; catalog=[]; event=null; data=null; loaded=false; failure=''; notice='', noticeAt=null; tab='dashboard'; selectedBooth=null; selectedRule='';
+    owner=state.user?.id || null; mine=null; guardData=null; notices=[]; selectedNotice=''; catalog=[]; event=null; reviewsPublicSeen=null; data=null; loaded=false; failure=''; notice='', noticeAt=null; tab='dashboard'; selectedBooth=null; selectedRule='';
     visitRecipient=null; visitSyncPending=false; visitSyncGeneration++; identity=null; identityNote=''; identityDraft=''; closeDialog();
   }
   const viewKey=()=>JSON.stringify([state.user?.id,state.route,tab,offset,search]);
@@ -107,12 +107,17 @@ const festivalOpsUI = (() => {
       notices=news.ok && Array.isArray(news.data.items) ? news.data.items.filter(n=>n && typeof n.title==='string' && typeof n.body==='string' && typeof n.important==='boolean' && !Number.isNaN(Date.parse(n.publishedAt))) : [];
       mine.rewardProgram=validProgram ? {...program,supported:true} : {ready:false,supported:false,legacyRules:rewards.code==='OPS_NOT_READY'};
       mergeCatalog();
+      // Reviews were opened or closed in 관리 마법사: summaries fetched under the old setting are dropped.
+      if(event && reviewsPublicSeen!==null && reviewsPublicSeen!==(event.reviews_public===true)) serverReviews.clear();
+      reviewsPublicSeen=event ? event.reviews_public===true : null;
       // A direct booth URL may precede the first server catalog response.
       if(['detail','boothReviews'].includes(state.route) && state.selectedBoothId) loadBoothReviews(state.selectedBoothId);
       serverMyReviews=new Set((mine.reviews || []).map(x=>x.booth_key));
       for(const r of mine.reviews || []) {
         const before=serverReviews.get(r.booth_key);
-        if(before) serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:r.author_name || '참여자',createdAt:r.created_at}]});
+        // A summary still loading is left alone: its response already holds this review, and replacing the
+        // pending entry would make that response look stale and leave the booth loading.
+        if(before?.status==='ready') serverReviews.set(r.booth_key,{...before,myRating:r.rating,reviews:[...before.reviews.filter(x=>!x.mine),{rating:r.rating,content:r.content,mine:true,author:r.author_name || '참여자',createdAt:r.created_at}]});
       }
       if(state.route==='admin' && isAdminUser() && requestedTab==='settings') {
         const g=await api().read('claim_guard');
@@ -162,6 +167,9 @@ const festivalOpsUI = (() => {
       `<input type="hidden" name="name" value="${h(event.name)}">`+
       select('state','운영 상태',Object.entries({preparing:'준비 중',open:'운영 중',paused:'일시 중지',closed:'종료'}),event.state)+
       field('reviewPoints','글 후기 최초 등록 포인트',event.review_points ?? 0,'required min="0" max="1000" step="1"','number')+
+      // 1.54: other participants' ratings and reviews stay private (operators only) until this is opened.
+      select('reviewsPublic','별점·리뷰 공개',[['false','비공개 (전체 관리자만 보기)'],['true','공개 (모든 참여자가 보기)']],String(event.reviews_public===true))+
+      '<p class="ops-field-note">비공개일 때 참여자는 자기 별점과 리뷰만 볼 수 있어요. 공개하면 다른 참여자가 남긴 별점과 리뷰도 볼 수 있어요.</p>'+
       `<input type="hidden" name="version" value="${event.version}">`,'운영 설정 저장')}</section>`;
   }
   function resetForm() {
@@ -329,6 +337,7 @@ const festivalOpsUI = (() => {
       tell(note,'축제 정보를 다시 불러온 뒤 저장해 주세요.'); return;
     }
     for(const key of ['id','booth']) if(body[key]==='') body[key]=null;
+    if('reviewsPublic' in body) body.reviewsPublic=body.reviewsPublic==='true';
     if(['visit_approve','points_adjust','voucher_issue','account_delete'].includes(action)) {
       delete body.recipientQuery;
       if(!visitRecipient || body.studentNumber!==visitRecipient.studentNumber) {

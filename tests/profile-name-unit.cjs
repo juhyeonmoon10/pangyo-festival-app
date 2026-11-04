@@ -13,7 +13,7 @@ function storage() {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 }
-async function setup({ server = false, updateName = async name => ({ ...profile, name }), updateProfile, reviewIdentitySelf } = {}) {
+async function setup({ server = false, updateProfile, reviewIdentitySelf } = {}) {
   const app = { dataset: {}, classList: { toggle() {} }, querySelector: () => null, innerHTML: '' };
   const inputs = new Map();
   const context = vm.createContext({
@@ -28,110 +28,37 @@ async function setup({ server = false, updateName = async name => ({ ...profile,
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({ getSnapshot: () => ({ status: 'idle', rows: [] }),
       forClub: () => null, subscribe() {}, refresh() {} }) },
     FestivalAccount: { normalizeError, createAccount: () => ({ initialize: async () => profile, pending: () => null,
-      myReviews: async () => ({ ok: false }), updateName, updateProfile, reviewIdentitySelf }) },
+      myReviews: async () => ({ ok: false }), updateProfile, reviewIdentitySelf }) },
     fetch: () => { throw Error('Unit tests must not contact any server'); },
   });
   context.window = context;
   for (const file of ['nfc-manager.js', 'operations-ui.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   await new Promise(setImmediate);
-  const api = vm.runInContext('({state, openNameEditor, cancelNameEditor, saveDisplayName, profileView, profileForm, completeProfile, loadDb, applyServerProfile, loginView, submitIdentityGate})', context);
+  const api = vm.runInContext('({state, profileView, profileForm, completeProfile, loadDb, applyServerProfile, loginView, submitIdentityGate})', context);
+  api.hasNameEditor = vm.runInContext('[typeof openNameEditor, typeof cancelNameEditor, typeof saveDisplayName].some(type => type !== "undefined")', context);
   if (!server) api.state.user = api.state.db.users[0];
   api.state.route = 'profile';
   return { ...api, session: context.sessionStorage, inputs };
 }
 
-test('cancel and unchanged names do not save', async () => {
-  let calls = 0;
-  const api = await setup({ server: true, updateName: () => { calls++; } });
-  api.openNameEditor();
-  assert.equal(api.state.nameEdit.draft, 'Before');
-  api.state.nameEdit.draft = 'Unsaved';
-  api.cancelNameEditor();
-  assert.equal(api.state.user.name, 'Before');
-  api.openNameEditor();
-  await api.saveDisplayName();
-  assert.equal(calls, 0);
-});
-
-test('empty and long input retain the draft and show validation without saving', async () => {
-  const api = await setup({ server: true, updateName: () => { throw Error('unexpected write'); } });
-  api.openNameEditor();
-  for (const draft of ['  ', '가'.repeat(61)]) {
-    api.state.nameEdit.draft = draft;
-    await api.saveDisplayName();
-    assert.equal(api.state.nameEdit.draft, draft);
-    assert.match(api.state.nameEdit.error, /1~60/);
-    assert.equal(api.state.user.name, 'Before');
-  }
-});
-
-test('demo changes survive reload while IDs, stamps and reviews stay intact', async () => {
-  const api = await setup();
-  const before = structuredClone(api.state.user);
-  api.state.db.stamps.push({ id: 'stamp-fixture', userId: before.id, boothId: 'g1-1' });
-  api.state.db.reviews.push({ id: 'review-fixture', userId: before.id, boothId: 'g1-1', rating: 5 });
-  api.openNameEditor();
-  api.state.nameEdit.draft = '  새 이름  ';
-  await api.saveDisplayName();
-  assert.deepEqual(structuredClone(api.state.user), { ...before, name: '새 이름' });
-  const reloaded = api.loadDb();
-  assert.equal(reloaded.users.find(user => user.id === before.id).name, '새 이름');
-  assert.equal(reloaded.stamps[0].id, 'stamp-fixture');
-  assert.equal(reloaded.reviews[0].id, 'review-fixture');
-  assert.equal(api.state.nameEdit.open, false);
-  assert.match(api.state.nameEdit.message, /변경했어요/);
-});
-
-test('storage and server failures leave the name and draft unchanged', async () => {
+// 1.54: the name is set once at sign-up; MY offers no way to change it, in either mode.
+test('the profile offers no way to change the name', async () => {
   for (const server of [false, true]) {
-    const api = await setup({ server, updateName: async () => { throw Error('private internal error'); } });
-    const before = api.state.user.name;
-    api.openNameEditor();
-    api.state.nameEdit.draft = 'New';
-    api.session.setItem = () => { throw Error('storage full'); };
-    await api.saveDisplayName();
-    assert.equal(api.state.user.name, before);
-    assert.equal(api.state.nameEdit.draft, 'New');
-    assert.equal(api.state.nameEdit.open, true);
-    assert.equal(api.state.nameEdit.busy, false);
-    assert.ok(api.state.nameEdit.error);
-    assert.doesNotMatch(api.state.nameEdit.error, /private|internal/);
+    const api = await setup({ server });
+    const html = api.profileView();
+    assert.match(html, /Before|체험|학생/);
+    assert.doesNotMatch(html, /이름 변경|editProfileName|profileNameForm|id="profileName"/);
+    assert.equal(api.hasNameEditor, false);
+    assert.equal(api.state.nameEdit, undefined);
   }
+  const { createAccount } = require('../festival-account.js');
+  assert.equal(typeof createAccount, 'function');
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'festival-account.js'), 'utf8'), /updateName/);
 });
 
-test('repeated submit shares the UI lock and changes only the name', async () => {
-  let calls = 0, finish;
-  const api = await setup({ server: true, updateName: name => { calls++; return new Promise(resolve => { finish = () => resolve({ ...profile, name }); }); } });
-  const before = structuredClone(api.state.user);
-  api.openNameEditor();
-  api.state.nameEdit.draft = 'After';
-  const first = api.saveDisplayName();
-  await api.saveDisplayName();
-  assert.equal(calls, 1);
-  assert.equal(api.state.nameEdit.busy, true);
-  finish();
-  await first;
-  assert.deepEqual(structuredClone(api.state.user), { ...before, name: 'After' });
-});
-
-test('a response from a signed-out user cannot overwrite a new session', async () => {
-  let finish;
-  const api = await setup({ server: true, updateName: name => new Promise(resolve => { finish = () => resolve({ ...profile, name }); }) });
-  api.openNameEditor();
-  api.state.nameEdit.draft = 'After';
-  const pending = api.saveDisplayName();
-  api.applyServerProfile(null);
-  api.applyServerProfile({ ...profile, authUserId: 'another-user', name: 'Other' });
-  finish();
-  await pending;
-  assert.equal(api.state.user.name, 'Other');
-  assert.equal(api.state.nameEdit.draft, '');
-});
-
-test('HTML-like names are escaped in profile and editor', async () => {
+test('HTML-like names are escaped in profile', async () => {
   const api = await setup();
   api.state.user.name = '<img src=x onerror=alert(1)>';
-  api.openNameEditor();
   const html = api.profileView();
   assert.ok(html.includes('&lt;img'));
   assert.ok(!html.includes('<img src=x'));

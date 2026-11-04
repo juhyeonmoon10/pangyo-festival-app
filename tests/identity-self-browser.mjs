@@ -48,7 +48,7 @@ await sql('operations-server/self-identity-and-own-club-stamps.sql');
 await sql('operations-server/student-number-display.sql');
 await sql('operations-server/student-number-only.sql');
 // 1.53: the club check is part of signing in, and stamp claims are refused until it is done.
-for(const f of ['operator-self-actions','sun-nfc','identity-required']) await sql(`operations-server/${f}.sql`);
+for(const f of ['operator-self-actions','sun-nfc','identity-required','reviews-private']) await sql(`operations-server/${f}.sql`);
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
@@ -133,8 +133,16 @@ try {
     await routeTo(s.page,'profile');
     assert.match(await s.page.locator('.profile-identity-row').innerText(),/확인됨 · 인벨릭스/);
     await s.page.evaluate(key=>goDetail(state.db.booths.find(b=>boothKeyFor(b)===key).id),away);
-    await s.page.locator('.review-identity').getByText('가상 학생 이름으로 공개돼요.').waitFor();
+    // 1.54: other participants' reviews are private until an operator opens them.
+    await s.page.waitForFunction(()=>serverReviewState(state.selectedBoothId)?.status==='ready');
+    await s.page.locator('.review-identity').getByText('가상 학생 이름으로 남아요.',{exact:false}).waitFor();
+    assert.equal(await s.page.locator('[data-review-average]').innerText(),'비공개');
+    assert.match(await s.page.locator('#boothReviewSection .review-list').innerText(),/아직 비공개예요/);
+    // The review left at the previous width is someone else's: it must not show.
+    assert.doesNotMatch(await s.page.locator('#boothReviewSection').innerText(),/가상 후기/);
     assert.equal(await s.page.locator('.review-identity-link').isHidden(),true);
+    await screenshot(s.page,width,'reviews-private');
+    await write(student,'review_save',{booth:away,rating:4,content:`가상 후기 ${width}`});
 
     // A second account with the same sign-up number is refused and reported to operators.
     const impostor=await account(number(width));
@@ -145,6 +153,30 @@ try {
     // Own-club stamps are refused for manual approvals too, with a clear message.
     const refused=await a.page.evaluate(async args=>(await festivalAccount.operations.write('visit_approve',args)).message,{booth:own,studentNumber:number(width),reason:'Synthetic own-club check'});
     assert.equal(refused,'본인 동아리 부스는 스탬프를 적립할 수 없어요.');
+    // Opening reviews in 관리 마법사 → 축제 운영 설정 shows them to every participant; closing hides them again.
+    const reviewsSwitch=async value=>{
+      await openOperatorTool(a.page,'settings');
+      const settings=a.page.locator('[data-ops-form=event_save]');
+      assert.equal(await settings.locator('[name=reviewsPublic]').inputValue(),String(!value));
+      await settings.locator('[name=reviewsPublic]').selectOption(String(value));
+      await settings.locator('button[type=submit]').click();
+      await a.page.waitForFunction(v=>festivalOpsUI.snapshot()?.event?.reviews_public===v,value);
+      await s.page.evaluate(()=>festivalOpsUI.refresh());
+      await s.page.waitForFunction(v=>festivalOpsUI.snapshot()?.event?.reviews_public===v,value);
+      await s.page.evaluate(key=>goDetail(state.db.booths.find(b=>boothKeyFor(b)===key).id),away);
+      await s.page.waitForFunction(()=>serverReviewState(state.selectedBoothId)?.status==='ready');
+    };
+    await openOperatorTool(a.page,'settings');
+    await screenshot(a.page,width,'operator-reviews-switch');
+    await reviewsSwitch(true);
+    assert.notEqual(await s.page.locator('[data-review-average]').innerText(),'비공개');
+    for(const earlier of widths.slice(0,widths.indexOf(width)+1)) await s.page.locator('#boothReviewSection .review-list').getByText(`가상 후기 ${earlier}`).waitFor();
+    await screenshot(s.page,width,'reviews-public');
+    await reviewsSwitch(false);
+    assert.equal(await s.page.locator('[data-review-average]').innerText(),'비공개');
+    assert.match(await s.page.locator('#boothReviewSection .review-list').innerText(),/가상 후기/);
+    for(const earlier of widths.slice(0,widths.indexOf(width))) assert.doesNotMatch(await s.page.locator('#boothReviewSection').innerText(),new RegExp(`가상 후기 ${earlier}`));
+
     await openOperatorTool(a.page,'identity_overview');
     const overview=a.page.locator('.ops-identity-overview'); await overview.waitFor();
     assert.match(await overview.innerText(),/본인 확인\s*1/);
@@ -180,7 +212,7 @@ try {
     assert.equal(await locked.locator('#identitySubmit').count(),0);
     await screenshot(s.page,width,'identity-gate-locked');
     assert.deepEqual([...s.errors,...a.errors],[]);
-    reports.push({width,passed:true,flows:['sign-in step','no skip','claim refused','name mismatch','self confirmation','prompt hidden','profile row','author name','duplicate attempt','own-club manual refusal','operator overview','operator revoke','locked prompt','locked step']});
+    reports.push({width,passed:true,flows:['sign-in step','no skip','claim refused','name mismatch','self confirmation','prompt hidden','profile row','author name','reviews private','reviews opened','reviews closed','duplicate attempt','own-club manual refusal','operator overview','operator revoke','locked prompt','locked step']});
     await s.context.close(); await a.context.close();
   }
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(reports,null,2));

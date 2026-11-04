@@ -78,7 +78,6 @@ const state = {
   authIntent: "student",
   loginBusy: false,
   loginError: "",
-  nameEdit: { open: false, draft: "", busy: false, error: "", message: "" },
   adminMessage: "",
   scanResult: null,
   nfcTestMessage: "",
@@ -387,6 +386,19 @@ function reviewEligibilityMessage(policy) {
 function serverReviewState(boothId) {
   const key = boothKeyFor(state.db.booths.find(booth => booth.id === boothId));
   return key ? serverReviews.get(key) || null : null;
+}
+
+// 1.54: other participants' ratings and reviews are private until an operator opens them in
+// 관리 마법사. The server sends only your own review while private; operators always see everything.
+function reviewsPublic(boothId) {
+  if (!isServerMode() || isAdminUser()) return true;
+  const visible = boothId ? serverReviewState(boothId)?.visible : undefined;
+  return visible ?? (typeof festivalOpsUI !== "undefined" && festivalOpsUI.snapshot()?.event?.reviews_public === true);
+}
+
+function reviewAuthorText(policy) {
+  return reviewsPublic(state.selectedBoothId) ? `${policy.authorName} 이름으로 공개돼요.`
+    : `${policy.authorName} 이름으로 남아요. 리뷰가 공개되면 다른 참여자도 볼 수 있어요.`;
 }
 
 function isAdminOnlyNfcSource(source) {
@@ -1259,6 +1271,7 @@ function ratingInfo(boothId) {
   return {
     reviews,
     count,
+    hidden: !reviewsPublic(boothId),
     status: isServerMode() ? serverReviewState(boothId)?.status || "idle" : "ready",
     message: isServerMode() ? serverReviewState(boothId)?.message || "" : "",
     average: count && average ? Number(average).toFixed(1) : null,
@@ -1348,7 +1361,7 @@ function updateReviewSection(boothId) {
     compose.querySelector("#submitReview").textContent = !policy.allowed ? "리뷰 작성 제한" : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료";
     compose.querySelector(".review-guidance").textContent = !policy.allowed ? reviewEligibilityMessage(policy) : enabled ? "별점은 필수, 글 후기는 선택이에요." : "방문 인증 후 작성할 수 있어요.";
     const identity = compose.querySelector(".review-identity");
-    identity.textContent = policy.allowed ? `${policy.authorName} 이름으로 공개돼요.` : "";
+    identity.textContent = policy.allowed ? reviewAuthorText(policy) : "";
     identity.hidden = !policy.allowed;
     compose.querySelector(".review-identity-link").hidden = !(isServerMode() && policy.reason === "REVIEW_IDENTITY_REQUIRED");
     compose.querySelector("#saveReviewDraft").hidden = !enabled;
@@ -1369,12 +1382,14 @@ function updateReviewSection(boothId) {
 }
 
 function reviewAverageText(info) {
+  if (info.hidden && info.status !== "error") return "비공개";
   if (info.status === "loading") return "불러오는 중";
   if (info.status === "error") return "확인 실패";
   return info.average || "평가 전";
 }
 
 function reviewCountText(info) {
+  if (info.hidden && info.status !== "error") return "비공개";
   if (info.status === "loading") return "…";
   if (info.status === "error") return "확인 실패";
   return `${info.count}개`;
@@ -1383,6 +1398,7 @@ function reviewCountText(info) {
 function reviewListMarkup(info) {
   if (info.status === "loading") return `<div class="review-empty"><strong>후기를 불러오는 중이에요</strong></div>`;
   if (info.status === "error") return `<div class="review-empty"><strong>후기를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p></div>`;
+  if (info.hidden) return `<p class="review-private-note">${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요.</p>${info.reviews.filter(review => review.mine).map(reviewView).join("")}`;
   if (!info.reviews.length) return `<div class="review-empty"><strong>아직 등록된 후기가 없어요</strong></div>`;
   return info.reviews.map(reviewView).join("");
 }
@@ -1402,6 +1418,7 @@ function catalogName(booth) {
 
 function catalogRatingText(booth) {
   if (!booth.officialClubId) return "";
+  if (!reviewsPublic()) return "별점 비공개";
   const remote = catalogBooth(booth);
   if (!remote) return "별점 정보 없음";
   const cached = publicCatalog.getSnapshot().status !== "ready" ? " · 이전 정보" : "";
@@ -1726,20 +1743,6 @@ function profileView() {
         <div class="profile-avatar">${escapeHtml((state.user.name || "학").slice(0, 1))}</div>
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
         ${state.user.role === "admin" ? "<em>관리자</em>" : ""}
-      </section>
-      <section class="profile-name-section" aria-label="이름 변경">
-        ${state.nameEdit.open ? `
-          <form id="profileNameForm" class="profile-name-form" novalidate aria-busy="${state.nameEdit.busy}">
-            <label for="profileName">앱에서 사용할 이름</label>
-            <input id="profileName" class="input" autocomplete="name" maxlength="60" value="${escapeHtml(state.nameEdit.draft)}" aria-describedby="profileNameHint profileNameError" aria-invalid="${Boolean(state.nameEdit.error)}" ${state.nameEdit.busy ? "disabled" : ""} />
-            <p id="profileNameHint">Google 계정 이름과 학번은 바뀌지 않아요.</p>
-            <p id="profileNameError" class="error-text" role="alert">${escapeHtml(state.nameEdit.error)}</p>
-            <div class="profile-name-actions">
-              <button id="cancelNameEdit" type="button" class="ghost-btn" ${state.nameEdit.busy ? "disabled" : ""}>${icon("close")} 취소</button>
-              <button type="submit" class="primary-btn" ${state.nameEdit.busy ? "disabled" : ""}>${icon("save")} ${state.nameEdit.busy ? "저장 중..." : "저장"}</button>
-            </div>
-          </form>` : `<button id="editProfileName" type="button" class="text-link">${icon("user")} 이름 변경</button>`}
-        <p class="profile-name-feedback" role="status">${escapeHtml(state.nameEdit.message)}</p>
       </section>
       <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>바우처</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div><div><dt>방문 기록</dt><dd>${stampCount}<small>개</small></dd></div></dl>
       <section class="profile-list">
@@ -2278,7 +2281,7 @@ function reviewForm({ enabled, message }) {
     <div class="review-compose ${enabled ? "" : "locked"}">
       <p class="review-guidance">${message}</p>
       <button type="button" class="text-link review-identity-link" data-route="identity" ${isServerMode() && policy.reason === "REVIEW_IDENTITY_REQUIRED" ? "" : "hidden"}>${icon("user")} 본인 소속 확인하기</button>
-      <p class="review-identity" ${policy.allowed ? "" : "hidden"}>${policy.allowed ? `${escapeHtml(policy.authorName)} 이름으로 공개돼요.` : ""}</p>
+      <p class="review-identity" ${policy.allowed ? "" : "hidden"}>${policy.allowed ? escapeHtml(reviewAuthorText(policy)) : ""}</p>
       <div class="star-picker" aria-label="별점 선택">
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star ${value >= n ? "on" : ""}" data-rating="${n}" aria-label="${n}점" aria-pressed="${value === n}" ${enabled && !own ? "" : "disabled"}>${icon("star")}</button>`).join("")}
       </div>
@@ -2363,6 +2366,11 @@ function boothReviewsBody(boothId) {
   const info = ratingInfo(boothId);
   if (info.status === "error") return `<div class="review-empty"><strong>리뷰를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p><button type="button" class="ghost-btn" data-reload-booth-reviews>${icon("refresh")} 다시 불러오기</button></div>`;
   if (info.status !== "ready" && !info.reviews.length) return `<div class="review-empty"><strong>리뷰를 불러오는 중이에요</strong></div>`;
+  if (info.hidden) {
+    const own = info.reviews.filter(review => review.mine);
+    return `<section class="booth-review-summary booth-review-private" aria-label="리뷰 공개 상태"><p>${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요.</p></section>
+    <section class="booth-review-list" aria-label="내 리뷰">${own.length ? own.map(boothReviewItem).join("") : '<div class="review-empty"><strong>아직 남긴 리뷰가 없어요</strong><p>방문한 부스에 별점을 남기면 여기에서 내 리뷰를 볼 수 있어요.</p></div>'}</section>`;
+  }
   const reviews = info.reviews;
   const total = info.count;
   // Exact counts from the server; a list-only fallback is used only when it holds every review.
@@ -2934,22 +2942,6 @@ function bindEvents() {
     render();
     checkIdentityGate(gate);
   });
-  document.querySelector("#editProfileName")?.addEventListener("click", openNameEditor);
-  document.querySelector("#cancelNameEdit")?.addEventListener("click", cancelNameEditor);
-  document.querySelector("#profileName")?.addEventListener("input", event => {
-    state.nameEdit.draft = event.target.value;
-    state.nameEdit.error = "";
-    event.target.setAttribute("aria-invalid", "false");
-    const error = document.querySelector("#profileNameError");
-    if (error) error.textContent = "";
-  });
-  document.querySelector("#profileName")?.addEventListener("keydown", event => {
-    if (event.key === "Enter" && (event.isComposing || event.keyCode === 229)) event.preventDefault();
-  });
-  document.querySelector("#profileNameForm")?.addEventListener("submit", event => {
-    event.preventDefault();
-    runActionOnce("profile-name", saveDisplayName);
-  });
   document.querySelector("#backToGoogle")?.addEventListener("click", async () => {
     await resetLogin();
     render();
@@ -3439,7 +3431,6 @@ async function resetLogin() {
   }
   state.user = null;
   if (window.FestivalRouter) pendingNavigation = null;
-  state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
   nfcManagement.clear();
   state.reviewPickerOpen = false;
   state.reviewDraft = "";
@@ -3525,67 +3516,6 @@ async function startGoogleLogin(intent = "student") {
     state.loginError = error.message || "로그인 처리 중 문제가 생겼어요.";
     state.route = "login";
     render();
-  }
-}
-
-function openNameEditor() {
-  if (!state.user || state.nameEdit.busy) return;
-  state.nameEdit = { open: true, draft: state.user.name || "", busy: false, error: "", message: "" };
-  render();
-  document.querySelector("#profileName")?.focus();
-}
-
-function cancelNameEditor() {
-  if (state.nameEdit.busy) return;
-  state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
-  render();
-  document.querySelector("#editProfileName")?.focus();
-}
-
-async function saveDisplayName() {
-  const edit = state.nameEdit;
-  if (!state.user || !edit.open || edit.busy) return;
-  const name = edit.draft.trim();
-  edit.error = "";
-  edit.message = "";
-  if (!name || name.length > 60) {
-    edit.error = "이름을 1~60자로 입력해 주세요.";
-    render();
-    document.querySelector("#profileName")?.focus();
-    return;
-  }
-  if (name === state.user.name) { cancelNameEditor(); return; }
-  const actorId = state.user.id;
-  edit.busy = true;
-  render();
-  try {
-    if (isServerMode()) {
-      const updated = await festivalAccount.updateName(name);
-      if (state.nameEdit !== edit || state.user?.id !== actorId) return;
-      if (updated.authUserId !== actorId) throw new Error("PROFILE_CONFLICT");
-      state.user = { ...state.user, name: updated.name };
-    } else {
-      const users = state.db.users.map(user => user.id === actorId ? { ...user, name } : user);
-      const nextDb = { ...state.db, users };
-      const progress = Object.fromEntries(SESSION_FIELDS.map(field => [field, nextDb[field] || []]));
-      if (!writeSessionStorage(SESSION_KEY, JSON.stringify(progress))) throw new Error("NAME_STORAGE_FAILED");
-      state.db = nextDb;
-      state.user = { ...state.user, name };
-    }
-    edit.open = false;
-    edit.draft = "";
-    edit.message = "이름을 변경했어요.";
-  } catch (error) {
-    if (state.nameEdit !== edit || state.user?.id !== actorId) return;
-    edit.error = isServerMode()
-      ? window.FestivalAccount.normalizeError(error).message
-      : "이름을 저장하지 못했어요. 기기의 저장 공간을 확인해 주세요.";
-  } finally {
-    edit.busy = false;
-    if (state.nameEdit === edit && state.user?.id === actorId && ["profile", "home"].includes(state.route)) {
-      render();
-      if (state.route === "profile") document.querySelector(edit.open ? "#profileName" : "#editProfileName")?.focus();
-    }
   }
 }
 
@@ -4121,9 +4051,6 @@ function watchStatusLines() {
 
 function applyServerProfile(profile, { confirmName = "" } = {}) {
   if (!profile || profile.needsProfile || !profile.isAdmin || state.user?.id !== profile.authUserId) stopServerTagReading();
-  if (!profile || state.user?.id !== profile.authUserId) {
-    state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
-  }
   if (profile) signInStartedAt = 0; // the login came back; no need to warn about a lost callback
   serverCompletedBooths = profile?.completedBooths || [];
   if (!profile || profile.authUserId !== identityPassedFor) identityPassedFor = null;
@@ -4277,7 +4204,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.53";
+const APP_RELEASE = "1.54";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;
