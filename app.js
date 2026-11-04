@@ -74,6 +74,7 @@ const state = {
   stampTrailExpanded: false,
   authStep: "google",
   pendingGoogle: null,
+  identityGate: null,
   authIntent: "student",
   loginBusy: false,
   loginError: "",
@@ -1491,7 +1492,8 @@ function render() {
 }
 
 function loginView() {
-  const profileStep = state.authStep === "profile" && state.pendingGoogle;
+  const identityStep = state.authStep === "identity" && state.identityGate;
+  const profileStep = (state.authStep === "profile" && state.pendingGoogle) || identityStep;
   return `
     <main class="screen login-screen${profileStep ? " login-profile" : ""}">
       <header class="login-brand"><span class="brand-symbol" aria-hidden="true">P.</span><span>PANGYO FESTIVAL</span></header>
@@ -1501,7 +1503,7 @@ function loginView() {
           ${profileStep ? "" : `<img class="login-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />`}
         </div>
         <section class="login-panel" aria-label="${profileStep ? "참가자 정보 확인" : "축제 로그인"}">
-          ${profileStep ? profileForm() : googleForm()}
+          ${identityStep ? identityGateForm() : profileStep ? profileForm() : googleForm()}
         </section>
       </div>
     </main>
@@ -1536,6 +1538,7 @@ function profileForm() {
       ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
       <div class="input-stack">
         ${missingName ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}
+        ${isServerMode() ? `<p class="subtitle" data-identity-note>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인해요. 이름은 명단과 같게 적어 주세요.</p>` : ""}
         ${detected.length ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 ${detected.join(", ")}을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>` : ""}
         <label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? (missingName ? "" : google.displayName) ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" maxlength="5" value="${escapeHtml(google.studentNumber || "")}" ${state.loginBusy ? "disabled" : ""} /></label>
@@ -1543,6 +1546,30 @@ function profileForm() {
         <button id="profileSubmit" type="button" class="primary-btn" aria-busy="${Boolean(state.loginBusy)}" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "저장 중..." : "등록하고 시작"}</button>
         <button id="backToGoogle" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>구글 계정 다시 선택</button>
       </div>
+    </div>
+  `;
+}
+
+// 1.53: the club membership step after sign-up. There is no way past it except confirming.
+function identityGateForm() {
+  const gate = state.identityGate, google = state.pendingGoogle, locked = gate.identity?.locked;
+  const off = gate.busy ? "disabled" : "";
+  return `
+    <div class="auth-card identity-gate" data-identity-gate>
+      <h2>소속 동아리 확인</h2>
+      <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>Google 계정</strong><span>${escapeHtml(google?.email || "")}</span></div></div>
+      <p class="subtitle">1·2학년은 창체 동아리 명단으로 소속 동아리를 확인해야 축제에 참여할 수 있어요. 이 단계는 건너뛸 수 없어요.</p>
+      ${gate.note ? `<p class="error-text" role="alert">${escapeHtml(gate.note)}</p>` : ""}
+      <div class="input-stack">
+        ${gate.status === "loading" ? `<p class="subtitle" role="status">소속 동아리를 확인하는 중이에요...</p>`
+          : gate.status === "error" ? `<button id="identityRetry" type="button" class="primary-btn">${icon("refresh")} 다시 시도</button>`
+          : locked ? ""
+          : `<label class="field">이름 (동아리 명단과 같게)<input id="identityName" class="input" maxlength="60" autocomplete="name" spellcheck="false" value="${escapeHtml(gate.nameDraft || "")}" ${off} /></label>
+        <label class="field">학번<input id="identityStudentNumber" class="input" inputmode="numeric" maxlength="5" value="${escapeHtml(gate.studentNumber || "")}" ${off} /></label>
+        <button id="identitySubmit" type="button" class="primary-btn" aria-busy="${Boolean(gate.busy)}" ${off}>${gate.busy ? "확인 중..." : "소속 확인하고 시작"}</button>`}
+        <button id="backToGoogle" type="button" class="ghost-btn" ${off}>구글 계정 다시 선택</button>
+      </div>
+      <p class="login-note">학번이 틀렸거나 명단의 이름과 다르면 고쳐서 다시 확인해 주세요. 그래도 안 되면 운영 부스에 문의해 주세요.</p>
     </div>
   `;
 }
@@ -2896,6 +2923,17 @@ function bindEvents() {
   });
   document.querySelector("#googleLogin")?.addEventListener("click", () => runActionOnce("google-login", () => startGoogleLogin("student")));
   document.querySelector("#profileSubmit")?.addEventListener("click", () => runActionOnce("profile-save", completeProfile));
+  document.querySelector("#identitySubmit")?.addEventListener("click", () => runActionOnce("identity-gate", submitIdentityGate));
+  document.querySelectorAll("#identityName, #identityStudentNumber").forEach(input => input.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) runActionOnce("identity-gate", submitIdentityGate);
+  }));
+  document.querySelector("#identityRetry")?.addEventListener("click", () => {
+    const gate = state.identityGate;
+    if (!gate) return;
+    gate.status = "loading"; gate.note = "";
+    render();
+    checkIdentityGate(gate);
+  });
   document.querySelector("#editProfileName")?.addEventListener("click", openNameEditor);
   document.querySelector("#cancelNameEdit")?.addEventListener("click", cancelNameEditor);
   document.querySelector("#profileName")?.addEventListener("input", event => {
@@ -3409,6 +3447,8 @@ async function resetLogin() {
   dismissNfcFeedback();
   state.authStep = "google";
   state.pendingGoogle = null;
+  state.identityGate = null;
+  identityPassedFor = null;
   state.authIntent = "student";
   state.loginBusy = false;
   state.loginError = "";
@@ -3427,7 +3467,7 @@ function reportUnfinishedSignIn() {
   if (!isServerMode() || state.user) return;
   // The native callback arrives moments after the app returns to the front; wait for it first.
   setTimeout(() => {
-    if (state.user || state.authStep === "profile" || state.loginBusy) return;
+    if (state.user || state.authStep === "profile" || state.authStep === "identity" || state.loginBusy) return;
     state.loginError = "로그인 결과를 확인하지 못했어요. 다시 시도하거나 운영자에게 이 웹사이트의 로그인 복귀 주소 등록을 확인해 주세요.";
     state.route = "login";
     render();
@@ -3563,7 +3603,8 @@ async function completeProfile() {
     render();
     try {
       const updated = await festivalAccount.updateProfile(name, studentNumber);
-      if (state.pendingGoogle === google && updated.authUserId === google.uid) applyServerProfile(updated);
+      // The name typed here also confirms the club membership in the same step (1.53).
+      if (state.pendingGoogle === google && updated.authUserId === google.uid) applyServerProfile(updated, { confirmName: name });
     }
     catch (error) {
       if (state.pendingGoogle === google) state.loginError = window.FestivalAccount.normalizeError(error).message;
@@ -4074,13 +4115,19 @@ function watchStatusLines() {
   }).observe(document.body, { childList: true, characterData: true, subtree: true });
 }
 
-function applyServerProfile(profile) {
+// 1.53: a 1st/2nd-grade participant confirms their club membership before entering the app. The
+// server says who must ("required"); this gate cannot be skipped, and the server also refuses their
+// stamp claims until it is done. Operators and accounts that need no confirmation pass straight in.
+
+function applyServerProfile(profile, { confirmName = "" } = {}) {
   if (!profile || profile.needsProfile || !profile.isAdmin || state.user?.id !== profile.authUserId) stopServerTagReading();
   if (!profile || state.user?.id !== profile.authUserId) {
     state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
   }
   if (profile) signInStartedAt = 0; // the login came back; no need to warn about a lost callback
   serverCompletedBooths = profile?.completedBooths || [];
+  if (!profile || profile.authUserId !== identityPassedFor) identityPassedFor = null;
+  if (!profile || profile.needsProfile) state.identityGate = null;
   if (!profile) {
     state.user = null;
     state.authStep = "google";
@@ -4094,7 +4141,20 @@ function applyServerProfile(profile) {
       detectedStudentNumber: profile.studentNumberDetected === true ? profile.studentNumber : "", detectedName: profile.nameDetected === true ? profile.name : "" };
     state.authStep = "profile";
     state.route = "login";
+  } else if (!profile.isAdmin && state.user?.id !== profile.authUserId && identityPassedFor !== profile.authUserId) {
+    state.user = null;
+    state.pendingGoogle = { uid: profile.authUserId, email: profile.email, displayName: profile.name, studentNumber: profile.studentNumber };
+    state.authStep = "identity";
+    state.route = "login";
+    const gate = { status: "loading", profile, identity: null, note: "", busy: false, fromSignup: Boolean(confirmName),
+      nameDraft: confirmName || profile.name, studentNumber: profile.studentNumber };
+    state.identityGate = gate;
+    render();
+    checkIdentityGate(gate, confirmName);
+    return;
   } else {
+    identityPassedFor = profile.authUserId;
+    state.identityGate = null;
     // The operator flag comes from the caller's own users row. Every privileged call is
     // re-checked on the server, so this only decides which screens are offered.
     state.user = { id: profile.authUserId, name: profile.name, studentNumber: profile.studentNumber,
@@ -4111,6 +4171,60 @@ function applyServerProfile(profile) {
     consumePendingNfc();
     loadMyReviews();
     if (window.FestivalRouter) loadNavigationContent();
+  }
+}
+
+// The account that passed the club membership step in this session.
+let identityPassedFor = null;
+
+// Reads whether this account must confirm and, with a typed name, confirms it in the same step.
+async function checkIdentityGate(gate, confirmName = "") {
+  const current = () => state.identityGate === gate && state.authStep === "identity";
+  if (typeof festivalAccount?.reviewIdentitySelf !== "function") { identityPassedFor = gate.profile.authUserId; applyServerProfile(gate.profile); return; }
+  let response = await festivalAccount.reviewIdentitySelf("status");
+  if (!current()) return;
+  if (response.ok && response.data.required && !response.data.locked && confirmName) {
+    response = await festivalAccount.reviewIdentitySelf("confirm", { eventId: response.data.eventId, realName: confirmName });
+    if (!current()) return;
+  }
+  // No festival is running, or the server has no membership check yet: there is nothing to confirm.
+  if ((!response.ok && ["OPS_NOT_READY", "SERVER_NOT_READY"].includes(response.code)) || (response.ok && !response.data.required)) {
+    identityPassedFor = gate.profile.authUserId;
+    applyServerProfile(gate.profile);
+    return;
+  }
+  gate.busy = false;
+  if (!response.ok) { gate.status = "error"; gate.note = response.message; render(); return; }
+  gate.status = "ready";
+  gate.identity = response.data;
+  gate.note = response.data.locked ? festivalOpsUI.identityMessage("OPERATOR_LOCKED")
+    : response.data.result && response.data.result !== "CONFIRMED" ? festivalOpsUI.identityMessage(response.data.result) : "";
+  render();
+}
+
+async function submitIdentityGate() {
+  const gate = state.identityGate;
+  if (!gate || gate.busy || gate.status !== "ready") return;
+  const name = document.querySelector("#identityName")?.value.trim() || "";
+  const studentNumber = document.querySelector("#identityStudentNumber")?.value.trim() || "";
+  gate.nameDraft = name;
+  gate.studentNumber = studentNumber;
+  if (!name) { gate.note = "이름을 동아리 명단과 같게 입력해 주세요."; render(); return; }
+  gate.busy = true;
+  gate.note = "";
+  render();
+  try {
+    // A corrected 학번 (or, right after sign-up, a corrected name) is saved to the profile first.
+    if (studentNumber !== gate.profile.studentNumber || (gate.fromSignup && name !== gate.profile.name)) {
+      gate.profile = await festivalAccount.updateProfile(gate.fromSignup ? name : gate.profile.name, studentNumber);
+      if (state.identityGate !== gate) return;
+    }
+    await checkIdentityGate(gate, name);
+  } catch (error) {
+    if (state.identityGate !== gate) return;
+    gate.busy = false;
+    gate.note = window.FestivalAccount.normalizeError(error).message;
+    render();
   }
 }
 
@@ -4163,7 +4277,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.52";
+const APP_RELEASE = "1.53";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

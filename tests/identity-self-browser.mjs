@@ -1,4 +1,4 @@
-// Student self-confirmed club identity, own-club stamp refusal and the operator 소속 관리 screen in a real browser. Every Supabase request is
+// Student club identity confirmed right after sign-in (1.53, cannot be skipped), own-club stamp refusal and the operator 소속 관리 screen in a real browser. Every Supabase request is
 // answered by local PGlite with synthetic accounts and a synthetic roster.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,6 +47,8 @@ await sql('operations-server/operator-identity-and-scoped-reset.sql');
 await sql('operations-server/self-identity-and-own-club-stamps.sql');
 await sql('operations-server/student-number-display.sql');
 await sql('operations-server/student-number-only.sql');
+// 1.53: the club check is part of signing in, and stamp claims are refused until it is done.
+for(const f of ['operator-self-actions','sun-nfc','identity-required']) await sql(`operations-server/${f}.sql`);
 const [own,away]=['인벨릭스','매커니즘'];
 for(const booth of [own,away]) await write(admin,'booth_save',{booth,name:booth,floor:1,status:'open',version:1});
 const catalog=(await db.query('select key from festival_ops.booths order by key collate "C"')).rows.map(r=>r.key);
@@ -56,7 +58,7 @@ await db.query('select festival_ops.import_review_roster($1,$2,$3)',[eventId,{fo
 const output=path.join(root,'artifacts/identity-self'); fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
 const reports=[];
-async function pageFor(a,width) {
+async function pageFor(a,width,gate=false) {
   const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true});
   await context.addInitScript(a=>localStorage.setItem('pangyo-google-session-v1',JSON.stringify({access_token:a.jwt,refresh_token:'fixture',token_type:'bearer',expires_at:4102444800,expires_in:3600,user:{id:a.id}})),a);
   const page=await context.newPage(), errors=[];
@@ -85,7 +87,8 @@ async function pageFor(a,width) {
     } catch(e) { return route.fulfill({status:400,json:{code:e.code || 'TEST_ERROR',message:e.message}}); }
   });
   await page.goto(pathToFileURL(path.join(root,'index.html')).href);
-  await page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready && festivalOpsUI.identity());
+  if(gate) await page.locator('[data-identity-gate] #identitySubmit').waitFor();
+  else await page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready && festivalOpsUI.identity());
   return {page,context,errors};
 }
 const routeTo=(page,route)=>page.evaluate(r=>navigateTo(r),route);
@@ -97,27 +100,28 @@ try {
   for(const width of widths) {
     const student=await account(number(width));
     await rpc(admin,'select public.festival_ops_write_student($1,$2,$3) value',['visit_approve',{booth:away,studentNumber:number(width),reason:'Synthetic visit check'},randomUUID()]);
-    const s=await pageFor(student,width);
-    await routeTo(s.page,'home');
-    const prompt=s.page.locator('.festival-identity-prompt'); await prompt.waitFor();
-    assert.match(await prompt.innerText(),/본인 소속 확인을 먼저 해 주세요/);
-    await screenshot(s.page,width,'home-prompt');
+    // The step comes straight after sign-in: no way past it but confirming (or picking another Google account).
+    const s=await pageFor(student,width,true);
+    const gate=s.page.locator('[data-identity-gate]');
+    assert.equal(await gate.locator('#identityStudentNumber').inputValue(),number(width));
+    assert.deepEqual(await gate.locator('button').evaluateAll(list=>list.map(b=>b.id)),['identitySubmit','backToGoogle']);
+    await s.page.evaluate(()=>navigateTo('home'));
+    await gate.locator('#identitySubmit').waitFor();
+    assert.equal(await s.page.locator('.web-welcome').count(),0);
+    // The server refuses stamps until the check is done, whatever the screen shows.
+    const tag=(await db.query('select festival_nfc_private.issue_tag($1::public.booth_enum,null) t',[away])).rows[0].t;
+    await assert.rejects(write(student,'claim',{token:tag}),/IDENTITY_REQUIRED/);
 
-    // An unconfirmed account sees why it cannot rate, with a way to confirm.
-    await s.page.evaluate(key=>goDetail(state.db.booths.find(b=>boothKeyFor(b)===key).id),away);
-    await s.page.locator('.review-identity-link').waitFor({state:'visible'});
-    assert.equal(await s.page.locator('.review-guidance').isVisible(),true);
-    await s.page.locator('.review-identity-link').click();
-
-    // The student confirms with the roster name; a wrong name is explained.
-    const confirmForm=s.page.locator('[data-identity-confirm]'); await confirmForm.waitFor();
-    assert.equal(await confirmForm.locator('input[readonly]').inputValue(),number(width));
-    await confirmForm.locator('[name=realName]').fill('다른 이름');
-    await confirmForm.locator('button[type=submit]').click();
-    await s.page.getByText('동아리 명단의 이름과 달라요.',{exact:false}).waitFor();
-    await screenshot(s.page,width,'identity-form');
-    await s.page.locator('[data-identity-confirm] [name=realName]').fill('가상 학생');
-    await s.page.locator('[data-identity-confirm] button[type=submit]').click();
+    // A wrong name is explained and the student stays on the step; the roster name lets them in.
+    await gate.locator('#identityName').fill('다른 이름');
+    await gate.locator('#identitySubmit').click();
+    await gate.getByText('동아리 명단의 이름과 달라요.',{exact:false}).waitFor();
+    await screenshot(s.page,width,'identity-gate');
+    await gate.locator('#identityName').fill('가상 학생');
+    await gate.locator('#identitySubmit').click();
+    await s.page.waitForFunction(()=>festivalOpsUI.snapshot()?.ready && festivalOpsUI.identity()?.verified);
+    assert.equal(await gate.count(),0);
+    await routeTo(s.page,'identity');
     const card=s.page.locator('.festival-identity-card'); await card.getByText('소속 확인 완료').waitFor();
     assert.match(await card.innerText(),/가상 학생/); assert.match(await card.innerText(),/인벨릭스/);
     assert.match(await s.page.locator('.festival-identity').innerText(),/스탬프·별점 제외 부스/);
@@ -169,8 +173,14 @@ try {
     await s.page.evaluate(()=>festivalOpsUI.refresh());
     await routeTo(s.page,'home');
     await s.page.locator('.festival-identity-prompt').getByText('운영자 확인이 필요해요',{exact:false}).waitFor();
+    // Signing in again stops at the step, with no form: only an operator can help now.
+    await s.page.reload();
+    const locked=s.page.locator('[data-identity-gate]');
+    await locked.getByText('운영자가 소속 확인을 취소했어요.',{exact:false}).waitFor();
+    assert.equal(await locked.locator('#identitySubmit').count(),0);
+    await screenshot(s.page,width,'identity-gate-locked');
     assert.deepEqual([...s.errors,...a.errors],[]);
-    reports.push({width,passed:true,flows:['home prompt','review link','name mismatch','self confirmation','prompt hidden','profile row','author name','duplicate attempt','own-club manual refusal','operator overview','operator revoke','locked prompt']});
+    reports.push({width,passed:true,flows:['sign-in step','no skip','claim refused','name mismatch','self confirmation','prompt hidden','profile row','author name','duplicate attempt','own-club manual refusal','operator overview','operator revoke','locked prompt','locked step']});
     await s.context.close(); await a.context.close();
   }
   fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(reports,null,2));

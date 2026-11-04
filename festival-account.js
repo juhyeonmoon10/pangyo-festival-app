@@ -27,7 +27,8 @@
   }
   const MESSAGES = {
     AUTH_REQUIRED: "로그인이 필요해요.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
-    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", PROFILE_CONFLICT: "계정 연결을 확인해야 해요. 운영자에게 문의해 주세요.",
+    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", IDENTITY_REQUIRED: "소속 동아리 확인을 먼저 마쳐 주세요.",
+    OPS_NOT_READY: "축제 운영 정보가 아직 준비되지 않았어요.", PROFILE_CONFLICT: "계정 연결을 확인해야 해요. 운영자에게 문의해 주세요.",
     PROFILE_UNCONFIRMED: "등록 결과를 확인하지 못했어요. 다시 시도해 주세요.",
     INVALID_STUDENT_NUMBER: "학번을 1~3으로 시작하는 5자리 숫자로 입력해 주세요.",
     INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
@@ -99,10 +100,14 @@
       || typeof value.verified !== "boolean" || typeof value.locked !== "boolean" || typeof value.eligible !== "boolean"
       || typeof value.selfRegistered !== "boolean" || !strings(value.clubs) || !strings(value.boothKeys)
       || (value.verified && (typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
-      || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))) {
+      || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))
+      || (value.required !== undefined && typeof value.required !== "boolean")) {
       throw new Error("REVIEW_POLICY_REQUIRED");
     }
+    // 1.53: required = this account must confirm before taking part. Only the server knows whether a roster is
+    // ready, so an older server that leaves it out asks for nothing.
     return { eventId: value.eventId, result: value.result, verified: value.verified, locked: value.locked,
+      required: value.required ?? false,
       eligible: value.eligible, selfRegistered: value.selfRegistered, realName: value.realName,
       clubs: [...value.clubs], boothKeys: [...value.boothKeys],
       studentNumber: typeof value.studentNumber === "string" ? value.studentNumber : null };

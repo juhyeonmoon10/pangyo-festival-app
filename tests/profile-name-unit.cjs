@@ -13,7 +13,7 @@ function storage() {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
 }
-async function setup({ server = false, updateName = async name => ({ ...profile, name }), updateProfile } = {}) {
+async function setup({ server = false, updateName = async name => ({ ...profile, name }), updateProfile, reviewIdentitySelf } = {}) {
   const app = { dataset: {}, classList: { toggle() {} }, querySelector: () => null, innerHTML: '' };
   const inputs = new Map();
   const context = vm.createContext({
@@ -28,13 +28,13 @@ async function setup({ server = false, updateName = async name => ({ ...profile,
     FestivalCatalog: { CLUB_IDS: {}, createClient: () => ({ getSnapshot: () => ({ status: 'idle', rows: [] }),
       forClub: () => null, subscribe() {}, refresh() {} }) },
     FestivalAccount: { normalizeError, createAccount: () => ({ initialize: async () => profile, pending: () => null,
-      myReviews: async () => ({ ok: false }), updateName, updateProfile }) },
+      myReviews: async () => ({ ok: false }), updateName, updateProfile, reviewIdentitySelf }) },
     fetch: () => { throw Error('Unit tests must not contact any server'); },
   });
   context.window = context;
   for (const file of ['nfc-manager.js', 'operations-ui.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   await new Promise(setImmediate);
-  const api = vm.runInContext('({state, openNameEditor, cancelNameEditor, saveDisplayName, profileView, profileForm, completeProfile, loadDb, applyServerProfile})', context);
+  const api = vm.runInContext('({state, openNameEditor, cancelNameEditor, saveDisplayName, profileView, profileForm, completeProfile, loadDb, applyServerProfile, loginView, submitIdentityGate})', context);
   if (!server) api.state.user = api.state.db.users[0];
   api.state.route = 'profile';
   return { ...api, session: context.sessionStorage, inputs };
@@ -184,4 +184,104 @@ test('onboarding blocks duplicate saves and retains student input on failure', a
   assert.match(api.profileForm(), /value="21002"/);
   assert.doesNotMatch(api.state.loginError, /private/);
   assert.equal(api.state.loginBusy, false);
+});
+
+// 1.53: club membership is confirmed at sign-up, and a student who must confirm cannot get past it.
+const identityState = (over = {}) => ({ eventId: 'event-1', result: null, verified: false, locked: false, eligible: true,
+  selfRegistered: false, realName: null, clubs: [], boothKeys: [], studentNumber: '21001', required: true, ...over });
+const flush = () => new Promise(setImmediate);
+
+test('sign-up confirms the club membership with the typed name in the same step', async () => {
+  const calls = [];
+  const api = await setup({ server: true,
+    updateProfile: async (name, studentNumber) => ({ ...profile, name, studentNumber }),
+    reviewIdentitySelf: async (action, payload) => {
+      calls.push([action, payload]);
+      return { ok: true, data: action === 'confirm' ? identityState({ result: 'CONFIRMED', verified: true, required: false, realName: '홍길동', clubs: ['인벨릭스'] }) : identityState() };
+    } });
+  calls.length = 0; // the fixture session itself was checked while starting
+  api.applyServerProfile({ ...profile, name: '홍길동', studentNumber: '', needsProfile: true });
+  assert.match(api.profileForm(), /data-identity-note[^>]*>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인해요/);
+  api.inputs.set('#name', { value: '홍길동' });
+  api.inputs.set('#studentNumber', { value: '21001' });
+  await api.completeProfile();
+  await flush();
+  assert.equal(JSON.stringify(calls), JSON.stringify([['status', null], ['confirm', { eventId: 'event-1', realName: '홍길동' }]]));
+  assert.equal(api.state.route, 'home');
+  assert.equal(api.state.user.name, '홍길동');
+  assert.equal(api.state.identityGate, null);
+});
+
+test('a name that is not on the roster keeps the student on the membership step', async () => {
+  let confirmed = false, saved = [];
+  const api = await setup({ server: true,
+    updateProfile: async (name, studentNumber) => { saved.push([name, studentNumber]); return { ...profile, name, studentNumber }; },
+    reviewIdentitySelf: async (action, payload) => {
+      if (action === 'status') return { ok: true, data: identityState() };
+      confirmed = payload.realName === '홍길동';
+      return { ok: true, data: confirmed ? identityState({ result: 'CONFIRMED', verified: true, required: false, realName: '홍길동', clubs: ['인벨릭스'] }) : identityState({ result: 'IDENTITY_MISMATCH' }) };
+    } });
+  api.applyServerProfile({ ...profile, name: '홍길도', studentNumber: '', needsProfile: true });
+  api.inputs.set('#name', { value: '홍길도' });
+  api.inputs.set('#studentNumber', { value: '21001' });
+  await api.completeProfile();
+  await flush();
+  // Not in: no user, the login screen shows the membership step with the reason and no skip button.
+  assert.equal(api.state.user, null);
+  assert.equal(api.state.authStep, 'identity');
+  const html = api.loginView();
+  assert.match(html, /소속 동아리 확인/);
+  assert.match(html, /이 단계는 건너뛸 수 없어요/);
+  assert.match(html, /동아리 명단의 이름과 달라요/);
+  assert.match(html, /id="identityName"[^>]*value="홍길도"/);
+  assert.doesNotMatch(html, /건너뛰|나중에|data-route="home"/);
+  // Corrected right after sign-up: the profile name is saved too, then it is confirmed.
+  api.inputs.set('#identityName', { value: '홍길동' });
+  api.inputs.set('#identityStudentNumber', { value: '21001' });
+  await api.submitIdentityGate();
+  await flush();
+  assert.equal(JSON.stringify(saved.at(-1)), JSON.stringify(['홍길동', '21001']));
+  assert.equal(api.state.route, 'home');
+  assert.equal(api.state.user.name, '홍길동');
+});
+
+test('a returning student who still has to confirm sees the step; others go straight in', async () => {
+  const states = { required: identityState(), locked: identityState({ locked: true }), grade3: identityState({ eligible: false, required: false, studentNumber: '30101' }) };
+  for (const [kind, data] of Object.entries(states)) {
+    let confirms = 0;
+    const api = await setup({ server: true, reviewIdentitySelf: async action => { if (action === 'confirm') confirms++; return { ok: true, data }; } });
+    api.state.user = null;
+    api.applyServerProfile({ ...profile });
+    await flush();
+    assert.equal(confirms, 0, `${kind}: a later login never confirms by itself`);
+    if (kind === 'grade3') { assert.equal(api.state.user.id, profile.authUserId); continue; }
+    assert.equal(api.state.user, null, kind);
+    const html = api.loginView();
+    if (kind === 'locked') { assert.match(html, /운영자가 소속 확인을 취소했어요/); assert.doesNotMatch(html, /identitySubmit/); }
+    else assert.match(html, /id="identitySubmit"/);
+  }
+  // Operators are not held at the step.
+  let asked = 0;
+  const admin = await setup({ server: true, reviewIdentitySelf: async () => { asked++; return { ok: true, data: identityState() }; } });
+  admin.state.user = null;
+  asked = 0; // the fixture session itself was checked while starting
+  admin.applyServerProfile({ ...profile, isAdmin: true });
+  await flush();
+  assert.equal(asked, 0);
+  assert.equal(admin.state.user.role, 'admin');
+});
+
+test('a failed membership check offers a retry instead of letting the student in', async () => {
+  const api = await setup({ server: true, reviewIdentitySelf: async () => ({ ok: false, code: 'NETWORK_ERROR', message: '연결을 확인해 주세요.' }) });
+  api.state.user = null;
+  api.applyServerProfile({ ...profile });
+  await flush();
+  assert.equal(api.state.user, null);
+  assert.match(api.loginView(), /id="identityRetry"/);
+  // No running festival: nothing to confirm.
+  const closed = await setup({ server: true, reviewIdentitySelf: async () => ({ ok: false, code: 'OPS_NOT_READY', message: '' }) });
+  closed.state.user = null;
+  closed.applyServerProfile({ ...profile });
+  await flush();
+  assert.equal(closed.state.user.id, profile.authUserId);
 });

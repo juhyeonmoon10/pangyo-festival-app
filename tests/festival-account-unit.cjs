@@ -268,3 +268,16 @@ test('first login with a school account fills in the 학번 without writing it',
   const plain = await other.account.profile();
   assert.equal(plain.name, '21001홍길동'); assert.equal(plain.studentNumber, ''); assert.equal(plain.studentNumberDetected, undefined);
 });
+
+test('1.53: the membership state carries "required", and claims refused for it read clearly', () => {
+  const { validateIdentityState, normalizeError } = require('../festival-account.js');
+  const base = { version: 1, eventId: 'e', result: null, verified: false, locked: false, eligible: true, selfRegistered: false,
+    realName: null, clubs: [], boothKeys: [], studentNumber: '21001' };
+  assert.equal(validateIdentityState({ ...base, required: true }).required, true);
+  assert.equal(validateIdentityState({ ...base, eligible: false, required: false }).required, false);
+  // An older server leaves it out and cannot say whether a roster is ready: nothing is asked.
+  assert.equal(validateIdentityState(base).required, false);
+  assert.throws(() => validateIdentityState({ ...base, required: 'yes' }));
+  assert.equal(normalizeError(new Error('IDENTITY_REQUIRED')).message, '소속 동아리 확인을 먼저 마쳐 주세요.');
+  assert.equal(normalizeError(new Error('OPS_NOT_READY')).code, 'OPS_NOT_READY');
+});

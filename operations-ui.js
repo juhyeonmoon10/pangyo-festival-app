@@ -801,6 +801,7 @@ const festivalOpsUI = (() => {
     visitSyncGeneration++; visitSyncPending=true;
   }
   return {admin,navigation,refresh,bind,snapshot,vouchers,reset,chooseReward,markVisitPending,identityView,identityRow,notices:()=>notices,
+    identityMessage:result=>identityMessages[result] || "",
     identity:()=>owner===state.user?.id?identity:null,
     visitSyncPending:()=>owner===state.user?.id && visitSyncPending,
     eventId:()=>owner===state.user?.id?event?.id ?? null:null};
