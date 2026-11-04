@@ -51,9 +51,9 @@ async function run(browser, { email, googleName }) {
     // School account: 학번 and name come from the Google name.
     const school = await run(browser, { email: 'student@pangyo.hs.kr', googleName: '21001홍길동' });
     assert.equal(await school.page.locator('#studentNumber').inputValue(), '21001');
-    assert.match(await school.page.locator('[data-student-number-detected]').innerText(), /학번 21001을\(를\) 찾았어요/);
-    assert.equal(await school.page.locator('.login-account strong').innerText(), '홍길동');
-    assert.equal(await school.page.locator('#name').count(), 0);
+    // 1.48: the name is filled into the 이름 field as well, and the note names both.
+    assert.match(await school.page.locator('[data-student-number-detected]').innerText(), /이름 홍길동, 학번 21001을\(를\) 찾았어요/);
+    assert.equal(await school.page.locator('#name').inputValue(), '홍길동');
     await school.page.screenshot({ path: path.join(output, '390-school-detected.png'), fullPage: true });
     await school.page.locator('#profileSubmit').click();
     await school.page.waitForFunction(() => state.user?.studentNumber === '21001');
@@ -64,7 +64,7 @@ async function run(browser, { email, googleName }) {
     // A four-letter name, and the student may still correct the 학번 before saving.
     const corrected = await run(browser, { email: 'student@pangyo.hs.kr', googleName: '30105남궁민수' });
     assert.equal(await corrected.page.locator('#studentNumber').inputValue(), '30105');
-    assert.equal(await corrected.page.locator('.login-account strong').innerText(), '남궁민수');
+    assert.equal(await corrected.page.locator('#name').inputValue(), '남궁민수');
     await corrected.page.locator('#studentNumber').fill('30106');
     await corrected.page.locator('#profileSubmit').click();
     await corrected.page.waitForFunction(() => state.user?.studentNumber === '30106');

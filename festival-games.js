@@ -1,6 +1,6 @@
 /* 미니게임: the point games ported from ORBIT develop (/games). 동아리 가상주식 and 1대1 블랙잭 call ORBIT's own
    functions (orbit_stock_snapshot, orbit_trade_stock, orbit_blackjack_*) through the signed-in festival account.
-   They move public.users.money, the one 보유 포인트 balance (1.51: festival point rewards land there too).
+   They move public.users.money, the one 보유 포인트 balance (1.52: festival point rewards land there too).
    The only way in is the bottom navigation tab '미니게임' (route 'games'); no other screen links here.
    Results are shown next to the button that was pressed (spotMarkup/showSpot).
    1.38: the hub shows how many players wait for a blackjack opponent (festival_blackjack_lobby), and the
@@ -23,7 +23,7 @@
    opponent only shows "선택 완료" until both have chosen (or 10 s pass), then the server reveals both choices
    together (game.lastRound) and each hit draws one card. A stand stops the player; no choice is a stand.
    Matching uses the festival queue (festival_blackjack_cancel) and takes the stake only at a match.
-   1.50: 가상주식 visit rules (MINIGAME_RULES.md 2.3, 2.4). Only clubs whose booth the student visited can be
+   1.51: 가상주식 visit rules (MINIGAME_RULES.md 2.3, 2.4). Only clubs whose booth the student visited can be
    bought or sold (stock.visited; the server refuses others with STOCK_NOT_VISITED). Prices fall a little every
    minute and rise once for every visitStep visitors; the list and detail show visitors and the rule line. */
 const festivalGames = (() => {
@@ -116,7 +116,7 @@ const festivalGames = (() => {
       const stale = !stock.updatedAt || !m?.maxPriceAgeSeconds || stock.priceVersion === 0 || stock.priceVersion !== m.priceVersion
         || now - updated > m.maxPriceAgeSeconds * 1000 || updated > now;
       const previous = stock.previousPrice || stock.price;
-      // 1.50: only clubs whose booth this student visited can be traded (a server without the rule sends no flag).
+      // 1.51: only clubs whose booth this student visited can be traded (a server without the rule sends no flag).
       const visited = stock.visited !== false;
       return {
         id: String(stock.id), eventId: stock.eventId, name: String(stock.name || ''), price: stock.price, previous,
@@ -129,7 +129,7 @@ const festivalGames = (() => {
       };
     });
   }
-  // 1.50 price rules from the server: decay per minute, and a bonus every visitStep visitors (null before 1.50).
+  // 1.51 price rules from the server: decay per minute, and a bonus every visitStep visitors (null before 1.51).
   function visitRules() {
     const m = market.data?.market;
     return m && Number.isInteger(m.visitStep) && m.visitStep > 0 && Number.isInteger(m.visitBonusBps) && Number.isInteger(m.decayBps)
@@ -348,7 +348,7 @@ const festivalGames = (() => {
     if (!isServerMode()) return `<main class="screen p0-page web-page festival-games">${header('가상주식', 'games')}${demoOnly('가상주식')}${bottomNav('games')}</main>`;
     const all = stocks(), user = market.data;
     const held = all.filter(stock => stock.quantity > 0);
-    // 1.50: only visited clubs can be traded, so they get their own tab (관심·거래 내역 tabs removed).
+    // 1.51: only visited clubs can be traded, so they get their own tab (관심·거래 내역 tabs removed).
     const visited = all.filter(stock => stock.visited);
     const value = held.reduce((sum, stock) => sum + stock.quantity * stock.price, 0);
     const cost = (user?.holdings || []).reduce((sum, item) => sum + (item.averageBuyPrice ?? 0) * item.quantity, 0);

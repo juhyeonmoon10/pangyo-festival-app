@@ -1,5 +1,5 @@
--- Rollback for stock-visit-rules.sql (1.50): back to demand-only prices and trading in any stock.
--- The functions below are the definitions as they were in the operations DB on 2026-11-02 (before 1.50).
+-- Rollback for stock-visit-rules.sql (1.51): back to demand-only prices and trading in any stock.
+-- The functions below are the definitions as they were in the operations DB on 2026-11-02 (before 1.51).
 -- Prices already moved by decay or visits stay where they are; only the rules change back.
 begin;
 set local lock_timeout='5s';

@@ -206,7 +206,7 @@ const festivalOpsUI = (() => {
     const items=data.items, n=items.find(x=>x.id===selectedNotice);
     return `<section class="ops-section ops-notice-form"><h2>${n?'공지 수정':'새 공지'}</h2><label>편집할 공지<select id="opsNoticeSelect" class="select"><option value="">새 공지 작성</option>${items.map(x=>`<option value="${h(x.id)}" ${x.id===selectedNotice?'selected':''}>${h(x.title)}${x.published?'':' (숨김)'}</option>`).join('')}</select></label>${form('notice_save',
       field('title','제목',n?.title,'required maxlength="80" autocomplete="off"')+
-      `<label>내용<textarea class="textarea" name="body" maxlength="1000" rows="5" placeholder="학생 홈 화면의 축제 소식에 보여요.">${h(n?.body)}</textarea></label>`+
+      `<label>내용<textarea class="textarea" name="body" maxlength="1000" rows="5" placeholder="학생 홈 화면의 공지에 보여요.">${h(n?.body)}</textarea></label>`+
       (typeof festivalNotices==='undefined'?'':festivalNotices.editor(n))+
       `<label class="ops-checkbox"><input name="important" type="checkbox" ${n?.important?'checked':''}>중요 공지 (홈 맨 위 알림 띠에 표시)</label>`+
       `<label class="ops-checkbox"><input name="published" type="checkbox" ${!n || n.published?'checked':''}>학생에게 게시</label>`+

@@ -11,7 +11,6 @@
 .web-brand > strong { font-size: 18px; }
 .web-brand-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .design-web .web-brand .icon-btn { border: 0; background: transparent; }
-.design-web .web-brand .web-profile-button { width: 38px; min-width: 38px; height: 38px; border-radius: 50%; background: #f0f3f5; color: #596671; }
 .web-welcome { position: relative; isolation: isolate; min-height: 174px; margin: 0 -20px; padding: 16px 20px 24px; overflow: hidden; }
 .welcome-copy { position: relative; z-index: 1; }
 .web-welcome h1 { margin: 0; font-size: 27px; line-height: 1.42; font-weight: 800; word-break: keep-all; }
@@ -426,7 +425,6 @@
 .web-shortcuts small, .web-visit small, .web-header p, .web-footer, .web-footer span { font-size: 12px; }
 .web-stamp-cell small { display: -webkit-box; min-height: 32px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 12px; line-height: 16px; }
 .design-web .web-header.root { grid-template-columns: minmax(0, 1fr); margin-inline: 0; }
-.design-web .web-brand .web-profile-button { width: 44px; min-width: 44px; height: 44px; }
 .design-web .bottom-nav .nav-btn { color: #5c6961; }
 @media (max-width: 350px) {
   .web-shortcuts .shortcut-reviews { grid-template-columns: 1fr; }

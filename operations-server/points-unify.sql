@@ -1,4 +1,4 @@
--- 1.51 one point balance: 보유 포인트 (festival points) and 가상 포인트 (minigames) become public.users.money.
+-- 1.52 one point balance: 보유 포인트 (festival points) and 가상 포인트 (minigames) become public.users.money.
 --   Every festival point entry (review reward, operator adjustment) still goes into festival_ops.ledger as the
 --   record, and a trigger now moves public.users.money by the same amount (with a private.wallet_ledger row).
 --   The three places that showed the festival_ops.ledger sum (my screen, participants, student lookup) show

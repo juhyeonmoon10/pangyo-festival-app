@@ -93,7 +93,9 @@ test('first-login profile stays compact and preserves the student-number action'
   api.state.pendingGoogle = { displayName: 'Student', email: 'fixture@example.invalid' };
   const html = api.loginView();
   assert.match(html, /login-profile/);
-  assert.doesNotMatch(html, /class="login-art"|id="name"|auth-step/);
+  assert.doesNotMatch(html, /class="login-art"|auth-step/);
+  // 1.48: the name is an input filled in from the Google account.
+  assert.match(html, /id="name"[^>]*value="Student"/);
   assert.match(html, /id="studentNumber"/);
   assert.match(html, /id="profileSubmit"/);
   assert.match(html, /id="backToGoogle"/);

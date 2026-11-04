@@ -225,10 +225,13 @@ test('school accounts: the 학번 and the name are read from "<학번><이름>"'
   assert.deepEqual(schoolIdentity(school, ['30105남궁민수']), { studentNumber: '30105', name: '남궁민수' });
   // The first name in the list that fits is used.
   assert.deepEqual(schoolIdentity(school, [null, 'Hong', '21002이몽룡']), { studentNumber: '21002', name: '이몽룡' });
+  // 1.48: the name may come first, and a space, "_", "-" or brackets may sit between.
+  for (const name of ['홍길동21001', '홍길동 21001', '홍길동(21001)', '21001_홍길동', '21001-홍길동', '[21001] 홍길동'])
+    assert.deepEqual(schoolIdentity(school, [name]), { studentNumber: '21001', name: '홍길동' }, name);
   // Other domains, other shapes and impossible numbers are not guessed.
   for (const [email, name] of [['student@gmail.com', '21001홍길동'], ['student@pangyo.hs.kr.evil.com', '21001홍길동'], ['student@x.pangyo.hs.kr.example', '21001홍길동'],
     [school, '홍길동'], [school, '21001'], [school, '2100홍길동'], [school, '210011홍길동'], [school, '41001홍길동'], [school, '01001홍길동'],
-    [school, '21001홍'], [school, '21001 Hong'], [school, '홍길동21001'], [school, '21001홍길동A'], [null, '21001홍길동']]) {
+    [school, '21001홍'], [school, '21001 Hong'], [school, '홍길동21001A'], [school, '21001홍길동A'], [null, '21001홍길동']]) {
     assert.equal(schoolIdentity(email, [name]), null, `${email} ${name}`);
   }
 });
@@ -242,7 +245,7 @@ test('first login with a school account fills in the 학번 without writing it',
     identities: [{ provider: 'google', identity_data: { full_name: '21001홍길동' } }] } } });
   const result = await account.profile();
   assert.equal(result.name, '홍길동'); assert.equal(result.studentNumber, '21001');
-  assert.equal(result.studentNumberDetected, true); assert.equal(result.needsProfile, true);
+  assert.equal(result.studentNumberDetected, true); assert.equal(result.nameDetected, true); assert.equal(result.needsProfile, true);
   assert.equal(writes, 0);
   // A 학번 the student already typed is kept.
   const typed = setup(async () => ({ data: { ...pending, studentNumber: '21009' } }));
@@ -254,6 +257,11 @@ test('first login with a school account fills in the 학번 without writing it',
   named.auth.getUser = auth.getUser;
   const filled = await named.account.profile();
   assert.equal(filled.name, '내 이름'); assert.equal(filled.studentNumber, '21001'); assert.equal(filled.studentNumberDetected, true);
+  // A saved name that is the whole Google name is replaced by the name part (1.48).
+  const raw = setup(async () => ({ data: { ...pending, name: '21001홍길동' } }));
+  raw.auth.getUser = auth.getUser;
+  const fixed = await raw.account.profile();
+  assert.equal(fixed.name, '홍길동'); assert.equal(fixed.nameDetected, true); assert.equal(fixed.studentNumber, '21001');
   // Another domain keeps the plain Google name and an empty 학번.
   const other = setup(async () => ({ data: { ...pending, email: 'student@gmail.com' } }));
   other.auth.getUser = async () => ({ data: { user: { id: good.authUserId, email: 'student@gmail.com', user_metadata: { full_name: '21001홍길동' } } } });

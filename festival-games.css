@@ -40,7 +40,7 @@
 .design-web .festival-games .game-sort .select { width: 100%; font-weight: 400; }
 .design-web .festival-games .game-stock-list,
 .design-web .festival-games .game-news-list { list-style: none; margin: 0; padding: 0; }
-/* 1.50: no 관심 star in front of each row any more. */
+/* 1.51: no 관심 star in front of each row any more. */
 .design-web .festival-games .game-stock-list li { border-bottom: 1px solid var(--line); }
 .design-web .festival-games .game-stock-list li[hidden] { display: none; }
 .design-web .festival-games .game-stock-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 64px; padding: 12px 0; background: transparent; color: var(--text); text-align: left; }
@@ -157,7 +157,7 @@
 .design-web .festival-games .game-bj-center { padding: 4px 0; }
 .design-web .festival-games .game-bj-turn { margin: 0; font-size: 14px; font-weight: 650; text-align: center; color: var(--muted); }
 .design-web .festival-games .game-bj-turn.mine { color: var(--primary); }
-/* 1.50 stock visit rules: the rule line under the market banner and "방문 전" on clubs not visited yet. */
+/* 1.51 stock visit rules: the rule line under the market banner and "방문 전" on clubs not visited yet. */
 .design-web .festival-games .game-rule-note { margin: 4px 0 12px; font-size: 13px; line-height: 1.6; }
 .design-web .festival-games .game-unvisited { color: var(--festival-red); font-weight: 650; }
 /* 1.49 simultaneous rounds: round number, the opponent's "선택 완료", and my chosen button (disabled until the reveal). */

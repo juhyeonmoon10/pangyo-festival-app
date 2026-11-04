@@ -137,15 +137,18 @@ test('HTML-like names are escaped in profile and editor', async () => {
   assert.ok(!html.includes('<img src=x'));
 });
 
-test('Google name registration asks for student number only and saves the automatic name', async () => {
+test('Google name registration fills in the name field and saves it', async () => {
   const calls = [];
   const api = await setup({ server: true, updateProfile: async (name, studentNumber) => {
     calls.push({ name, studentNumber }); return { ...profile, name, studentNumber };
   } });
   api.applyServerProfile({ ...profile, name: '문주현', studentNumber: '', needsProfile: true });
   const html = api.profileForm();
-  assert.doesNotMatch(html, /id="name"/);
-  assert.match(html, /학번 확인/);
+  // 1.48: the name is an input filled in from the Google account, not only a label.
+  assert.match(html, /id="name"[^>]*value="문주현"/);
+  assert.match(html, /학생 정보 등록/);
+  assert.doesNotMatch(html, /가져오지 못했어요/);
+  api.inputs.set('#name', { value: '문주현', addEventListener() {} });
   api.inputs.set('#studentNumber', { value: '21001', addEventListener() {} });
   await api.completeProfile();
   assert.deepEqual(calls, [{ name: '문주현', studentNumber: '21001' }]);
@@ -156,11 +159,12 @@ test('Google name registration asks for student number only and saves the automa
 test('missing Google name shows a fallback but never an unescaped name', async () => {
   const api = await setup({ server: true });
   api.applyServerProfile({ ...profile, name: '', needsProfile: true });
-  assert.match(api.profileForm(), /id="name"/);
+  assert.match(api.profileForm(), /id="name"[^>]*value=""/);
+  assert.match(api.profileForm(), /가져오지 못했어요/);
   api.applyServerProfile({ ...profile, name: '<img src=x>', needsProfile: true });
   const html = api.profileForm();
-  assert.doesNotMatch(html, /<img src=x>|id="name"/);
-  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img src=x>/);
+  assert.match(html, /value="&lt;img/);
 });
 
 test('onboarding blocks duplicate saves and retains student input on failure', async () => {

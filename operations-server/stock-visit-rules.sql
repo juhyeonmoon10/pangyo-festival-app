@@ -1,4 +1,4 @@
--- 1.50 가상주식: visits decide what a student may trade and push prices up (MINIGAME_RULES.md 2.3, 2.4).
+-- 1.51 가상주식: visits decide what a student may trade and push prices up (MINIGAME_RULES.md 2.3, 2.4).
 --   Trading: a student may buy and sell only the stocks of clubs whose booth they visited in the current
 --   festival event (festival_ops.visits: NFC stamp or manual approval). Others are refused STOCK_NOT_VISITED.
 --   Prices, every tick (once a minute): the demand signal as before, minus decay_bps (30 = 0.3 %), within
@@ -100,7 +100,7 @@ begin
   for v_stock in select * from public.stock where event_id = v_market.event_id order by id for update loop
     select coalesce(sum(buy_quantity),0),coalesce(sum(sell_quantity),0) into v_buy,v_sell
       from private.stock_demand where event_id = v_market.event_id and stock_id = v_stock.id and window_id = v_market.demand_window;
-    -- 1.50: prices fall a little every tick unless demand lifts them.
+    -- 1.51: prices fall a little every tick unless demand lifts them.
     v_signal := (v_buy - v_sell) * v_config.demand_weight_bps / (v_buy + v_sell + v_config.liquidity_floor) - v_config.decay_bps;
     v_nfc := null;
     if v_config.nfc_weight_bps > 0 and v_stock.trading_status = 'open' then
@@ -117,7 +117,7 @@ begin
     v_price := private.stock_bounded_price(v_stock.price,
       case when v_stock.trading_status = 'open' then v_signal else 0 end,
       v_config.min_price,v_config.max_price,v_config.max_tick_bps);
-    -- 1.50: every visit_step students who visited the club lift the price once by visit_bonus_bps
+    -- 1.51: every visit_step students who visited the club lift the price once by visit_bonus_bps
     -- (outside the tick limit). A halted stock is paid when it opens again.
     v_visitors := case when v_stock.booth_id is null then 0 else private.stock_visitors(v_stock.booth_id::text) end;
     v_steps := 0;
@@ -208,7 +208,7 @@ begin
     raise exception using message = 'STOCK_NOT_FOUND';
   end if;
   if v_stock.trading_status <> 'open' then raise exception using message = 'STOCK_HALTED'; end if;
-  -- 1.50: only the clubs this student visited, for buying and selling alike.
+  -- 1.51: only the clubs this student visited, for buying and selling alike.
   if v_stock.booth_id is null or not private.stock_visited(v_user.id, v_stock.booth_id::text) then
     raise exception using message = 'STOCK_NOT_VISITED';
   end if;
@@ -268,7 +268,7 @@ begin
 end;
 $function$;
 
--- 1.50: also the visit rule settings, and per stock the visitor count and whether the caller visited.
+-- 1.51: also the visit rule settings, and per stock the visitor count and whether the caller visited.
 create or replace function public.orbit_stock_snapshot() returns jsonb
 language sql stable security definer set search_path to '' as $function$
   select jsonb_build_object(

@@ -1,4 +1,4 @@
--- Rollback for points-unify.sql (1.51): festival points are the festival_ops.ledger sum again.
+-- Rollback for points-unify.sql (1.52): festival points are the festival_ops.ledger sum again.
 -- Points already moved into users.money by the trigger stay there.
 begin;
 set local lock_timeout='5s';
