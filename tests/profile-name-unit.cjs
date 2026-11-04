@@ -74,7 +74,7 @@ test('Google name registration fills in the name field and saves it', async () =
   // 1.48: the name is an input filled in from the Google account, not only a label.
   assert.match(html, /id="name"[^>]*value="문주현"/);
   assert.match(html, /학생 정보 등록/);
-  assert.doesNotMatch(html, /가져오지 못했어요/);
+  assert.doesNotMatch(html, /가져오지 못했습니다/);
   api.inputs.set('#name', { value: '문주현', addEventListener() {} });
   api.inputs.set('#studentNumber', { value: '21001', addEventListener() {} });
   await api.completeProfile();
@@ -87,7 +87,7 @@ test('missing Google name shows a fallback but never an unescaped name', async (
   const api = await setup({ server: true });
   api.applyServerProfile({ ...profile, name: '', needsProfile: true });
   assert.match(api.profileForm(), /id="name"[^>]*value=""/);
-  assert.match(api.profileForm(), /가져오지 못했어요/);
+  assert.match(api.profileForm(), /가져오지 못했습니다/);
   api.applyServerProfile({ ...profile, name: '<img src=x>', needsProfile: true });
   const html = api.profileForm();
   assert.doesNotMatch(html, /<img src=x>/);
@@ -128,7 +128,7 @@ test('sign-up confirms the club membership with the typed name in the same step'
     } });
   calls.length = 0; // the fixture session itself was checked while starting
   api.applyServerProfile({ ...profile, name: '홍길동', studentNumber: '', needsProfile: true });
-  assert.match(api.profileForm(), /data-identity-note[^>]*>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인해요/);
+  assert.match(api.profileForm(), /data-identity-note[^>]*>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인합니다/);
   api.inputs.set('#name', { value: '홍길동' });
   api.inputs.set('#studentNumber', { value: '21001' });
   await api.completeProfile();
@@ -158,8 +158,8 @@ test('a name that is not on the roster keeps the student on the membership step'
   assert.equal(api.state.authStep, 'identity');
   const html = api.loginView();
   assert.match(html, /소속 동아리 확인/);
-  assert.match(html, /이 단계는 건너뛸 수 없어요/);
-  assert.match(html, /동아리 명단의 이름과 달라요/);
+  assert.match(html, /이 단계는 건너뛸 수 없습니다/);
+  assert.match(html, /동아리 명단의 이름과 다릅니다/);
   assert.match(html, /id="identityName"[^>]*value="홍길도"/);
   assert.doesNotMatch(html, /건너뛰|나중에|data-route="home"/);
   // Corrected right after sign-up: the profile name is saved too, then it is confirmed.
@@ -184,7 +184,7 @@ test('a returning student who still has to confirm sees the step; others go stra
     if (kind === 'grade3') { assert.equal(api.state.user.id, profile.authUserId); continue; }
     assert.equal(api.state.user, null, kind);
     const html = api.loginView();
-    if (kind === 'locked') { assert.match(html, /운영자가 소속 확인을 취소했어요/); assert.doesNotMatch(html, /identitySubmit/); }
+    if (kind === 'locked') { assert.match(html, /운영자가 소속 확인을 취소했습니다/); assert.doesNotMatch(html, /identitySubmit/); }
     else assert.match(html, /id="identitySubmit"/);
   }
   // Operators are not held at the step.
@@ -199,7 +199,7 @@ test('a returning student who still has to confirm sees the step; others go stra
 });
 
 test('a failed membership check offers a retry instead of letting the student in', async () => {
-  const api = await setup({ server: true, reviewIdentitySelf: async () => ({ ok: false, code: 'NETWORK_ERROR', message: '연결을 확인해 주세요.' }) });
+  const api = await setup({ server: true, reviewIdentitySelf: async () => ({ ok: false, code: 'NETWORK_ERROR', message: '연결을 확인해 주십시오.' }) });
   api.state.user = null;
   api.applyServerProfile({ ...profile });
   await flush();

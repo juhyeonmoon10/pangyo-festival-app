@@ -267,6 +267,6 @@ test('1.53: the membership state carries "required", and claims refused for it r
   // An older server leaves it out and cannot say whether a roster is ready: nothing is asked.
   assert.equal(validateIdentityState(base).required, false);
   assert.throws(() => validateIdentityState({ ...base, required: 'yes' }));
-  assert.equal(normalizeError(new Error('IDENTITY_REQUIRED')).message, '소속 동아리 확인을 먼저 마쳐 주세요.');
+  assert.equal(normalizeError(new Error('IDENTITY_REQUIRED')).message, '소속 동아리 확인을 먼저 마쳐 주십시오.');
   assert.equal(normalizeError(new Error('OPS_NOT_READY')).code, 'OPS_NOT_READY');
 });

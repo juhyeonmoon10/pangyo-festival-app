@@ -37,7 +37,7 @@ try {
     deployed='9.99';
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
     const banner=page.locator('.app-update-banner'); await banner.waitFor();
-    assert.match(await banner.innerText(),/새 버전\(9\.99\)이 배포됐어요/);
+    assert.match(await banner.innerText(),/새 버전\(9\.99\)이 배포되었습니다/);
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal overflow');
     await page.screenshot({path:path.join(output,`${width}-banner.png`)});
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')));

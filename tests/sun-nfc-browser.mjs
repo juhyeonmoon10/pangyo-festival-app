@@ -110,7 +110,7 @@ try {
   await openOperatorTool(a.page,'sun');
   await a.page.getByRole('heading',{name:'보안 NFC 카드',exact:true}).waitFor();
   await a.page.locator('[data-sun-keys-create]').click();
-  await a.page.getByText('키를 만들었어요.',{exact:false}).waitFor();
+  await a.page.getByText('키를 만들었습니다.',{exact:false}).waitFor();
   assert.match(await a.page.locator('.sun-status').innerText(),/사용 중/);
   await a.page.locator('[data-sun-keys-reveal]').click();
   await a.page.locator('.sun-key code').nth(1).waitFor();
@@ -131,7 +131,7 @@ try {
   const booth=await a.page.locator('[data-sun-register] [name=booth]').inputValue();
   await a.page.locator('[data-sun-register] [name=label]').fill('정문 카드');
   await a.page.locator('[data-sun-register] button[type=submit]').click();
-  await a.page.getByText('카드를 등록했어요.',{exact:false}).waitFor();
+  await a.page.getByText('카드를 등록했습니다.',{exact:false}).waitFor();
   await a.page.getByText('등록된 카드 1장',{exact:false}).waitFor();
   assert.equal((await db.query('select booth::text b,label,last_counter from festival_nfc_private.sun_cards')).rows[0].label,'정문 카드');
   await check(a.page,width,'registered');
@@ -150,12 +150,12 @@ try {
   assert.deepEqual(await visits(student),[{booth_key:booth,method:'nfc'}]);
   await check(s.page,width,'student-earned');
   const other=await account(false,'21002'), replay=await pageFor(other,width,link);
-  await replay.page.getByText('이미 사용한 카드 주소예요',{exact:true}).waitFor();
+  await replay.page.getByText('이미 사용한 카드 주소입니다',{exact:true}).waitFor();
   assert.deepEqual(await visits(other),[]);
 
   // An operator who taps a new card can register it from 관리 마법사 afterwards.
   const fresh=await pageFor(admin,320,cardHash('04BBBBBBBBBBBB',1,keys));
-  await fresh.page.getByText('등록되지 않은 보안 카드예요',{exact:true}).waitFor();
+  await fresh.page.getByText('등록되지 않은 보안 카드입니다',{exact:true}).waitFor();
   await routeTo(fresh.page,'admin');
   await openOperatorTool(fresh.page,'sun');
   await fresh.page.locator('[data-sun-last]').click();
@@ -165,7 +165,7 @@ try {
   // Stop and restore a card from the list.
   await a.page.locator('.sun-card-list summary').first().click();
   await a.page.locator('[data-sun-toggle]').first().click();
-  await a.page.getByText('카드를 사용 중지했어요.',{exact:true}).waitFor();
+  await a.page.getByText('카드를 사용 중지했습니다.',{exact:true}).waitFor();
   assert.notEqual((await db.query('select revoked_at from festival_nfc_private.sun_cards where uid=$1',[UID])).rows[0].revoked_at,null);
   const audit=(await db.query("select action from festival_ops.audit where action like 'sun_%'")).rows.map(r=>r.action);
   for(const action of ['sun_keys_create','sun_keys_reveal','sun_card_register','sun_card_revoke']) assert.ok(audit.includes(action),action);

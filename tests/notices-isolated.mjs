@@ -37,7 +37,7 @@ let first,second;
 await test('an operator posts notices; participants see published ones, important first',async()=>{
   await db.exec(read('operations-server/notices.sql'));
   assert.deepEqual(await visible(student),[]);
-  first=(await admin_(admin,'save',{title:' 개막 안내 ',body:'10시에 시작해요.',important:false,published:true})).id;
+  first=(await admin_(admin,'save',{title:' 개막 안내 ',body:'10시에 시작합니다.',important:false,published:true})).id;
   second=(await admin_(admin,'save',{title:'우천 시 실내 진행',body:'',important:true,published:true})).id;
   await admin_(admin,'save',{title:'준비 중 초안',body:'',important:false,published:false});
   const items=await visible(student);
@@ -48,7 +48,7 @@ await test('an operator posts notices; participants see published ones, importan
   assert.equal(typeof list[0].author,'string');
 });
 await test('editing needs the current version; hiding removes it from participants',async()=>{
-  await admin_(admin,'save',{id:first,title:'개막 안내 (변경)',body:'10시 30분에 시작해요.',important:false,published:true,version:1});
+  await admin_(admin,'save',{id:first,title:'개막 안내 (변경)',body:'10시 30분에 시작합니다.',important:false,published:true,version:1});
   await assert.rejects(admin_(admin,'save',{id:first,title:'x',body:'',important:false,published:true,version:1}),/VERSION_CONFLICT/);
   await admin_(admin,'save',{id:second,title:'우천 시 실내 진행',body:'',important:true,published:false,version:1});
   assert.deepEqual((await visible(student)).map(n=>n.title),['개막 안내 (변경)']);

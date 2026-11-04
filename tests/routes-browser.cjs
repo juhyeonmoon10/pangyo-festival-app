@@ -103,7 +103,7 @@ const results=[];
       await f.page.getByText('운영자 전용',{exact:true}).waitFor();
       assert.equal(f.calls.some(c=>c.body?.p_kind==='dashboard'),false);
       await f.page.goto(origin+'/booth/missing-booth');await f.screen('detail','/booth/missing-booth');
-      await f.page.getByText('부스를 찾을 수 없어요',{exact:true}).waitFor();
+      await f.page.getByText('부스를 찾을 수 없습니다',{exact:true}).waitFor();
       assert.deepEqual(f.errors,[]);assert.deepEqual(f.unexpected,[]);
       results.push({width,passed:true,checks:'direct pages, reload, trailing slash, tabs, back/forward, nested assets, booth/reviews, admin denied, missing booth'});
       await f.context.close();

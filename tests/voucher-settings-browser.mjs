@@ -99,7 +99,7 @@ try {
       }
       await f.locator('[name=enabled]').check();
       await f.locator('button[type=submit]').click();
-      await a.page.getByText('저장했어요.',{exact:true}).waitFor();
+      await a.page.getByText('저장했습니다.',{exact:true}).waitFor();
       const rules=(await db.query("select stock,expires_at::text e,enabled from festival_ops.rules where reward_kind is not null")).rows;
       assert.equal(rules.length,2); assert.ok(rules.every(r=>r.stock===null && r.e==='infinity' && r.enabled));
     }
@@ -155,7 +155,7 @@ try {
     await screenshot(a.page,width,'reset-form');
     await r.locator('[name=confirm]').fill('초기화');
     await r.locator('button[type=submit]').click();
-    await a.page.getByText(/리뷰 [0-9]+건을 초기화했어요/).waitFor();
+    await a.page.getByText(/리뷰 [0-9]+건을 초기화했습니다/).waitFor();
     for(const t of ['festival_ops.visits','festival_ops.vouchers','festival_ops.reviews','festival_ops.ledger']) assert.equal(await count(t),0,t);
     assert.equal((await db.query('select admin from public.users where id=$1',[admin.uid])).rows[0].admin,true);
 

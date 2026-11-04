@@ -84,10 +84,10 @@ const festivalBoothManager = (() => {
   function hoursMarkup(text) {
     const ranges = parseHours(text), legacy = text && !ranges.length ? String(text) : '';
     return `<fieldset class="manager-program manager-hours" data-manager-hours><legend>운영 시간</legend>
-      ${legacy ? `<p class="web-muted" data-hours-legacy="${h(legacy)}">지금 등록된 운영 시간: ${h(legacy)} · 시간대를 고르면 이 내용 대신 저장돼요.</p>` : ''}
+      ${legacy ? `<p class="web-muted" data-hours-legacy="${h(legacy)}">지금 등록된 운영 시간: ${h(legacy)} · 시간대를 고르면 이 내용 대신 저장됩니다.</p>` : ''}
       <div class="manager-hour-rows" data-hour-rows>${(ranges.length ? ranges : [undefined]).map(r => hourRow(r)).join('')}</div>
       <button type="button" class="ghost-btn" data-hours-add ${ranges.length >= MAX_HOURS ? 'disabled' : ''}>${icon('plus')} 시간대 추가</button>
-      <small class="web-muted">시간을 누르면 시계가 열려요. 비워 두면 '운영 시간 미등록'으로 보여요.</small>
+      <small class="web-muted">시간을 누르면 시계가 열립니다. 비워 두면 '운영 시간 미등록'으로 보입니다.</small>
       ${slot('hours')}</fieldset>`;
   }
   function readHours(form) {
@@ -95,12 +95,12 @@ const festivalBoothManager = (() => {
     for (const row of form.querySelectorAll('[data-hour-row]')) {
       const from = row.querySelector('[name=hourFrom]').value, to = row.querySelector('[name=hourTo]').value;
       if (!from && !to) continue;
-      if (!from || !to) return { ok: false, message: '시작과 끝 시간을 모두 골라 주세요.', input: row.querySelector(from ? '[name=hourTo]' : '[name=hourFrom]') };
-      if (to <= from) return { ok: false, message: '끝 시간은 시작 시간보다 늦어야 해요.', input: row.querySelector('[name=hourTo]') };
+      if (!from || !to) return { ok: false, message: '시작과 끝 시간을 모두 골라 주십시오.', input: row.querySelector(from ? '[name=hourTo]' : '[name=hourFrom]') };
+      if (to <= from) return { ok: false, message: '끝 시간은 시작 시간보다 늦어야 합니다.', input: row.querySelector('[name=hourTo]') };
       ranges.push([from, to]);
     }
     ranges.sort((a, b) => a[0].localeCompare(b[0]));
-    if (ranges.some((r, i) => i && r[0] < ranges[i - 1][1])) return { ok: false, message: '겹치는 시간대가 있어요. 시간을 다시 확인해 주세요.' };
+    if (ranges.some((r, i) => i && r[0] < ranges[i - 1][1])) return { ok: false, message: '겹치는 시간대가 있습니다. 시간을 다시 확인해 주십시오.' };
     const legacy = form.querySelector('[data-hours-legacy]')?.dataset.hoursLegacy || '';
     return { ok: true, text: ranges.length ? ranges.map(([from, to]) => `${from}–${to}`).join(', ') : legacy };
   }
@@ -116,23 +116,23 @@ const festivalBoothManager = (() => {
     const own = pending ? !pending.removed : Boolean(b.image);
     return `<div class="manager-photo" data-manager-photo>
       ${src ? `<img src="${h(src)}" alt="${h(b.name)} 프로필 사진">` : `<span class="manager-photo-empty" aria-hidden="true">${h(String(b.name || '부').slice(0, 1))}</span>`}
-      <div><strong>프로필 사진</strong><small>${pending ? '저장하면 바뀌어요.' : own ? '올린 사진' : src ? '동아리 기본 이미지' : '사진 없음'}</small>
+      <div><strong>프로필 사진</strong><small>${pending ? '저장하면 바뀝니다.' : own ? '올린 사진' : src ? '동아리 기본 이미지' : '사진 없음'}</small>
         <span class="sun-actions"><label class="ghost-btn">${icon('plus')} 사진 고르기<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" data-manager-photo-file hidden></label>
         ${pending ? `<button type="button" class="ghost-btn" data-manager-photo-undo>되돌리기</button>` : own ? `<button type="button" class="ghost-btn" data-manager-photo-remove>사진 빼기</button>` : ''}</span>
         ${photoNote ? `<small class="is-warning" role="status">${h(photoNote)}</small>` : ''}</div></div>`;
   }
 
   function approvalSection(b) {
-    if (!b.canApprove) return `<section class="ops-section"><h2>스탬프 수동 승인</h2><p class="web-muted">운영자가 허용한 부스만 수동 승인을 할 수 있어요.</p></section>`;
+    if (!b.canApprove) return `<section class="ops-section"><h2>스탬프 수동 승인</h2><p class="web-muted">운영자가 허용한 부스만 수동 승인을 할 수 있습니다.</p></section>`;
     const accounts = lookup?.booth === b.key ? lookup.accounts : null;
     const chosen = accounts?.find(a => a.ref === lookup.ref) || (accounts?.length === 1 ? accounts[0] : null);
-    return `<section class="ops-section"><h2>스탬프 수동 승인</h2><p>NFC가 인식되지 않는 학생에게 이 부스 스탬프를 직접 적립해요. 본인 동아리 학생에게는 적립되지 않아요.</p>
+    return `<section class="ops-section"><h2>스탬프 수동 승인</h2><p>NFC가 인식되지 않는 학생에게 이 부스 스탬프를 직접 적립합니다. 본인 동아리 학생에게는 적립되지 않습니다.</p>
       <form class="ops-form" data-manager-lookup><label>학생 학번<input class="input" name="studentNumber" inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" required autocomplete="off" placeholder="학번 5자리" value="${h(lookup?.booth === b.key ? lookup.studentNumber : '')}"></label>
         ${slot('lookup')}<button class="ghost-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('search')} 학생 확인</button></form>
-      ${accounts ? `<div class="manager-accounts">${accounts.length > 1 ? '<p>같은 학번으로 가입한 계정이 여러 개예요. 학생 본인의 계정을 골라 주세요.</p>' : ''}
+      ${accounts ? `<div class="manager-accounts">${accounts.length > 1 ? '<p>같은 학번으로 가입한 계정이 여러 개입니다. 학생 본인의 계정을 골라 주십시오.</p>' : ''}
         ${accounts.map(a => `<label class="manager-account ${chosen?.ref === a.ref ? 'is-chosen' : ''}">${accounts.length > 1 ? `<input type="radio" name="managerAccount" value="${h(a.ref)}" ${chosen?.ref === a.ref ? 'checked' : ''}>` : icon('user')}
           <span><strong>${h(a.name)} (${h(lookup.studentNumber)})</strong>${a.email ? `<small>${h(a.email)}</small>` : ''}
-          ${a.ownClub ? '<small class="is-warning">본인 동아리 학생이라 적립할 수 없어요.</small>' : a.visited ? '<small>이미 이 부스 스탬프가 있어요.</small>' : ''}</span></label>`).join('')}</div>
+          ${a.ownClub ? '<small class="is-warning">본인 동아리 학생이라 적립할 수 없습니다.</small>' : a.visited ? '<small>이미 이 부스 스탬프가 있습니다.</small>' : ''}</span></label>`).join('')}</div>
         ${chosen && !chosen.ownClub ? `<form class="ops-form" data-manager-approve><label>처리 사유<input class="input" name="reason" required minlength="3" maxlength="300" placeholder="예: 부스 체험 완료, NFC 인식 불가" autocomplete="off"></label>
           ${slot('approve')}<button class="primary-btn" type="submit" ${busy ? 'disabled' : ''}>${icon('stamp')} 스탬프 1개 승인</button></form>` : ''}` : ''}</section>`;
   }
@@ -145,7 +145,7 @@ const festivalBoothManager = (() => {
     let body;
     if (failure) body = `<p class="ops-alert" role="alert">${h(failure)}</p><button type="button" class="ghost-btn" data-manager-retry>${icon('refresh')} 다시 불러오기</button>${voucherSection}`;
     else if (!status || vouchers() && !vouchers().ready() && !items().length) body = '<p role="status">불러오는 중...</p>';
-    else if (!items().length) body = voucherSection || `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없어요</strong><p>운영자가 부스 담당자나 바우처 담당자로 지정하면 이곳에서 맡은 일을 할 수 있어요.</p></div>`;
+    else if (!items().length) body = voucherSection || `<div class="festival-empty"><span>${icon('admin')}</span><strong>관리할 부스가 없습니다</strong><p>운영자가 부스 담당자나 바우처 담당자로 지정하면 이곳에서 맡은 일을 할 수 있습니다.</p></div>`;
     else {
       const b = current(), p = b.program || {};
       // A server without booth-profile.sql sends no 'room': the new fields would not be saved.
@@ -158,8 +158,8 @@ const festivalBoothManager = (() => {
             ${hoursMarkup(p.hours)}
             ${full ? `<fieldset class="manager-program"><legend>위치</legend>
               <label>층<select class="select" name="floor" data-manager-floor>${FLOORS.map(f => `<option value="${f}" ${Number(b.floor) === f ? 'selected' : ''}>${f}층</option>`).join('')}</select></label>
-              <label>지도 위치<select class="select" name="room" data-manager-room>${roomOptions(b.floor, b.room)}</select><small class="web-muted">고른 방에 부스가 지도에 표시돼요.</small></label>
-              ${field('location', '위치 설명', b.location, 200)}</fieldset>` : '<p class="web-muted">사진·위치는 서버 업데이트 후 바꿀 수 있어요.</p>'}
+              <label>지도 위치<select class="select" name="room" data-manager-room>${roomOptions(b.floor, b.room)}</select><small class="web-muted">고른 방에 부스가 지도에 표시됩니다.</small></label>
+              ${field('location', '위치 설명', b.location, 200)}</fieldset>` : '<p class="web-muted">사진·위치는 서버 업데이트 후 바꿀 수 있습니다.</p>'}
             ${field('description', '부스 소개', b.description, 2000, true)}
             <fieldset class="manager-program"><legend>프로그램 안내</legend>${PROGRAM.map(([k, label, limit]) => field(`program.${k}`, label, p[k], limit, k === 'description')).join('')}</fieldset>
             ${slot('save')}
@@ -195,7 +195,7 @@ const festivalBoothManager = (() => {
       payload.location = String(values.location || '').trim() || (payload.room ? `${payload.floor}층 ${payload.room}` : '');
       payload.image = b.image || '';
     }
-    if (b.status === 'open' && payload.status !== 'open' && !confirm(`'${b.name}'을(를) ${payload.status === 'paused' ? '일시 중지' : '마감'}할까요? 이 부스는 방문 인증이 중지돼요.`)) return;
+    if (b.status === 'open' && payload.status !== 'open' && !confirm(`'${b.name}'을(를) ${payload.status === 'paused' ? '일시 중지' : '마감'}하시겠습니까? 이 부스는 방문 인증이 중지됩니다.`)) return;
     const done = start(form, 'save', '저장하는 중...');
     const actor = state.user?.id;
     const pending = 'room' in b && photo?.booth === b.key ? photo : null;
@@ -203,7 +203,7 @@ const festivalBoothManager = (() => {
     if (pending?.blob) {
       const result = await images()?.upload(pending.blob);
       if (state.user?.id !== actor) return;
-      if (!result?.ok) { done(); report('save', result?.message || '사진을 올리지 못했어요. 다시 시도해 주세요.'); return; }
+      if (!result?.ok) { done(); report('save', result?.message || '사진을 올리지 못했습니다. 다시 시도해 주십시오.'); return; }
       uploaded = payload.image = result.path;
     } else if (pending?.removed) payload.image = '';
     const response = await ops().write('booth_manager_save', payload);
@@ -218,14 +218,14 @@ const festivalBoothManager = (() => {
     if (b.image && b.image !== response.data.image) images()?.remove([b.image]);
     if (pending) dropPhoto();
     status.items = items().map(x => x.key === b.key ? response.data : x);
-    report('save', '부스 정보를 저장했어요. 학생 화면에 바로 보여요.', 'success', true);
+    report('save', '부스 정보를 저장했습니다. 학생 화면에 바로 보입니다.', 'success', true);
     festivalOpsUI.refresh(false);
   }
 
   async function find(form) {
     const b = current(), sid = form.elements.studentNumber.value.trim();
     if (!b || busy) return;
-    if (!/^[1-3][0-9]{4}$/.test(sid)) { report('lookup', '학번 5자리를 입력해 주세요.'); return; }
+    if (!/^[1-3][0-9]{4}$/.test(sid)) { report('lookup', '학번 5자리를 입력해 주십시오.'); return; }
     const done = start(form, 'lookup', '확인하는 중...');
     const actor = state.user?.id;
     const response = await ops().read('booth_manager_lookup', { booth: b.key, studentNumber: sid });
@@ -246,7 +246,7 @@ const festivalBoothManager = (() => {
     const b = current(), accounts = lookup?.accounts || [];
     const chosen = accounts.find(a => a.ref === lookup.ref) || (accounts.length === 1 ? accounts[0] : null);
     if (!b || !chosen || busy) return;
-    if (!confirm(`${chosen.name} (${lookup.studentNumber}) 학생에게 '${b.name}' 스탬프 1개를 적립할까요?`)) return;
+    if (!confirm(`${chosen.name} (${lookup.studentNumber}) 학생에게 '${b.name}' 스탬프 1개를 적립하시겠습니까?`)) return;
     const done = start(form, 'approve', '적립하는 중...');
     const actor = state.user?.id;
     const response = await ops().write('booth_manager_visit', { booth: b.key, studentNumber: lookup.studentNumber, ref: chosen.ref, reason: form.elements.reason.value.trim() });
@@ -254,7 +254,7 @@ const festivalBoothManager = (() => {
     if (state.user?.id !== actor) return;
     if (!response.ok) { report('approve', response.message); return; }
     lookup = null;
-    report('lookup', response.data.result === 'ALREADY_EARNED' ? `${chosen.name} 학생은 이미 이 부스 스탬프가 있어요.` : `${chosen.name} 학생에게 스탬프 1개를 적립했어요.`, 'success', true);
+    report('lookup', response.data.result === 'ALREADY_EARNED' ? `${chosen.name} 학생은 이미 이 부스 스탬프가 있습니다.` : `${chosen.name} 학생에게 스탬프 1개를 적립했습니다.`, 'success', true);
   }
 
   // 관리 마법사 → 권한 관리 → 부스 담당자 (operators).
@@ -274,15 +274,15 @@ const festivalBoothManager = (() => {
         <div><strong>${h(m.name)} (${h(m.studentNumber || '학번 없음')})</strong><small>${h(m.boothName)} · ${m.canApprove ? '스탬프 수동 승인 허용' : '수동 승인 불가'}${m.active ? '' : ' · 소속 확인이 취소돼 권한 중지됨'}</small></div>
         <div class="sun-actions"><button type="button" class="ghost-btn" data-bm-toggle="${i}">${m.canApprove ? '승인 허용 끄기' : '승인 허용 켜기'}</button><button type="button" class="ghost-btn danger" data-bm-revoke="${i}">해제</button></div>
         ${adminSlot(managerSpot(m))}</li>`).join('')}</ul>`
-        : '<p class="ops-empty">아직 지정한 부스 담당자가 없어요.</p>'}</section>`
+        : '<p class="ops-empty">아직 지정한 부스 담당자가 없습니다.</p>'}</section>`
       : adminFailure ? `<p class="ops-alert" role="alert">${h(adminFailure)}</p><button type="button" class="ghost-btn" data-bm-retry>${icon('refresh')} 다시 불러오기</button>` : '<p role="status">불러오는 중...</p>';
     const pick = candidate ? (candidate.verified
       ? `<form class="ops-form" data-bm-grant><p class="ops-recipient-chosen">${icon('check')} <strong>${h(candidate.name)} (${h(candidate.studentNumber)})</strong> · ${h(candidate.realName || '')}</p>
           <label>맡길 부스 (본인 동아리)<select class="select" name="booth">${candidate.booths.map(b => `<option value="${h(b.key)}">${h(b.name)}${b.managed ? ' · 지정됨' : ''}</option>`).join('')}</select></label>
           <label class="ops-checkbox"><input type="checkbox" name="canApprove">이 부스에서 스탬프 수동 승인 허용</label>
           ${adminSlot('grant')}<button class="primary-btn" type="submit">${icon('plus')} 부스 담당자로 지정</button></form>`
-      : `<p class="ops-alert" role="alert">${h(candidate.name)} (${h(candidate.studentNumber)}) 학생은 소속 확인이 끝나지 않았어요. 소속 관리에서 먼저 확인해 주세요.</p>`) : '';
-    return `<div data-bm-root><section class="ops-section"><h2>부스 담당자 지정</h2><p>소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있어요. 담당자는 프로필 사진·운영 상태·운영 시간·위치·부스 소개·프로그램을 바꿀 수 있어요.</p>
+      : `<p class="ops-alert" role="alert">${h(candidate.name)} (${h(candidate.studentNumber)}) 학생은 소속 확인이 끝나지 않았습니다. 소속 관리에서 먼저 확인해 주십시오.</p>`) : '';
+    return `<div data-bm-root><section class="ops-section"><h2>부스 담당자 지정</h2><p>소속 확인이 끝난 학생에게만, 그 학생의 동아리 부스를 맡길 수 있습니다. 담당자는 프로필 사진·운영 상태·운영 시간·위치·부스 소개·프로그램을 바꿀 수 있습니다.</p>
       <form class="ops-form" data-bm-find><label>학생 학번<input class="input" name="studentNumber" inputmode="numeric" pattern="[1-3][0-9]{4}" maxlength="5" required autocomplete="off" placeholder="학번 5자리" value="${h(adminQuery?.studentNumber)}"></label>
         <label>Google 이메일 (같은 학번 계정이 여러 개일 때만)<input class="input" name="email" type="email" maxlength="320" autocomplete="off" value="${h(adminQuery?.email)}"></label>
         ${adminSlot('find')}<button class="ghost-btn" type="submit">${icon('search')} 학생 확인</button></form>${pick}</section>${list}</div>`;
@@ -315,7 +315,7 @@ const festivalBoothManager = (() => {
       try {
         const blob = await festivalNotices.shrink(file, 1080);
         dropPhoto(); photo = { booth: b.key, blob, preview: URL.createObjectURL(blob) };
-      } catch { photoNote = '이 사진은 열 수 없어요. JPG·PNG 사진을 골라 주세요.'; }
+      } catch { photoNote = '이 사진은 열 수 없습니다. JPG·PNG 사진을 골라 주십시오.'; }
       redrawPhoto(root, b);
     });
     root.querySelector('[data-manager-photo-remove]')?.addEventListener('click', () => { const b = current(); dropPhoto(); photo = { booth: b.key, removed: true }; redrawPhoto(root, b); });
@@ -385,19 +385,19 @@ const festivalBoothManager = (() => {
         e.preventDefault();
         const f = e.currentTarget, booth = f.elements.booth.value, canApprove = f.elements.canApprove.checked;
         const name = candidate.booths.find(b => b.key === booth)?.name || booth, who = candidate.name;
-        if (!confirm(`${who} 학생을 '${name}' 부스 담당자로 지정할까요?${canApprove ? ' 이 부스의 스탬프 수동 승인도 할 수 있어요.' : ''}`)) return;
-        adminAct('grant', { account: candidate.account, booth, canApprove }, 'grant', () => { candidate = null; adminQuery = null; return ['find', `${who} 학생을 '${name}' 부스 담당자로 지정했어요.`]; });
+        if (!confirm(`${who} 학생을 '${name}' 부스 담당자로 지정하시겠습니까?${canApprove ? ' 이 부스의 스탬프 수동 승인도 할 수 있습니다.' : ''}`)) return;
+        adminAct('grant', { account: candidate.account, booth, canApprove }, 'grant', () => { candidate = null; adminQuery = null; return ['find', `${who} 학생을 '${name}' 부스 담당자로 지정했습니다.`]; });
       });
       admin.querySelectorAll('[data-bm-toggle]').forEach(b => b.addEventListener('click', () => {
         const m = adminList[Number(b.dataset.bmToggle)];
         if (!m) return;
         adminAct('grant', { account: { studentNumber: m.studentNumber, email: m.email }, booth: m.booth, canApprove: !m.canApprove }, managerSpot(m),
-          () => [managerSpot(m), `${m.name} 학생의 수동 승인 허용을 ${m.canApprove ? '껐어요' : '켰어요'}.`]);
+          () => [managerSpot(m), `${m.name} 학생의 수동 승인 허용을 ${m.canApprove ? '껐습니다' : '켰습니다'}.`]);
       }));
       admin.querySelectorAll('[data-bm-revoke]').forEach(b => b.addEventListener('click', () => {
         const m = adminList[Number(b.dataset.bmRevoke)];
-        if (!m || !confirm(`${m.name} 학생의 '${m.boothName}' 부스 담당자 지정을 해제할까요?`)) return;
-        adminAct('revoke', { account: { studentNumber: m.studentNumber, email: m.email }, booth: m.booth }, managerSpot(m), () => ['list', `${m.name} 학생의 부스 담당자 지정을 해제했어요.`]);
+        if (!m || !confirm(`${m.name} 학생의 '${m.boothName}' 부스 담당자 지정을 해제하시겠습니까?`)) return;
+        adminAct('revoke', { account: { studentNumber: m.studentNumber, email: m.email }, booth: m.booth }, managerSpot(m), () => ['list', `${m.name} 학생의 부스 담당자 지정을 해제했습니다.`]);
       }));
     }
   }

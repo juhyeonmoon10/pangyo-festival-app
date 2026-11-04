@@ -137,7 +137,7 @@ async function popup(page,title) {
   const rows=Object.fromEntries(await list.locator('div').evaluateAll(ds=>ds.map(d=>[d.querySelector('dt').textContent,d.querySelector('dd').textContent])));
   assert.equal(rows['바우처'],title); assert.equal(rows['이름'],'가상방문'); assert.equal(rows['학번'],'21001');
   assert.match(rows['승인 일시'],/^\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{2}:\d{2}$/);
-  assert.match(await page.locator('.voucher-scan-dialog .ops-voucher-done strong').innerText(),/사용 승인이 완료되었어요/);
+  assert.match(await page.locator('.voucher-scan-dialog .ops-voucher-done strong').innerText(),/사용 승인이 완료되었습니다/);
   return async()=>{ await page.locator('[data-voucher-approved-ok]').click(); await page.waitForFunction(()=>!document.querySelector('.voucher-scan-dialog')); };
 }
 
@@ -156,7 +156,7 @@ try {
   await find.waitFor();
   await find.locator('[name=studentNumber]').fill('21001');
   await find.locator('button[type=submit]').click();
-  await a.page.locator('[data-vm-root] .ops-alert',{hasText:'소속 확인이 끝나지 않았어요'}).waitFor();
+  await a.page.locator('[data-vm-root] .ops-alert',{hasText:'소속 확인이 끝나지 않았습니다'}).waitFor();
   await find.locator('[name=studentNumber]').fill('11001');
   await find.locator('button[type=submit]').click();
   const grant=a.page.locator('[data-vm-grant]');
@@ -165,7 +165,7 @@ try {
   await grant.locator('[name=kind]').selectOption('food');
   await check(a.page,'grant-form');
   await grant.locator('button[type=submit]').click();
-  await a.page.getByText('푸드트럭 바우처 담당자로 지정했어요',{exact:false}).waitFor();
+  await a.page.getByText('푸드트럭 바우처 담당자로 지정했습니다',{exact:false}).waitFor();
   await a.page.locator('[data-vm-root] .manager-list li',{hasText:'푸드트럭 바우처 담당자'}).waitFor();
   await check(a.page,'granted');
   flows.push('권한 관리 rename','grant food voucher manager');
@@ -183,10 +183,10 @@ try {
   assert.equal(await m.page.locator('[data-manager-save]').count(),0);
   await form.locator('[name=code]').fill('ABC');
   await form.locator('button[type=submit]').click();
-  await m.page.locator('[data-spot=vm-redeem]',{hasText:'인증키 8자리를 확인해 주세요.'}).waitFor();
+  await m.page.locator('[data-spot=vm-redeem]',{hasText:'인증키 8자리를 확인해 주십시오.'}).waitFor();
   await form.locator('[name=code]').fill(await codeOf(photo));
   await form.locator('button[type=submit]').click();
-  await m.page.locator('[data-spot=vm-redeem]',{hasText:'담당한 종류의 바우처가 아니에요'}).waitFor();
+  await m.page.locator('[data-spot=vm-redeem]',{hasText:'담당한 종류의 바우처가 아닙니다'}).waitFor();
   assert.equal(await stateOf(photo),'available');
   // The typed code stays after a failure.
   assert.equal((await form.locator('[name=code]').inputValue()).length,8);
@@ -198,7 +198,7 @@ try {
   const close=await popup(m.page,'푸드트럭 교환권');
   await check(m.page,'manager-scan-approved');
   await close();
-  await m.page.locator('[data-spot=vm-redeem]',{hasText:'사용 완료로 처리했어요'}).waitFor();
+  await m.page.locator('[data-spot=vm-redeem]',{hasText:'사용 완료로 처리했습니다'}).waitFor();
   assert.equal(await stateOf(food),'used');
   // Windows Chrome has no BarcodeDetector: the bundled jsQR read the frame.
   if(!await m.page.evaluate(()=>'BarcodeDetector' in window)) assert.equal(await m.page.evaluate(()=>typeof window.jsQR),'function');
@@ -208,7 +208,7 @@ try {
   // The same code again: already used.
   await form.locator('[name=code]').fill(await codeOf(food));
   await form.locator('button[type=submit]').click();
-  await m.page.locator('[data-spot=vm-redeem]',{hasText:'이미 사용한 바우처예요.'}).waitFor();
+  await m.page.locator('[data-spot=vm-redeem]',{hasText:'이미 사용한 바우처입니다.'}).waitFor();
   flows.push('manager refused other kind','manager scanned and redeemed own kind','approval popup');
 
   // A participant without the role sees no voucher approval.
@@ -217,17 +217,17 @@ try {
   await v.page.waitForTimeout(300);
   assert.equal(await v.page.locator('[data-route=manage]').count(),0);
   await routeTo(v.page,'manage');
-  await v.page.getByText('관리할 부스가 없어요',{exact:false}).waitFor();
+  await v.page.getByText('관리할 부스가 없습니다',{exact:false}).waitFor();
   assert.equal(await v.page.locator('[data-vm-redeem]').count(),0);
   flows.push('no role, no approval');
 
   // Operator revokes; the manager's next visit shows nothing to approve.
   await a.page.locator('[data-vm-revoke="0"]').click();
-  await a.page.getByText('지정을 해제했어요',{exact:false}).waitFor();
-  await a.page.locator('[data-vm-root] .ops-empty',{hasText:'아직 지정한 바우처 담당자가 없어요.'}).waitFor();
+  await a.page.getByText('지정을 해제했습니다',{exact:false}).waitFor();
+  await a.page.locator('[data-vm-root] .ops-empty',{hasText:'아직 지정한 바우처 담당자가 없습니다.'}).waitFor();
   await routeTo(m.page,'profile');
   await routeTo(m.page,'manage');
-  await m.page.getByText('관리할 부스가 없어요',{exact:false}).waitFor();
+  await m.page.getByText('관리할 부스가 없습니다',{exact:false}).waitFor();
   flows.push('revoke');
 
   // Operators still redeem every kind in 관리 마법사.
@@ -239,7 +239,7 @@ try {
   const closeOps=await popup(a.page,'포토부스 이용권');
   await check(a.page,'operator-scan-approved');
   await closeOps();
-  await a.page.getByText('바우처를 사용 처리했어요.',{exact:false}).waitFor();
+  await a.page.getByText('바우처를 사용 처리했습니다.',{exact:false}).waitFor();
   assert.equal(await stateOf(photo),'used');
   flows.push('operator scans any kind');
 

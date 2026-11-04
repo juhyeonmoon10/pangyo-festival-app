@@ -155,7 +155,7 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
       const issued = await page.locator('#serverAdminUrl').inputValue();
       assert.equal(issued, `pangyofestival://nfc#t=${token('issued')}`);
       assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('nf1.')), false, 'issued tokens must never be stored');
-      await page.locator('#serverTagList .ops-alert').getByText('서버 업데이트가 아직 적용되지 않았어요', { exact: false }).waitFor();
+      await page.locator('#serverTagList .ops-alert').getByText('서버 업데이트가 아직 적용되지 않았습니다', { exact: false }).waitFor();
       await capture('admin-issue');
 
       await page.locator('.bottom-nav [data-route="profile"]').click();
@@ -168,8 +168,8 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
       // This is what happens when the app's callback address is not registered with the provider
       // and the browser is sent to the project's default site instead.
       await page.evaluate(() => { signInStartedAt = Date.now(); document.dispatchEvent(new Event('visibilitychange')); });
-      await page.waitForFunction(() => /앱으로 돌아오지 않았어요/.test(state.loginError), null, { timeout: 10000 });
-      assert.match(await page.locator('.error-text').innerText(), /앱으로 돌아오지 않았어요/);
+      await page.waitForFunction(() => /앱으로 돌아오지 않았습니다/.test(state.loginError), null, { timeout: 10000 });
+      assert.match(await page.locator('.error-text').innerText(), /앱으로 돌아오지 않았습니다/);
       await capture('login');
       assert.deepEqual(errors, []);
       report.push({ width, passed: true, checks: ['no optimistic stamp','two booths','duplicate','server reload','no local write','no mock admin','mobile layout','server review saved','masked author','visit required','operator issue','lost callback warned'] });

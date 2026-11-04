@@ -123,7 +123,7 @@ try {
     await page.locator('#serverAdminIssue').click();
     const url=await page.locator('#serverAdminUrl').inputValue();
     assert.match(url,/^https:\/\/festival\.test\/(index\.html)?#t=nf1\./);
-    assert.match(await page.locator('#serverAdminResult').innerText(),new RegExp(`\\(${memo}\\) 태그를 발급했어요`));
+    assert.match(await page.locator('#serverAdminResult').innerText(),new RegExp(`\\(${memo}\\) 태그를 발급했습니다`));
     await page.waitForFunction(n=>document.querySelectorAll('.nfc-issued-tag').length===n,before+1);
     const card=page.locator('.nfc-issued-tag').first();
     assert.match(await card.innerText(),new RegExp(memo));
@@ -183,9 +183,9 @@ try {
     assert.equal(await form.locator('[name=enabled]').isChecked(),true);
     await form.locator('[name=windowMinutes]').fill('30');
     await form.locator('[name=maxClaims]').fill('2');
-    assert.equal(await page.locator('[data-guard-summary]').innerText(),'30분 안에 새 부스 2개까지 적립할 수 있어요. 3번째부터 막아요.');
+    assert.equal(await page.locator('[data-guard-summary]').innerText(),'30분 안에 새 부스 2개까지 적립할 수 있습니다. 3번째부터 막습니다.');
     await form.locator('button[type=submit]').click();
-    await page.getByText('저장했어요.',{exact:true}).waitFor();
+    await page.getByText('저장했습니다.',{exact:true}).waitFor();
     assert.equal(await page.locator('[data-ops-form="claim_guard_save"] [name=maxClaims]').inputValue(),'2');
     await screenshot(page,width,'guard-settings');
 
@@ -233,12 +233,12 @@ try {
     const register=page.locator('[data-server-tag-register]'); await register.waitFor();
     await register.locator('[name=address]').fill('not a card');
     await register.locator('button[type=submit]').click();
-    await page.locator('#serverTagRegisterStatus.error').getByText('카드 주소를 확인해 주세요',{exact:false}).waitFor();
+    await page.locator('#serverTagRegisterStatus.error').getByText('카드 주소를 확인해 주십시오',{exact:false}).waitFor();
     const before=await page.locator('.nfc-issued-tag').count();
     await register.locator('[name=address]').fill(`pangyofestival://nfc#t=${oldCard}`);
     await register.locator('[name=label]').fill('옛 카드');
     await register.locator('button[type=submit]').click();
-    await page.locator('#serverTagRegisterStatus.success').getByText('목록에 추가했어요',{exact:false}).waitFor();
+    await page.locator('#serverTagRegisterStatus.success').getByText('목록에 추가했습니다',{exact:false}).waitFor();
     await page.waitForFunction(n=>document.querySelectorAll('.nfc-issued-tag').length===n,before+1);
     assert.match(await page.locator('.nfc-issued-tag',{hasText:'옛 카드'}).innerText(),/이전 발급/);
     assert.equal(await register.locator('[name=address]').inputValue(),'','the form clears after registering');
@@ -250,7 +250,7 @@ try {
     await page.locator('.festival-ops-tools [data-ops-tab="catalog"]').click();
     const bulk=page.locator('[data-ops-form="booth_status_bulk"]'); await bulk.waitFor();
     await bulk.locator('button[type=submit]').click();
-    await bulk.locator('.ops-form-status').getByText('상태를 바꿀 부스를 선택해 주세요.').waitFor();
+    await bulk.locator('.ops-form-status').getByText('상태를 바꿀 부스를 선택해 주십시오.').waitFor();
     await bulk.locator('[data-bulk-pick="status-open"]').click();
     const open=(await db.query("select count(*)::int n from festival_ops.booths where status='open'")).rows[0].n;
     assert.equal(await bulk.locator('[data-bulk-count]').innerText(),`${open}개 선택`);
@@ -260,7 +260,7 @@ try {
     await screenshot(page,width,'bulk-status');
     await bulk.locator('[name=status]').selectOption('paused');
     await bulk.locator('button[type=submit]').click();
-    await page.getByText(`부스 ${total}개를 '일시 중지'(으)로 맞췄어요.`,{exact:false}).waitFor();
+    await page.getByText(`부스 ${total}개를 '일시 중지'(으)로 맞췄습니다.`,{exact:false}).waitFor();
     assert.equal((await db.query("select count(*)::int n from festival_ops.booths where status<>'paused'")).rows[0].n,0);
     assert.deepEqual(errors,[]);
     await context.close();
@@ -274,12 +274,12 @@ try {
     await page.locator('[data-ops-tab="tools"]').first().click();
     await page.locator('.festival-ops-tools [data-ops-tab="notice_admin"]').click();
     const form=page.locator('[data-ops-form="notice_save"]'); await form.waitFor();
-    assert.equal(await page.getByText('아직 등록된 공지가 없어요.').count(),1);
+    assert.equal(await page.getByText('아직 등록된 공지가 없습니다.').count(),1);
     await form.locator('[name=title]').fill('우천 시 실내 진행');
-    await form.locator('[name=body]').fill('비가 오면 모든 부스가 본관으로 옮겨요.\n위치는 지도에서 확인해 주세요.');
+    await form.locator('[name=body]').fill('비가 오면 모든 부스가 본관으로 옮겨요.\n위치는 지도에서 확인해 주십시오.');
     await form.locator('[name=important]').check();
     await form.locator('button[type=submit]').click();
-    await page.getByText('공지를 등록했어요. 학생 홈에 바로 보여요.').waitFor();
+    await page.getByText('공지를 등록했습니다. 학생 홈에 바로 보입니다.').waitFor();
     await page.locator('.ops-notice-list li',{hasText:'우천 시 실내 진행'}).waitFor();
     await screenshot(page,width,'notice-admin');
 
@@ -301,17 +301,17 @@ try {
     await edit.locator('[name=title]').fill('우천 시 본관 진행');
     await edit.locator('[name=published]').uncheck();
     await edit.locator('button[type=submit]').click();
-    await page.getByText('공지를 수정했어요.').waitFor();
+    await page.getByText('공지를 수정했습니다.').waitFor();
     assert.match(await page.locator('.ops-notice-list li').first().innerText(),/우천 시 본관 진행[\s\S]*숨김/);
     await s.page.evaluate(async()=>{await festivalOpsUI.refresh(false);render();});
     assert.equal(await s.page.locator('#homeNews .web-news-list').count(),0);
-    assert.match(await s.page.locator('#homeNews').innerText(),/등록된 공지가 없어요/);
+    assert.match(await s.page.locator('#homeNews').innerText(),/등록된 공지가 없습니다/);
 
     // Delete after confirming.
     await page.locator('[data-notice-edit]').first().click();
     await page.locator('[data-notice-delete]').click();
-    await page.getByText('공지를 삭제했어요.').waitFor();
-    assert.equal(await page.getByText('아직 등록된 공지가 없어요.').count(),1);
+    await page.getByText('공지를 삭제했습니다.').waitFor();
+    assert.equal(await page.getByText('아직 등록된 공지가 없습니다.').count(),1);
     assert.deepEqual(errors,[]); assert.deepEqual(s.errors,[]);
     await s.context.close(); await context.close();
     reports.push({width,passed:true,flows:['post important notice','participant home list and strip','edit and hide','hidden not shown','delete']});

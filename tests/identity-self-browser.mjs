@@ -115,7 +115,7 @@ try {
     // A wrong name is explained and the student stays on the step; the roster name lets them in.
     await gate.locator('#identityName').fill('다른 이름');
     await gate.locator('#identitySubmit').click();
-    await gate.getByText('동아리 명단의 이름과 달라요.',{exact:false}).waitFor();
+    await gate.getByText('동아리 명단의 이름과 다릅니다.',{exact:false}).waitFor();
     await screenshot(s.page,width,'identity-gate');
     await gate.locator('#identityName').fill('가상 학생');
     await gate.locator('#identitySubmit').click();
@@ -135,9 +135,9 @@ try {
     await s.page.evaluate(key=>goDetail(state.db.booths.find(b=>boothKeyFor(b)===key).id),away);
     // 1.54: other participants' reviews are private until an operator opens them.
     await s.page.waitForFunction(()=>serverReviewState(state.selectedBoothId)?.status==='ready');
-    await s.page.locator('.review-identity').getByText('가상 학생 이름으로 남아요.',{exact:false}).waitFor();
+    await s.page.locator('.review-identity').getByText('가상 학생 이름으로 남습니다.',{exact:false}).waitFor();
     assert.equal(await s.page.locator('[data-review-average]').innerText(),'비공개');
-    assert.match(await s.page.locator('#boothReviewSection .review-list').innerText(),/아직 비공개예요/);
+    assert.match(await s.page.locator('#boothReviewSection .review-list').innerText(),/아직 비공개입니다/);
     // The review left at the previous width is someone else's: it must not show.
     assert.doesNotMatch(await s.page.locator('#boothReviewSection').innerText(),/가상 후기/);
     assert.equal(await s.page.locator('.review-identity-link').isHidden(),true);
@@ -152,7 +152,7 @@ try {
     await routeTo(a.page,'admin'); await a.page.locator('.festival-op-status').waitFor();
     // Own-club stamps are refused for manual approvals too, with a clear message.
     const refused=await a.page.evaluate(async args=>(await festivalAccount.operations.write('visit_approve',args)).message,{booth:own,studentNumber:number(width),reason:'Synthetic own-club check'});
-    assert.equal(refused,'본인 동아리 부스는 스탬프를 적립할 수 없어요.');
+    assert.equal(refused,'본인 동아리 부스는 스탬프를 적립할 수 없습니다.');
     // Opening reviews in 관리 마법사 → 축제 운영 설정 shows them to every participant; closing hides them again.
     const reviewsSwitch=async value=>{
       await openOperatorTool(a.page,'settings');
@@ -186,7 +186,7 @@ try {
     assert.doesNotMatch(await a.page.locator('.ops-body').innerText(),/#d|참여자 번호/);
     const find=a.page.locator('[data-identity-find]');
     await find.locator('[name=search]').fill(number(width)); await find.locator('button').click();
-    await a.page.locator('[data-identity-find-status]').getByText('같은 학번으로 가입한 계정이 여러 개예요.',{exact:false}).waitFor();
+    await a.page.locator('[data-identity-find-status]').getByText('같은 학번으로 가입한 계정이 여러 개입니다.',{exact:false}).waitFor();
     assert.equal(await a.page.locator('[data-identity-found]').count(),2);
     const row=a.page.locator(`[data-identity-row][data-identity-email="${student.id}@example.invalid"]`); await row.waitFor();
     assert.match(await row.innerText(),/본인 확인/);
@@ -198,17 +198,17 @@ try {
     assert.match(await dialog.innerText(),/본인 확인/);
     await dialog.locator('[name=reason]').fill('Synthetic operator correction');
     await dialog.locator('[data-roster-revoke]').click();
-    await dialog.getByText('확인을 취소했어요.').waitFor();
+    await dialog.getByText('확인을 취소했습니다.').waitFor();
     await a.page.keyboard.press('Escape');
     await a.page.locator(`[data-identity-row][data-identity-email="${student.id}@example.invalid"]`).getByText('운영자 취소').waitFor();
 
     await s.page.evaluate(()=>festivalOpsUI.refresh());
     await routeTo(s.page,'home');
-    await s.page.locator('.festival-identity-prompt').getByText('운영자 확인이 필요해요',{exact:false}).waitFor();
+    await s.page.locator('.festival-identity-prompt').getByText('운영자 확인이 필요합니다',{exact:false}).waitFor();
     // Signing in again stops at the step, with no form: only an operator can help now.
     await s.page.reload();
     const locked=s.page.locator('[data-identity-gate]');
-    await locked.getByText('운영자가 소속 확인을 취소했어요.',{exact:false}).waitFor();
+    await locked.getByText('운영자가 소속 확인을 취소했습니다.',{exact:false}).waitFor();
     assert.equal(await locked.locator('#identitySubmit').count(),0);
     await screenshot(s.page,width,'identity-gate-locked');
     assert.deepEqual([...s.errors,...a.errors],[]);

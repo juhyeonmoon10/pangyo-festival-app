@@ -9,7 +9,7 @@ const feedback = source.slice(source.indexOf('function dismissNfcFeedback()'), s
 function setup({ reviewed = false, type = 'success', allowed = true } = {}) {
   const nodes = [], calls = [];
   const state = { user: { id: 'student' }, db: { booths: [{ id: 'booth', name: '<부스>' }] },
-    scanResult: { type, boothId: 'booth', title: reviewed ? '스탬프가 완성됐어요' : '방문 인증 완료', body: '기존 방문 기록을 그대로 유지했어요.' } };
+    scanResult: { type, boothId: 'booth', title: reviewed ? '스탬프가 완성되었습니다' : '방문 인증 완료', body: '기존 방문 기록을 그대로 유지했습니다.' } };
   const document = {
     querySelector: () => nodes.find(n => !n.removed) || null,
     body: { append: node => nodes.push(node) },
@@ -52,7 +52,7 @@ test('visit completion is an accessible modal with rating CTA and escaped booth 
 });
 test('rated visit has explicit confirmation instead of an automatic timeout', () => {
   const api = setup({ reviewed: true }); api.show();
-  assert.match(api.nodes[0].innerHTML, /스탬프가 완성됐어요/);
+  assert.match(api.nodes[0].innerHTML, /스탬프가 완성되었습니다/);
   assert.match(api.nodes[0].innerHTML, />확인</); assert.doesNotMatch(api.nodes[0].innerHTML, /별점 남기기/);
 });
 test('repeated scans replace, never stack, the modal', () => {
@@ -85,9 +85,9 @@ test('signed-out users do not see stale completion feedback', () => {
   assert.equal(api.nodes.filter(n => !n.removed).length, 0);
 });
 test('a known booth never replaces the explanation for a blocked visit', () => {
-  const api=setup({type:'blocked'}); api.state.scanResult.body='부스가 일시 중지돼 있어요.'; api.show();
+  const api=setup({type:'blocked'}); api.state.scanResult.body='부스가 일시 중지돼 있습니다.'; api.show();
   assert.match(api.nodes[0].innerHTML,/&lt;부스&gt;/);
-  assert.match(api.nodes[0].innerHTML,/부스가 일시 중지돼 있어요/);
+  assert.match(api.nodes[0].innerHTML,/부스가 일시 중지돼 있습니다/);
   assert.doesNotMatch(api.nodes[0].innerHTML,/다시 시도/);
 });
 test('closing restores the same input and its original selection without scrolling', () => {

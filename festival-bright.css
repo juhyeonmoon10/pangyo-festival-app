@@ -521,6 +521,9 @@ body.design-web {
 .ops-count { margin-left: 6px; color: var(--muted); font-size: 14px; font-weight: 400; }
 /* The notice column fills the row beside the megaphone, so each notice spans the screen width. */
 .web-announcement > div { flex: 1; min-width: 0; }
+/* 1.55: the heading row is 48px tall (the 전체 보기 link), so the 19px megaphone sits 14.5px down to share its center with 공지. */
+.web-announcement > .ui-icon { flex: none; margin-top: 14.5px; }
+.web-announcement .section-heading { min-height: 48px; }
 .web-news-list { display: grid; gap: 12px; margin: 6px 0 0; padding: 0; list-style: none; }
 .web-news-list li + li { padding-top: 12px; border-top: 1px solid var(--line); }
 .web-news-list strong { display: block; overflow-wrap: anywhere; }
