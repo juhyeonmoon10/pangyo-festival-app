@@ -106,6 +106,17 @@ const festivalWaitingManager = (() => {
     code.addData(joinUrl(token)); code.make();
     return code;
   }
+  // The saved image is a PNG drawn from the QR's modules (qrcode-generator itself only writes GIF).
+  function qrPng(token, cell = 12, margin = 4) {
+    const code = qrSvg(token), count = code.getModuleCount(), size = (count + margin * 2) * cell;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000';
+    for (let r = 0; r < count; r++) for (let c = 0; c < count; c++) if (code.isDark(r, c)) ctx.fillRect((c + margin) * cell, (r + margin) * cell, cell, cell);
+    return canvas.toDataURL('image/png');
+  }
   function qrView() {
     const s = board.settings;
     if (!qr) { queueMicrotask(loadQr); return '<section class="ops-section"><p role="status">QR을 만드는 중...</p></section>'; }
@@ -288,8 +299,8 @@ const festivalWaitingManager = (() => {
     });
     root.querySelector('[data-wm-qr-save]')?.addEventListener('click', () => {
       const link = document.createElement('a');
-      link.href = qrSvg(qr.token).createDataURL(12, 4);
-      link.download = `${board.booth.name}-웨이팅-QR.gif`;
+      link.href = qrPng(qr.token);
+      link.download = `${board.booth.name}-웨이팅-QR.png`;
       document.body.appendChild(link); link.click(); link.remove();
     });
     root.querySelector('[data-wm-qr-print]')?.addEventListener('click', () => {

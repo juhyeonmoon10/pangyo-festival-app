@@ -11,6 +11,8 @@ const names = {
   // 1.59 웨이팅 and posters.
   clock: 'Clock', qr: 'QrCode', users: 'Users', download: 'Download', image: 'Image', pause: 'Pause', play: 'Play',
   bellRing: 'BellRing', share: 'Share', squarePlus: 'SquarePlus', printer: 'Printer',
+  // 1.61 notification warnings.
+  alert: 'TriangleAlert',
 };
 const icons = Object.fromEntries(Object.entries(names).map(([name, key]) => {
   if (!lucide[key]) throw Error(`Missing icon ${key}`);

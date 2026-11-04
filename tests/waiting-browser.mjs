@@ -1,5 +1,6 @@
 // Real browser and operations SQL; all remote requests terminate in local PGlite (storage is mocked).
-// Covers 웨이팅 (1.59): manager settings, online and QR registration, postpone, call, enter, cancel with a reason, walk-ins.
+// Covers 웨이팅 (1.59): manager settings, online and QR registration, postpone, call, enter, cancel with a reason, walk-ins,
+// and the popups after registering (iPhone home screen 1.60, notification permission 1.61).
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -56,9 +57,17 @@ const output=path.join(root,'artifacts/waiting'); fs.mkdirSync(output,{recursive
 const browser=await chromium.launch({headless:true,channel:process.env.CHROME_PATH?undefined:'msedge',executablePath:process.env.CHROME_PATH});
 const pages=[], uploads=[], boothUploads=[], removed=[];
 const IPHONE_CHROME='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.90 Mobile/15E148 Safari/604.1';
-async function pageFor(a,width=390,userAgent) {
+// The notification permission is faked: it starts as `permission` and the browser's question answers
+// window.__permissionAnswer (default 'denied').
+async function pageFor(a,width=390,userAgent,permission='granted') {
   const context=await browser.newContext({viewport:{width,height:850},isMobile:true,hasTouch:true,...(userAgent?{userAgent}:{})});
   await context.addInitScript(a=>localStorage.setItem('pangyo-google-session-v1',JSON.stringify({access_token:a.jwt,refresh_token:'fixture',token_type:'bearer',expires_at:4102444800,expires_in:3600,user:{id:a.id}})),a);
+  await context.addInitScript(start=>{
+    if(typeof Notification==='undefined') return;
+    let now=start;
+    Object.defineProperty(Notification,'permission',{configurable:true,get:()=>now});
+    Notification.requestPermission=async()=>{ window.__permissionAsked=(window.__permissionAsked||0)+1; now=window.__permissionAnswer||'denied'; return now; };
+  },permission);
   const page=await context.newPage(), errors=[];
   page.on('pageerror',e=>errors.push(e.message)); page.on('dialog',d=>d.accept(d.type()==='prompt'?'재료 소진으로 오늘 운영을 마쳐요':undefined));
   await page.route('**/*',async route=>{
@@ -127,7 +136,7 @@ try {
   flows.push('manager settings');
 
   // A student registers online from the booth page with a party of 2.
-  const v=await pageFor(visitor);
+  const v=await pageFor(visitor,390,undefined,'default');
   const id=await v.page.evaluate(k=>state.db.booths.find(b=>boothKeyFor(b)===k)?.id,CLUB);
   await v.page.evaluate(id=>goDetail(id),id);
   const panel=v.page.locator('.waiting-panel');
@@ -144,9 +153,32 @@ try {
   const ticket=await v.page.locator('.waiting-ticket').innerText();
   assert.match(ticket,/대기번호\s*1\s*번/); assert.match(ticket,/현재 대기순번\s*1\s*번째/); assert.match(ticket,/현재 대기\s*1\s*팀/); assert.match(ticket,/곧 입장/);
   assert.match(ticket,/2명 · 온라인 등록/);
-  await v.page.locator('[data-waiting-alert]').waitFor();
+  // Not asked yet (Android): the warning popup comes first, with one button and no way around it.
+  const warn=v.page.locator('dialog.waiting-permission-dialog[open]');
+  await warn.waitFor();
+  assert.match(await warn.innerText(),/반드시 허용해 주세요[\s\S]*알림을 허용하지 않으면 차례를 놓칠 수 있어요[\s\S]*곧 알림 권한을 묻는 창이 떠요[\s\S]*노쇼/);
+  assert.equal(await warn.locator('button').count(),1);
+  assert.equal(await v.page.evaluate(()=>window.__permissionAsked||0),0);
+  await v.page.keyboard.press('Escape');
+  assert.equal(await warn.count(),1);
+  await v.page.waitForTimeout(350);
+  await check(v.page,'permission-popup');
+  // The browser's question dismissed: the popup stays and asks again.
+  await v.page.evaluate(()=>{window.__permissionAnswer='default';});
+  await warn.locator('[data-waiting-warn-allow]').click();
+  await warn.locator('[data-waiting-warn-note]',{hasText:'아직 허용되지 않았어요'}).waitFor();
+  assert.match(await warn.locator('[data-waiting-warn-allow]').innerText(),/다시 허용하기/);
+  // Blocked: the popup turns into the settings steps.
+  await v.page.evaluate(()=>{window.__permissionAnswer='denied';});
+  await warn.locator('[data-waiting-warn-allow]').click();
+  await warn.getByText('이대로는 차례가 돼도 알림이 오지 않아요').waitFor();
+  assert.equal(await v.page.evaluate(()=>window.__permissionAsked),2);
+  await check(v.page,'permission-blocked');
+  await warn.locator('[data-waiting-warn-ok]').click();
+  await warn.waitFor({state:'detached'});
+  await v.page.locator('[data-waiting-alert]',{hasText:'알림이 차단돼 있어요'}).waitFor();
   await check(v.page,'join-success');
-  flows.push('online registration','success screen');
+  flows.push('online registration','success screen','permission popup');
 
   // Two more teams; the third sees 2 teams ahead × 5 minutes.
   const w2=await pageFor(s2), w3=await pageFor(s3);
@@ -211,6 +243,20 @@ try {
   await m.page.locator('[data-wm-tab=qr]').click();
   await m.page.locator('.waiting-qr-code svg').waitFor();
   await check(m.page,'manager-qr');
+  // 'QR 이미지 저장' gives a PNG that reads back as the join address.
+  const [qrFile]=await Promise.all([m.page.waitForEvent('download'),m.page.locator('[data-wm-qr-save]').click()]);
+  assert.equal(qrFile.suggestedFilename(),`${CLUB}-웨이팅-QR.png`);
+  const png=fs.readFileSync(await qrFile.path());
+  assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
+  const read=await m.page.evaluate(async src=>{
+    if(typeof jsQR==='undefined') await new Promise((ok,no)=>{const s=document.createElement('script');s.src='./assets/vendor/jsqr-1.4.0.js';s.onload=ok;s.onerror=no;document.head.appendChild(s);});
+    const img=new Image(); img.src=src; await img.decode();
+    const c=document.createElement('canvas'); c.width=img.width; c.height=img.height;
+    const x=c.getContext('2d'); x.drawImage(img,0,0);
+    return jsQR(x.getImageData(0,0,c.width,c.height).data,c.width,c.height)?.data||'';
+  },`data:image/png;base64,${png.toString('base64')}`);
+  assert.match(read,new RegExp(`/waiting/join/${encodeURIComponent(CLUB)}#q=`));
+  flows.push('qr png');
   const token=(await db.query('select festival_ops.waiting_qr_token(s) t from festival_ops.waiting_settings s where booth_key=$1',[CLUB])).rows[0].t;
   // This one is an iPhone in Chrome: registering pops up the home-screen steps, naming no browser.
   const q=await pageFor(lead,390,IPHONE_CHROME);

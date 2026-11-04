@@ -180,26 +180,62 @@ const festivalWaiting = (() => {
   // iPhone steps, shared by the card and the popup after registering. Since iOS 16.4 every iPhone browser
   // (Safari, Chrome, Edge, ...) can add the site to the home screen, so the steps name no browser.
   const appleSteps = () => `<ol><li>브라우저의 ${icon('share')} 공유 버튼을 눌러요. 보이지 않으면 메뉴(⋯)에서 '공유'를 찾아요.</li><li>'홈 화면에 추가'를 눌러요.</li><li>홈 화면에 생긴 '판교고 축제'로 열고, 같은 계정으로 로그인한 뒤 '알림 허용'을 눌러요.</li></ol>`;
-  // Shown over the ticket right after an iPhone registers in the browser, because there the notifications
-  // cannot arrive at all until the site is on the home screen.
-  function appleNotice() {
-    if (!isApple() || standalone()) return;
-    document.querySelector('.waiting-apple-dialog')?.remove();
+  // Warning popups over the ticket right after registering, for what the notifications still need.
+  function warnDialog(kind, html) {
+    document.querySelector('.waiting-warn-dialog')?.remove();
     const dialog = document.createElement('dialog');
-    dialog.className = 'waiting-apple-dialog';
-    dialog.setAttribute('aria-labelledby', 'waitingAppleTitle');
-    dialog.setAttribute('aria-describedby', 'waitingAppleLead');
-    dialog.innerHTML = `<span class="waiting-apple-icon" aria-hidden="true">${icon('bellRing')}</span>
-      <p class="waiting-apple-kicker">꼭 확인해 주세요</p>
-      <h2 id="waitingAppleTitle">지금 이대로는 알림이 오지 않아요</h2>
-      <p id="waitingAppleLead">iPhone은 이 사이트를 <strong>홈 화면에 추가</strong>해야 순서가 바뀌거나 입장할 차례가 됐을 때 알림을 받을 수 있어요.</p>
-      <div class="waiting-apple-steps">${appleSteps()}</div>
-      <p class="waiting-apple-keep">${icon('check')} 웨이팅은 이미 등록됐어요. 홈 화면 앱에서 같은 계정으로 로그인하면 그대로 이어서 볼 수 있어요.</p>
-      <button type="button" class="primary-btn full-action" data-waiting-apple-ok>확인했어요</button>`;
+    dialog.className = `waiting-warn-dialog waiting-${kind}-dialog`;
+    dialog.setAttribute('aria-labelledby', 'waitingWarnTitle');
+    dialog.setAttribute('aria-describedby', 'waitingWarnLead');
+    dialog.innerHTML = html;
     document.body.appendChild(dialog);
     dialog.addEventListener('close', () => dialog.remove());
-    dialog.querySelector('[data-waiting-apple-ok]').addEventListener('click', () => dialog.close());
     dialog.showModal();
+    return dialog;
+  }
+  const warnHead = (iconName, kicker, title, lead) => `<span class="waiting-warn-icon" aria-hidden="true">${icon(iconName)}</span>
+    <p class="waiting-warn-kicker">${icon('alert')} ${kicker}</p><h2 id="waitingWarnTitle">${title}</h2><p id="waitingWarnLead">${lead}</p>`;
+  // An iPhone in the browser: the notifications cannot arrive at all until the site is on the home screen.
+  function appleNotice() {
+    const dialog = warnDialog('apple', `${warnHead('bellRing', '꼭 확인해 주세요', '지금 이대로는 알림이 오지 않아요', 'iPhone은 이 사이트를 <strong>홈 화면에 추가</strong>해야 순서가 바뀌거나 입장할 차례가 됐을 때 알림을 받을 수 있어요.')}
+      <div class="waiting-warn-steps">${appleSteps()}</div>
+      <p class="waiting-warn-keep">${icon('check')} 웨이팅은 이미 등록됐어요. 홈 화면 앱에서 같은 계정으로 로그인하면 그대로 이어서 볼 수 있어요.</p>
+      <button type="button" class="primary-btn full-action" data-waiting-apple-ok>확인했어요</button>`);
+    dialog.querySelector('[data-waiting-apple-ok]').addEventListener('click', () => dialog.close());
+  }
+  // Blocked notifications: the browser never asks again, so only the settings can turn them back on.
+  function blockedNotice(dialog) {
+    const html = `${warnHead('bell', '알림이 차단돼 있어요', '이대로는 차례가 돼도 알림이 오지 않아요', '이 사이트의 알림이 <strong>차단</strong>돼 있어요. 설정에서 직접 <strong>허용</strong>으로 바꿔야 알림을 받을 수 있어요.')}
+      <div class="waiting-warn-steps"><ol><li>브라우저 주소창 왼쪽의 자물쇠(또는 설정) 아이콘을 눌러요. 홈 화면 앱이면 휴대폰 '설정' → '알림'에서 '판교고 축제'를 찾아요.</li><li>'알림'을 <strong>'허용'</strong>으로 바꿔요.</li><li>이 화면으로 돌아와 새로고침해요.</li></ol></div>
+      <button type="button" class="primary-btn full-action" data-waiting-warn-ok>확인했어요</button>`;
+    if (dialog) dialog.innerHTML = html; else dialog = warnDialog('permission', html);
+    dialog.querySelector('[data-waiting-warn-ok]').addEventListener('click', () => dialog.close());
+  }
+  // Anywhere else the browser asks for the permission itself. The warning comes first and its one button
+  // opens the browser's question, which only appears reliably when a tap opens it. There is no "later":
+  // until the button has been pressed once, Back does not close the popup either.
+  function permissionNotice() {
+    if (!pushSupported() || permission() === 'granted') return;
+    if (permission() === 'denied') { blockedNotice(); return; }
+    const dialog = warnDialog('permission', `${warnHead('bellRing', '반드시 허용해 주세요', '알림을 허용하지 않으면 차례를 놓칠 수 있어요', "곧 알림 권한을 묻는 창이 떠요. 꼭 <strong>'허용'</strong>을 눌러 주세요. 허용하지 않으면 입장할 차례가 돼도 알림이 오지 않고, 호출에 늦으면 노쇼로 처리돼 웨이팅이 취소될 수 있어요.")}
+      <div class="waiting-warn-steps"><ol><li>아래 '알림 허용하기'를 눌러요.</li><li>뜨는 창에서 <strong>'허용'</strong>을 눌러요. '차단'이나 '허용 안함'을 누르면 다시 켜기 어려워요.</li></ol></div>
+      <p class="waiting-warn-note" role="status" data-waiting-warn-note hidden></p>
+      <button type="button" class="primary-btn full-action" data-waiting-warn-allow>${icon('bell')} 알림 허용하기</button>`);
+    let asked = false;
+    dialog.addEventListener('cancel', event => { if (!asked) event.preventDefault(); });
+    const button = dialog.querySelector('[data-waiting-warn-allow]');
+    const message = dialog.querySelector('[data-waiting-warn-note]');
+    button.addEventListener('click', async () => {
+      asked = true; button.disabled = true;
+      const done = await ensurePush(true);
+      redraw('alert');
+      if (done) { dialog.close(); return; }
+      if (permission() === 'denied') { blockedNotice(dialog); return; }
+      button.disabled = false;
+      button.innerHTML = `${icon('bell')} 다시 허용하기`;
+      message.hidden = false;
+      message.textContent = permission() === 'granted' ? '알림은 허용됐지만 연결하지 못했어요. 다시 눌러 주세요.' : "아직 허용되지 않았어요. 다시 눌러 '허용'을 선택해 주세요.";
+    });
   }
 
   // What the student needs to do so a closed page still gets the notifications.
@@ -214,7 +250,7 @@ const festivalWaiting = (() => {
     if (!pushSupported()) return `<section class="waiting-alert-card" data-waiting-alert>${icon('bell')}<div><strong>이 브라우저는 알림을 받을 수 없어요</strong><small>이 화면을 열어 두면 순서가 바뀔 때 화면에서 알려 드려요.</small></div></section>`;
     if (p === 'denied') return `<section class="waiting-alert-card is-warning" data-waiting-alert>${icon('bell')}<div><strong>알림이 차단돼 있어요</strong><small>브라우저 설정에서 이 사이트의 알림을 '허용'으로 바꿔 주세요. 그동안은 이 화면을 열어 두면 화면에서 알려 드려요.</small></div></section>`;
     if (p === 'granted' && subscribedFor === state.user?.id) return `<p class="waiting-alert-ok" data-waiting-alert>${icon('check')} 순서가 바뀌거나 호출되면 알림으로 알려 드려요.</p>`;
-    return `<section class="waiting-alert-card" data-waiting-alert>${icon('bellRing')}<div><strong>순서가 바뀌면 알림으로 알려 드릴게요</strong><small>앞 팀이 줄 때마다, 그리고 입장할 차례가 되면 알림이 와요.</small>
+    return `<section class="waiting-alert-card is-warning" data-waiting-alert>${icon('bellRing')}<div><strong>알림을 허용해야 차례 알림을 받을 수 있어요</strong><small>${p === 'granted' ? '알림 연결이 아직 끝나지 않았어요. 아래 버튼을 눌러 주세요.' : '지금은 알림이 꺼져 있어요. 허용하지 않으면 입장할 차례가 돼도 알림이 오지 않아요.'}</small>
       <button type="button" class="primary-btn" data-waiting-push ${pushBusy ? 'disabled' : ''}>${icon('bell')} 알림 허용</button>${pushNote ? `<small class="is-warning" role="status">${h(pushNote)}</small>` : ''}</div></section>`;
   }
 
@@ -311,7 +347,7 @@ const festivalWaiting = (() => {
     join = null;
     mine = null; loadMine();
     open(response.data.id);
-    if (!response.data.already) appleNotice();
+    if (!response.data.already) { if (isApple() && !standalone()) appleNotice(); else permissionNotice(); }
     ensurePush(false).then(done => { if (done) redraw('alert'); });
   }
 
