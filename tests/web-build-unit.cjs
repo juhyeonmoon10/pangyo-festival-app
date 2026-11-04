@@ -4,7 +4,7 @@ const path = require('node:path');
 const { build, publicFiles, output } = require('../tools/build-web.cjs');
 
 const first = build();
-assert.equal(first.version, '1.51');
+assert.equal(first.version, '1.63');
 // An open page compares its own release with the deployed one to offer a reload.
 assert.ok(fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8').includes(`const APP_RELEASE = "${first.version}";`), 'APP_RELEASE must match the build version');
 assert.equal(fs.existsSync(path.join(output, 'functions')), false);
@@ -19,7 +19,7 @@ assert.doesNotMatch(html, /mock-account|isolation\.js|ui-lab/);
 for (const file of publicFiles().filter(file=>file.endsWith('.js'))) {
   assert.doesNotMatch(fs.readFileSync(path.join(output,'static',file),'utf8'), /FestivalUILab|UI_LAB_REQUIRED|labFloor/);
 }
-for (const file of ['festival-games.js','festival-games-admin.js','festival-games.css','ui-refinements.css']) assert.ok(first.files[file], `Missing integrated file: ${file}`);
+for (const file of ['festival-games.js','festival-games-admin.js','festival-games.css','ui-refinements.css','festival-waiting.js','festival-waiting.css','waiting-manager.js','sw.js','manifest.webmanifest']) assert.ok(first.files[file], `Missing integrated file: ${file}`);
 const stampFiles = publicFiles().filter(file => /^assets\/stamps\/.*\.png$/.test(file));
 assert.equal(stampFiles.length, 20);
 assert.equal(fs.existsSync(path.join(output, 'static/assets/stamps/SOURCES.json')), false);
@@ -44,7 +44,7 @@ assert.ok(config.routes.some(route => route.src === '/nfc/?' && route.dest === '
 const rewrite = config.routes.find(route => route.src === require('../festival-router.js').pagePattern && route.dest === '/index.html');
 assert.ok(rewrite, 'Page URLs must support a direct visit and refresh');
 const pattern = new RegExp(`^${rewrite.src}$`);
-for (const page of ['/', '/login', '/admin', '/map', '/stamp', '/voucher/', '/my', '/reviews', '/identity', '/booth/fixture', '/booth/fixture/reviews', '/games', '/games/stock', '/games/stock/1', '/games/blackjack']) {
+for (const page of ['/', '/login', '/admin', '/map', '/stamp', '/voucher/', '/my', '/reviews', '/identity', '/booth/fixture', '/booth/fixture/reviews', '/games', '/games/stock', '/games/stock/1', '/games/blackjack', '/waiting/10000000-0000-4000-8000-000000000001', '/waiting/join/fixture', '/manage/waiting/fixture']) {
   assert.ok(pattern.test(page), `Missing page rewrite: ${page}`);
 }
 for (const privatePath of ['/api/debug', '/operations-server/install.sql', '/.env', '/tests/stamp-ui-preview.html', '/missing.js']) {

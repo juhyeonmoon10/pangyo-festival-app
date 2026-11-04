@@ -5,7 +5,6 @@
 .design-web .web-map-action .map-action-art { width: 112px; height: 94px; }
 .design-web .web-map-action .map-action-copy strong { font-size: 23px; }
 .design-web .web-announcement .web-news-list p { display: none; }
-.design-web .map-screen { --map-header-height: 154px; }
 .design-web .map-screen .map-location-note { display: none; }
 .design-web .map-screen .festival-map-filter { height: 30px; }
 .design-web .map-screen .map-context-bar { display: none; }

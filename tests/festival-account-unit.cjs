@@ -144,32 +144,21 @@ test('registration never reports success when the server still requires a profil
   await assert.rejects(account.updateProfile(good.name, '99999'), /INVALID_STUDENT_NUMBER/);
 });
 
-test('name changes update only the app display name and confirm the saved profile', async () => {
-  const calls = [];
-  const expected = { ...good, name: '새 이름', completedBooths: ['글빛누리'] };
-  const { account, auth } = setup(async method => { calls.push(method); return { data: expected }; });
-  auth.updateUser = async attributes => { calls.push(attributes); return { error: null }; };
-  const profile = await account.updateName('  새 이름  ');
-  assert.deepEqual(calls, [{ data: { festival_name: '새 이름' } }, 'festival_nfc_profile']);
-  assert.equal(profile.studentNumber, good.studentNumber);
-  assert.deepEqual(profile.completedBooths, expected.completedBooths);
+test('1.54: the account API has no way to change the display name', () => {
+  const { account } = setup(() => { throw Error('unexpected RPC'); });
+  assert.equal(account.updateName, undefined);
+  assert.equal(typeof account.updateProfile, 'function');
 });
 
-test('invalid name changes never reach authentication or the profile RPC', async () => {
-  const { account, auth } = setup(() => { throw Error('unexpected RPC'); });
-  auth.updateUser = () => { throw Error('unexpected write'); };
-  for (const name of ['', '   ', '가'.repeat(61), null, 42]) {
-    await assert.rejects(account.updateName(name), /INVALID_NAME/);
-  }
-});
-
-test('a failed or unconfirmed name change is not reported as saved', async () => {
-  const { account, auth } = setup(async () => ({ data: good }));
-  auth.updateUser = async () => ({ error: new Error('AUTH_REQUIRED') });
-  await assert.rejects(account.updateName('New'), /AUTH_REQUIRED/);
-  auth.updateUser = async () => ({ error: null });
-  await assert.rejects(account.updateName('New'), /PROFILE_NAME_UNCONFIRMED/);
-  assert.match(normalizeError({ message: 'PROFILE_NAME_UNCONFIRMED' }).message, /변경 결과/);
+test("1.54: review summaries say whether other participants' reviews are visible", () => {
+  const { validateReviews } = require('../festival-account.js');
+  const base = { boothKey: '글빛누리', count: 1, average: '4.0', myRating: 4,
+    reviews: [{ rating: 4, content: null, author: '홍길동', mine: true, createdAt: '2026-11-04T00:00:00Z' }] };
+  assert.equal(validateReviews({ ...base, visible: false }).visible, false);
+  assert.equal(validateReviews({ ...base, visible: true }).visible, true);
+  // An older server leaves it out; it always showed every review.
+  assert.equal(validateReviews(base).visible, true);
+  assert.throws(() => validateReviews({ ...base, visible: 'no' }), /INVALID_REVIEW_RESPONSE/);
 });
 
 test('review responses are validated before they reach the screen', () => {
@@ -247,10 +236,13 @@ test('school accounts: the 학번 and the name are read from "<학번><이름>"'
   assert.deepEqual(schoolIdentity(school, ['30105남궁민수']), { studentNumber: '30105', name: '남궁민수' });
   // The first name in the list that fits is used.
   assert.deepEqual(schoolIdentity(school, [null, 'Hong', '21002이몽룡']), { studentNumber: '21002', name: '이몽룡' });
+  // 1.48: the name may come first, and a space, "_", "-" or brackets may sit between.
+  for (const name of ['홍길동21001', '홍길동 21001', '홍길동(21001)', '21001_홍길동', '21001-홍길동', '[21001] 홍길동'])
+    assert.deepEqual(schoolIdentity(school, [name]), { studentNumber: '21001', name: '홍길동' }, name);
   // Other domains, other shapes and impossible numbers are not guessed.
   for (const [email, name] of [['student@gmail.com', '21001홍길동'], ['student@pangyo.hs.kr.evil.com', '21001홍길동'], ['student@x.pangyo.hs.kr.example', '21001홍길동'],
     [school, '홍길동'], [school, '21001'], [school, '2100홍길동'], [school, '210011홍길동'], [school, '41001홍길동'], [school, '01001홍길동'],
-    [school, '21001홍'], [school, '21001 Hong'], [school, '홍길동21001'], [school, '21001홍길동A'], [null, '21001홍길동']]) {
+    [school, '21001홍'], [school, '21001 Hong'], [school, '홍길동21001A'], [school, '21001홍길동A'], [null, '21001홍길동']]) {
     assert.equal(schoolIdentity(email, [name]), null, `${email} ${name}`);
   }
 });
@@ -264,7 +256,7 @@ test('first login with a school account fills in the 학번 without writing it',
     identities: [{ provider: 'google', identity_data: { full_name: '21001홍길동' } }] } } });
   const result = await account.profile();
   assert.equal(result.name, '홍길동'); assert.equal(result.studentNumber, '21001');
-  assert.equal(result.studentNumberDetected, true); assert.equal(result.needsProfile, true);
+  assert.equal(result.studentNumberDetected, true); assert.equal(result.nameDetected, true); assert.equal(result.needsProfile, true);
   assert.equal(writes, 0);
   // A 학번 the student already typed is kept.
   const typed = setup(async () => ({ data: { ...pending, studentNumber: '21009' } }));
@@ -276,9 +268,27 @@ test('first login with a school account fills in the 학번 without writing it',
   named.auth.getUser = auth.getUser;
   const filled = await named.account.profile();
   assert.equal(filled.name, '내 이름'); assert.equal(filled.studentNumber, '21001'); assert.equal(filled.studentNumberDetected, true);
+  // A saved name that is the whole Google name is replaced by the name part (1.48).
+  const raw = setup(async () => ({ data: { ...pending, name: '21001홍길동' } }));
+  raw.auth.getUser = auth.getUser;
+  const fixed = await raw.account.profile();
+  assert.equal(fixed.name, '홍길동'); assert.equal(fixed.nameDetected, true); assert.equal(fixed.studentNumber, '21001');
   // Another domain keeps the plain Google name and an empty 학번.
   const other = setup(async () => ({ data: { ...pending, email: 'student@gmail.com' } }));
   other.auth.getUser = async () => ({ data: { user: { id: good.authUserId, email: 'student@gmail.com', user_metadata: { full_name: '21001홍길동' } } } });
   const plain = await other.account.profile();
   assert.equal(plain.name, '21001홍길동'); assert.equal(plain.studentNumber, ''); assert.equal(plain.studentNumberDetected, undefined);
+});
+
+test('1.53: the membership state carries "required", and claims refused for it read clearly', () => {
+  const { validateIdentityState, normalizeError } = require('../festival-account.js');
+  const base = { version: 1, eventId: 'e', result: null, verified: false, locked: false, eligible: true, selfRegistered: false,
+    realName: null, clubs: [], boothKeys: [], studentNumber: '21001' };
+  assert.equal(validateIdentityState({ ...base, required: true }).required, true);
+  assert.equal(validateIdentityState({ ...base, eligible: false, required: false }).required, false);
+  // An older server leaves it out and cannot say whether a roster is ready: nothing is asked.
+  assert.equal(validateIdentityState(base).required, false);
+  assert.throws(() => validateIdentityState({ ...base, required: 'yes' }));
+  assert.equal(normalizeError(new Error('IDENTITY_REQUIRED')).message, '소속 동아리 확인을 먼저 마쳐 주세요.');
+  assert.equal(normalizeError(new Error('OPS_NOT_READY')).code, 'OPS_NOT_READY');
 });

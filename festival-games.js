@@ -1,6 +1,6 @@
 /* 미니게임: the point games ported from ORBIT develop (/games). 동아리 가상주식 and 1대1 블랙잭 call ORBIT's own
    functions (orbit_stock_snapshot, orbit_trade_stock, orbit_blackjack_*) through the signed-in festival account.
-   They move ORBIT virtual points (가상 포인트), which are separate from festival points, stamps and vouchers.
+   They move public.users.money, the one 보유 포인트 balance (1.52: festival point rewards land there too).
    The only way in is the bottom navigation tab '미니게임' (route 'games'); no other screen links here.
    Results are shown next to the button that was pressed (spotMarkup/showSpot).
    1.38: the hub shows how many players wait for a blackjack opponent (festival_blackjack_lobby), and the
@@ -22,7 +22,10 @@
    1.49: simultaneous rounds (MINIGAME_RULES.md 3). Both players choose hit or stand in the same round; the
    opponent only shows "선택 완료" until both have chosen (or 10 s pass), then the server reveals both choices
    together (game.lastRound) and each hit draws one card. A stand stops the player; no choice is a stand.
-   Matching uses the festival queue (festival_blackjack_cancel) and takes the stake only at a match. */
+   Matching uses the festival queue (festival_blackjack_cancel) and takes the stake only at a match.
+   1.51: 가상주식 visit rules (MINIGAME_RULES.md 2.3, 2.4). Only clubs whose booth the student visited can be
+   bought or sold (stock.visited; the server refuses others with STOCK_NOT_VISITED). Prices fall a little every
+   minute and rise once for every visitStep visitors; the list and detail show visitors and the rule line. */
 const festivalGames = (() => {
   const STAKE = 300, TURN_SECONDS = 10, POLL_MS = 1000, LOBBY_MS = 5000, FLIP_MS = 700, CHART_MS = 2 * 60 * 60 * 1000;
   const h = value => escapeHtml(String(value ?? ''));
@@ -42,6 +45,7 @@ const festivalGames = (() => {
     STOCK_NOT_FOUND: '거래할 수 있는 종목을 찾지 못했어요.',
     MARKET_CLOSED: '지금은 주식시장이 열려 있지 않아요.',
     STOCK_HALTED: '이 종목은 거래가 중지됐어요.',
+    STOCK_NOT_VISITED: '이 동아리 부스를 방문해야 사고팔 수 있어요.',
     PRICE_STALE: '가격이 오래되어 거래할 수 없어요. 새로고침한 뒤 다시 시도해 주세요.',
     PRICE_CONFIG_PENDING: '주식시장을 준비하고 있어요.',
     STOCK_SECURITY_PENDING: '주식시장을 준비하고 있어요.',
@@ -62,13 +66,13 @@ const festivalGames = (() => {
     : MESSAGES[code] || MESSAGES.NETWORK_ERROR;
   // A trade the server answered with one of these is settled; anything else may still have run.
   const FINAL_TRADE_ERRORS = new Set(['INVALID_TRADE', 'IDEMPOTENCY_CONFLICT', 'INSUFFICIENT_POINTS', 'INSUFFICIENT_HOLDINGS',
-    'STOCK_NOT_FOUND', 'MARKET_CLOSED', 'STOCK_HALTED', 'PRICE_STALE', 'PRICE_CONFIG_PENDING', 'STOCK_SECURITY_PENDING',
+    'STOCK_NOT_FOUND', 'MARKET_CLOSED', 'STOCK_HALTED', 'STOCK_NOT_VISITED', 'PRICE_STALE', 'PRICE_CONFIG_PENDING', 'STOCK_SECURITY_PENDING',
     'HOLDING_SCOPE_PENDING', 'INVALID_PRICE_CONFIG', 'ASSET_LIMIT', 'ACCOUNT_DISABLED']);
 
   let owner = null;
   let market = { status: 'idle', data: null, code: '' };
   let news = { status: 'idle', items: [] };
-  let tab = 'market', query = '', sort = 'default', favorites = null, note = null;
+  let tab = 'market', query = '', sort = 'default', note = null;
   let chart = { key: '', status: 'idle', points: [], opening: null };
   let trade = null, tradeBusy = false;
   let bj = { status: 'idle', game: null, code: '', busy: false, reveal: null, badges: {}, announcement: '', sent: null, settled: null, key: 0, dismissed: null, entering: false, cancelled: null };
@@ -82,7 +86,7 @@ const festivalGames = (() => {
     owner = state.user?.id || null;
     market = { status: 'idle', data: null, code: '' };
     news = { status: 'idle', items: [] };
-    tab = 'market'; query = ''; sort = 'default'; favorites = null; note = null;
+    tab = 'market'; query = ''; sort = 'default'; note = null;
     chart = { key: '', status: 'idle', points: [], opening: null };
     closeTrade();
     clearTimeout(revealTimer);
@@ -112,16 +116,26 @@ const festivalGames = (() => {
       const stale = !stock.updatedAt || !m?.maxPriceAgeSeconds || stock.priceVersion === 0 || stock.priceVersion !== m.priceVersion
         || now - updated > m.maxPriceAgeSeconds * 1000 || updated > now;
       const previous = stock.previousPrice || stock.price;
+      // 1.51: only clubs whose booth this student visited can be traded (a server without the rule sends no flag).
+      const visited = stock.visited !== false;
       return {
         id: String(stock.id), eventId: stock.eventId, name: String(stock.name || ''), price: stock.price, previous,
         change: stock.price - previous, rate: previous ? (stock.price - previous) / previous * 100 : 0,
         updatedAt: stock.updatedAt, stale, tradingStatus: stock.tradingStatus,
         quantity: holding?.quantity || 0, averageBuyPrice: holding ? holding.averageBuyPrice : 0,
-        canTrade: Boolean(open && !stale && stock.tradingStatus === 'open' && stock.eventId === m?.eventId
+        visited, visitors: Number.isInteger(stock.visitors) && stock.visitors >= 0 ? stock.visitors : null,
+        canTrade: Boolean(open && visited && !stale && stock.tradingStatus === 'open' && stock.eventId === m?.eventId
           && (!holding || holding.eventId === m?.eventId) && stock.price >= stock.minPrice && stock.price <= stock.maxPrice),
       };
     });
   }
+  // 1.51 price rules from the server: decay per minute, and a bonus every visitStep visitors (null before 1.51).
+  function visitRules() {
+    const m = market.data?.market;
+    return m && Number.isInteger(m.visitStep) && m.visitStep > 0 && Number.isInteger(m.visitBonusBps) && Number.isInteger(m.decayBps)
+      ? { step: m.visitStep, bonus: m.visitBonusBps / 100, decay: m.decayBps / 100 } : null;
+  }
+  const percent = value => `${Number(value.toFixed(2))}%`;
   const balance = () => market.data?.pointBalance ?? null;
   const userKey = () => market.data?.userId ? String(market.data.userId) : '';
 
@@ -134,7 +148,6 @@ const festivalGames = (() => {
     if (state.user?.id !== actor) return;
     if (response.ok && response.data && typeof response.data === 'object' && Array.isArray(response.data.stocks)) {
       market = { status: 'ready', data: response.data, code: '' };
-      if (favorites === null) favorites = readFavorites();
     } else {
       market = { status: 'error', data: market.data, code: response.ok ? 'UNREGISTERED_USER' : response.code };
     }
@@ -163,19 +176,6 @@ const festivalGames = (() => {
       .map(row => ({ time: Date.parse(row.created_at), price: row.price })).sort((a, b) => a.time - b.time) : [];
     chart = { key, start, status: history.ok ? 'ready' : 'error', points, opening: opening.ok ? opening.price ?? (start <= Date.now() ? points[0]?.price ?? null : null) : null };
     if (state.route === 'gamesStockDetail') render();
-  }
-
-  function readFavorites() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(`pangyo-games-favorites-v1:${userKey()}`) || '[]');
-      return Array.isArray(saved) ? saved.filter(id => typeof id === 'string').slice(0, 100) : [];
-    } catch { return []; }
-  }
-  function toggleFavorite(id) {
-    const list = favorites || [];
-    favorites = list.includes(id) ? list.filter(item => item !== id) : [...list, id].slice(0, 100);
-    try { localStorage.setItem(`pangyo-games-favorites-v1:${userKey()}`, JSON.stringify(favorites)); } catch { /* Kept for this visit. */ }
-    render();
   }
 
   // KST countdown line for the market, as in ORBIT describeMarketSchedule.
@@ -273,7 +273,7 @@ const festivalGames = (() => {
     return '<p class="web-muted" role="status">불러오는 중...</p>';
   }
   function demoOnly(title) {
-    return `<div class="festival-empty"><span>${icon('game')}</span><strong>${h(title)}은 실제 로그인에서 이용할 수 있어요</strong><p>체험 모드에는 가상 포인트가 없어요.</p></div>`;
+    return `<div class="festival-empty"><span>${icon('game')}</span><strong>${h(title)}은 실제 로그인에서 이용할 수 있어요</strong><p>체험 모드에는 보유 포인트가 없어요.</p></div>`;
   }
 
   // "n명 매칭중" next to 1대1 블랙잭 and above the blackjack lobby button. Refreshed every 5 s while the box is on
@@ -322,10 +322,10 @@ const festivalGames = (() => {
     const stockLine = market.data ? `${marketOpen() ? '거래 중' : '거래 준비·마감'} · 종목 ${list.length}개${held ? ` · 보유 ${held}개` : ''}` : market.status === 'error' ? '정보를 불러오지 못했어요' : '불러오는 중...';
     return `<main class="screen p0-page web-page festival-games">
       ${festivalWeb.header('미니게임', '', true)}
-      ${isServerMode() ? `<section class="profile-list game-wallet" aria-label="내 가상 포인트">
-        <div><span>가상 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div>
+      ${isServerMode() ? `<section class="profile-list game-wallet" aria-label="내 보유 포인트">
+        <div><span>보유 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div>
       </section>
-      <p class="web-muted game-wallet-note">미니게임에서만 쓰는 포인트예요. 부스 스탬프·쿠폰과는 따로 계산돼요.</p>
+      <p class="web-muted game-wallet-note">MY의 보유 포인트와 같은 포인트예요. 부스 후기 보상도 여기에 더해져요.</p>
       ${market.status === 'error' && !market.data ? `<p class="ops-alert" role="alert">${h(message(market.code))}</p>` : ''}
       <nav class="profile-shortcuts game-list" aria-label="미니게임 목록">
         <button type="button" data-route="gamesStock"><span class="shortcut-symbol map">${icon('trend')}</span><span class="game-row-copy"><strong>동아리 가상주식</strong><small>${h(stockLine)}</small></span>${icon('arrow')}</button>
@@ -336,12 +336,10 @@ const festivalGames = (() => {
   }
 
   function stockRow(stock) {
-    const favorite = (favorites || []).includes(stock.id);
     return `<li data-game-name="${h(stock.name.replace(/\s/g, '').toLocaleLowerCase('ko-KR'))}">
-      <button type="button" class="icon-btn game-favorite" data-game-favorite="${h(stock.id)}" aria-pressed="${favorite}" aria-label="${h(stock.name)} ${favorite ? '관심 종목에서 빼기' : '관심 종목에 추가'}" title="${favorite ? '관심 종목에서 빼기' : '관심 종목에 추가'}">${icon('star')}</button>
       <button type="button" class="game-stock-row" data-game-stock="${h(stock.id)}" aria-label="${h(stock.name)} 종목 정보 보기">
         ${clubVisual(boothFor(stock.name))}
-        <span class="game-stock-name"><strong>${h(stock.name)}</strong><small>STOCK-${h(stock.id)}${stock.quantity ? ` · ${stock.quantity.toLocaleString('ko-KR')}주 보유` : ''}</small></span>
+        <span class="game-stock-name"><strong>${h(stock.name)}</strong><small>${stock.visitors === null ? `STOCK-${h(stock.id)}` : `방문 ${stock.visitors.toLocaleString('ko-KR')}명`}${stock.quantity ? ` · ${stock.quantity.toLocaleString('ko-KR')}주 보유` : ''}${stock.visited ? '' : ' · <span class="game-unvisited">방문 전</span>'}</small></span>
         <span class="game-stock-price"><strong>${point(stock.price)}</strong>${changeText(stock)}</span>
       </button></li>`;
   }
@@ -350,31 +348,27 @@ const festivalGames = (() => {
     if (!isServerMode()) return `<main class="screen p0-page web-page festival-games">${header('가상주식', 'games')}${demoOnly('가상주식')}${bottomNav('games')}</main>`;
     const all = stocks(), user = market.data;
     const held = all.filter(stock => stock.quantity > 0);
-    const liked = all.filter(stock => (favorites || []).includes(stock.id));
-    const trades = Array.isArray(user?.trades) ? user.trades : [];
+    // 1.51: only visited clubs can be traded, so they get their own tab (관심·거래 내역 tabs removed).
+    const visited = all.filter(stock => stock.visited);
     const value = held.reduce((sum, stock) => sum + stock.quantity * stock.price, 0);
     const cost = (user?.holdings || []).reduce((sum, item) => sum + (item.averageBuyPrice ?? 0) * item.quantity, 0);
     const unknownCost = (user?.holdings || []).some(item => item.quantity > 0 && item.averageBuyPrice === null);
     const pnl = value - cost;
-    const tabs = [['market', '종목', all.length], ['favorites', '관심', liked.length], ['portfolio', '보유', held.length], ['history', '거래 내역', trades.length]];
-    const shown = (tab === 'favorites' ? liked : tab === 'portfolio' ? held : all).slice().sort((a, b) => sort === 'gain' ? b.rate - a.rate
+    const tabs = [['market', '종목', all.length], ['visited', '방문한 동아리', visited.length], ['portfolio', '보유', held.length]];
+    const shown = (tab === 'visited' ? visited : tab === 'portfolio' ? held : all).slice().sort((a, b) => sort === 'gain' ? b.rate - a.rate
       : sort === 'loss' ? a.rate - b.rate : sort === 'name' ? a.name.localeCompare(b.name, 'ko') : 0);
-    const nameOf = id => all.find(stock => stock.id === String(id))?.name || `STOCK-${id}`;
-    const body = !user ? loadState('가상주식') : tab === 'history'
-      ? (trades.length ? `<ul class="game-trade-list">${trades.map(item => `<li>
-          <span class="status-badge ${item.side === 'buy' ? 'success' : 'neutral'}">${item.side === 'buy' ? '매수' : '매도'}</span>
-          <span class="game-stock-name"><strong>${h(nameOf(item.stockId))}</strong><small>${h(when(item.createdAt))} · ${Number(item.quantity).toLocaleString('ko-KR')}주 × ${point(item.unitPrice)}</small></span>
-          <strong>${point(item.totalPoints)}</strong></li>`).join('')}</ul>`
-        : `<div class="festival-empty"><span>${icon('list')}</span><strong>아직 거래 내역이 없어요</strong><p>매수·매도가 확정되면 여기에 보여요.</p></div>`)
+    const empty = tab === 'visited' ? `<div class="festival-empty"><span>${icon('map')}</span><strong>아직 방문한 동아리가 없어요</strong><p>부스를 방문하면 그 동아리 주식을 사고팔 수 있어요.</p><button type="button" class="ghost-btn" data-route="map">${icon('map')} 부스 지도 보기</button></div>`
+      : `<div class="festival-empty"><span>${icon('trend')}</span><strong>${tab === 'portfolio' ? '아직 보유한 종목이 없어요' : '아직 등록된 종목이 없어요'}</strong><p>${tab === 'portfolio' ? '종목을 매수하면 여기에 보여요.' : '종목이 등록되면 이곳에서 볼 수 있어요.'}</p></div>`;
+    const body = !user ? loadState('가상주식')
       : `<div class="game-controls">
           <label class="game-search"><span class="sr-only">종목 이름 검색</span>${icon('search')}<input class="input" type="search" data-game-search value="${h(query)}" maxlength="40" placeholder="종목 검색" autocomplete="off"></label>
           <label class="game-sort"><span class="sr-only">정렬</span><select class="select" data-game-sort>${[['default', '기본 순'], ['gain', '상승률 순'], ['loss', '하락률 순'], ['name', '이름 순']].map(([v, t]) => `<option value="${v}" ${sort === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         </div>
-        ${shown.length ? `<ul class="game-stock-list">${shown.map(stockRow).join('')}</ul><p class="web-muted game-no-match" data-game-no-match hidden>검색 결과가 없어요. 다른 이름으로 찾아보세요.</p>`
-          : `<div class="festival-empty"><span>${icon(tab === 'favorites' ? 'star' : 'trend')}</span><strong>${tab === 'favorites' ? '관심 종목이 없어요' : tab === 'portfolio' ? '아직 보유한 종목이 없어요' : '아직 등록된 종목이 없어요'}</strong><p>${tab === 'favorites' ? '종목 옆 별을 누르면 여기에 모여요.' : tab === 'portfolio' ? '종목을 매수하면 여기에 보여요.' : '종목이 등록되면 이곳에서 볼 수 있어요.'}</p></div>`}`;
+        ${shown.length ? `<ul class="game-stock-list">${shown.map(stockRow).join('')}</ul><p class="web-muted game-no-match" data-game-no-match hidden>검색 결과가 없어요. 다른 이름으로 찾아보세요.</p>` : empty}`;
     return `<main class="screen p0-page web-page festival-games game-stock">
       ${header('가상주식', 'games', refreshButton())}
       <p class="game-market">${statusBadge()}<span data-game-schedule>${h(schedule())}</span></p>
+      ${visitRules() ? `<p class="web-muted game-rule-note">방문한 동아리만 사고팔 수 있어요. 가격은 1분마다 ${percent(visitRules().decay)}씩 내려가고, 방문 학생이 ${visitRules().step}명 늘 때마다 ${percent(visitRules().bonus)} 올라요.</p>` : ''}
       ${market.status === 'error' && market.data ? `<p class="ops-alert" role="alert">최신 정보를 불러오지 못했어요. ${h(message(market.code))}</p>` : ''}
       ${user ? `<section class="profile-list game-summary" aria-label="내 주식 자산 요약">
         <div><span>총 가상 자산</span><strong>${point(user.pointBalance + value)}</strong></div>
@@ -421,22 +415,24 @@ const festivalGames = (() => {
   function stockDetailView() {
     if (!isServerMode()) return `<main class="screen p0-page web-page festival-games">${header('가상주식', 'gamesStock')}${demoOnly('가상주식')}${bottomNav('games')}</main>`;
     const stock = stocks().find(item => item.id === String(state.gameStockId));
-    const favorite = stock && (favorites || []).includes(stock.id);
-    const right = stock ? `<button type="button" class="icon-btn game-favorite" data-game-favorite="${h(stock.id)}" aria-pressed="${favorite}" aria-label="${favorite ? '관심 종목에서 빼기' : '관심 종목에 추가'}" title="${favorite ? '관심 종목에서 빼기' : '관심 종목에 추가'}">${icon('star')}</button>` : undefined;
     if (!stock) {
       const body = market.data ? `<div class="festival-empty"><span>${icon('search')}</span><strong>종목을 찾을 수 없어요</strong><p>목록에서 다시 골라 주세요.</p><button type="button" class="ghost-btn" data-route="gamesStock">종목 목록 보기</button></div>` : loadState('종목 정보');
-      return `<main class="screen p0-page web-page festival-games">${header('종목 정보', 'gamesStock', right)}${body}${bottomNav('games')}</main>`;
+      return `<main class="screen p0-page web-page festival-games">${header('종목 정보', 'gamesStock')}${body}${bottomNav('games')}</main>`;
     }
     if (chart.key.split(':')[0] !== stock.id || chart.status === 'idle') setTimeout(() => loadChart(stock), 0);
     const open = marketOpen();
     const status = stock.canTrade && open ? '<span class="status-badge success">거래 가능</span>'
       : stock.tradingStatus === 'halted' ? '<span class="status-badge warning">거래 중지</span>'
+      : !stock.visited ? '<span class="status-badge neutral">방문 전</span>'
       : stock.stale && open ? '<span class="status-badge warning">가격 갱신 대기</span>' : '<span class="status-badge neutral">거래 대기</span>';
     const opening = chart.opening;
     const vsOpen = opening ? stock.price - opening : null;
     const userBalance = balance() ?? 0;
+    const rules = visitRules();
+    // Visitors still needed for the next bonus: 10 visitors → 10 more for the bonus at 20.
+    const toNext = rules && stock.visitors !== null ? rules.step - stock.visitors % rules.step : null;
     return `<main class="screen p0-page web-page festival-games game-stock-detail">
-      ${header(stock.name, 'gamesStock', right)}
+      ${header(stock.name, 'gamesStock')}
       <section class="game-quote">
         <div class="game-quote-head">${clubVisual(boothFor(stock.name), 'detail')}<div><p class="web-muted">가상주식 · STOCK-${h(stock.id)}</p><h2>${h(stock.name)}</h2></div></div>
         <p class="game-quote-status">${status}<span data-game-schedule>${h(schedule())}</span></p>
@@ -449,12 +445,14 @@ const festivalGames = (() => {
         <div><span>시작가</span><strong>${opening ? point(opening) : '미확인'}</strong></div>
         <div><span>내 보유 수량</span><strong>${stock.quantity.toLocaleString('ko-KR')}주</strong></div>
         <div><span>보유 평가액</span><strong>${point(stock.quantity * stock.price)}</strong></div>
+        ${stock.visitors !== null ? `<div><span>방문 학생${toNext !== null ? ` <small>${toNext}명 더 오면 ${percent(rules.bonus)} 상승</small>` : ''}</span><strong>${stock.visitors.toLocaleString('ko-KR')}명</strong></div>` : ''}
       </section>
       ${slot('game-trade')}
       <div class="game-trade-actions">
         <button type="button" class="primary-btn" data-game-trade="buy" ${!stock.canTrade || !open || userBalance < stock.price || tradeBusy ? 'disabled' : ''}>${icon('plus')} 매수하기</button>
         <button type="button" class="ghost-btn" data-game-trade="sell" ${!stock.canTrade || !open || stock.quantity < 1 || tradeBusy ? 'disabled' : ''}>${icon('minus')} 매도하기</button>
       </div>
+      ${stock.visited ? '' : '<p class="web-muted game-trade-hint">이 동아리 부스를 방문하면 사고팔 수 있어요.</p>'}
       ${open ? '' : '<p class="web-muted game-trade-hint">주식시장이 열리면 매수·매도할 수 있어요.</p>'}
       ${bottomNav('games')}</main>`;
   }
@@ -497,7 +495,7 @@ const festivalGames = (() => {
           <output aria-live="polite">${trade.quantity.toLocaleString('ko-KR')}주</output>
           <button type="button" class="icon-btn" data-trade-step="1" aria-label="한 주 더하기" ${trade.quantity >= most || tradeBusy ? 'disabled' : ''}>${icon('plus')}</button>
         </div>
-        ${most < 1 ? `<p class="ops-alert" role="alert">${trade.side === 'buy' ? '가상 포인트가 부족해 살 수 없어요.' : '보유한 주식이 없어요.'}</p>` : ''}
+        ${most < 1 ? `<p class="ops-alert" role="alert">${trade.side === 'buy' ? '보유 포인트가 부족해 살 수 없어요.' : '보유한 주식이 없어요.'}</p>` : ''}
         ${slot('game-trade-dialog')}
         <button type="button" class="primary-btn full-action" data-trade-confirm ${most < 1 || tradeBusy ? 'disabled' : ''}>${verb} 확정 · ${point(stock.price * trade.quantity)}</button>
         <button type="button" class="ghost-btn full-action" data-trade-close ${tradeBusy ? 'disabled' : ''}>취소</button>
@@ -845,7 +843,7 @@ const festivalGames = (() => {
       ${slot('bj')}
       <button type="button" class="primary-btn full-action" data-bj="${sameOpponent ? 'rematch' : 'join'}" ${bj.busy || r?.busy || waitingForThem || !enough ? 'disabled' : ''}>${icon('spade')} ${game?.status === 'finished' ? '한 판 더 하기' : `${point(STAKE)} 걸고 상대 찾기`}</button>
       ${waitingForThem && r.opponent !== 'accept' ? '<p class="web-muted game-trade-hint">상대도 수락하면 같은 상대와 바로 시작해요.</p>' : ''}
-      ${money !== null && !enough ? `<p class="web-muted game-trade-hint">가상 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
+      ${money !== null && !enough ? `<p class="web-muted game-trade-hint">보유 포인트가 ${point(STAKE)} 이상이어야 참가할 수 있어요.</p>` : ''}
       <section class="ops-section game-rules" aria-labelledby="gameRulesTitle"><h2 id="gameRulesTitle">규칙</h2>
         <ul>
           <li>"${point(STAKE)} 걸고 상대 찾기"를 누르면 기다리는 사람과 무작위로 짝을 지어요. 기다리는 사람이 없으면 내가 기다려요.</li>
@@ -877,7 +875,7 @@ const festivalGames = (() => {
       : '<p class="web-muted" role="status">게임 상태를 불러오는 중...</p>';
     return `<main class="screen p0-page web-page festival-games game-blackjack${atTable ? ' at-table' : ''}">
       ${header('블랙잭', 'games')}
-      ${atTable ? '' : `<section class="profile-list game-wallet" aria-label="내 가상 포인트"><div><span>가상 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div></section>
+      ${atTable ? '' : `<section class="profile-list game-wallet" aria-label="내 보유 포인트"><div><span>보유 포인트</span><strong>${balance() === null ? '—' : point(balance())}</strong></div></section>
       <p class="web-muted game-wallet-note">무작위로 만난 상대와 ${point(STAKE)}를 걸고, 21에 더 가까운 쪽이 판돈 ${point(STAKE * 2)}를 가져가요.</p>`}
       ${body}
       <p class="sr-only" aria-live="polite">${h(bj.announcement)}</p>
@@ -980,10 +978,6 @@ const festivalGames = (() => {
       if (query) filterRows(query);
     }
     document.querySelector('[data-game-sort]')?.addEventListener('change', event => { sort = event.target.value; render(); document.querySelector('[data-game-sort]')?.focus(); });
-    document.querySelectorAll('[data-game-favorite]').forEach(button => button.addEventListener('click', () => {
-      toggleFavorite(button.dataset.gameFavorite);
-      document.querySelector(`[data-game-favorite="${button.dataset.gameFavorite}"]`)?.focus();
-    }));
     document.querySelectorAll('[data-game-stock]').forEach(button => button.addEventListener('click', () => {
       state.gameStockId = button.dataset.gameStock;
       note = null;

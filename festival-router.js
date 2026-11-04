@@ -9,11 +9,13 @@
   const aliases = Object.freeze({'/index.html':'home','/home':'home','/stamps':'stamps',
     '/vouchers':'vouchers','/profile':'profile','/scan':'scan'});
   const returnKey = 'pangyo-login-destination-v1';
-  const pagePattern = '/(?:|index\\.html|home/?|login/?|map/?|stamp/?|stamps/?|voucher/?|vouchers/?|my/?|profile/?|reviews/?|identity/?|nfc/?|scan/?|admin/?|notices(?:/[^/]+)?/?|manage/?|games(?:/stock(?:/[^/]+)?|/blackjack)?/?|booth/[^/]+(?:/reviews)?/?)';
+  const pagePattern = '/(?:|index\\.html|home/?|login/?|map/?|stamp/?|stamps/?|voucher/?|vouchers/?|my/?|profile/?|reviews/?|identity/?|nfc/?|scan/?|admin/?|notices(?:/[^/]+)?/?|manage/?|games(?:/stock(?:/[^/]+)?|/blackjack)?/?|booth/[^/]+(?:/reviews)?/?|waiting/(?:join/)?[^/]+/?|manage/waiting/[^/]+/?)';
   const validId = id => typeof id === 'string' && id.length > 0 && id.length <= 180
     && !/[\/\\?#\u0000-\u001f]/.test(id) && !['.','..'].includes(id);
   // ORBIT stock ids are positive integers (orbit_trade_stock takes p_stock_id integer).
   const validStockId = id => /^[1-9][0-9]{0,9}$/.test(String(id ?? '')) && Number(id) <= 2147483647;
+  // 1.59: a waiting entry is a UUID (festival_ops.waiting_entries.id).
+  const validWaitingId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(String(id ?? ''));
 
   function parse(pathname) {
     if (typeof pathname !== 'string' || !pathname.startsWith('/') || pathname.startsWith('//')) return null;
@@ -25,6 +27,16 @@
     const notice = path.match(/^\/notices\/([^/]+)$/);
     if (notice) {
       try { const id = decodeURIComponent(notice[1]); return validId(id) ? {route:'notice',noticeId:id} : null; } catch { return null; }
+    }
+    // 1.59: /waiting/<entry>, /waiting/join/<booth> (the on-site QR) and /manage/waiting/<booth>.
+    const entry = path.match(/^\/waiting\/([^/]+)$/);
+    if (entry && entry[1] !== 'join') return validWaitingId(entry[1]) ? {route:'waiting',waitingId:entry[1]} : null;
+    const booth = path.match(/^\/(waiting\/join|manage\/waiting)\/([^/]+)$/);
+    if (booth) {
+      try {
+        const id = decodeURIComponent(booth[2]);
+        return validId(id) ? {route:booth[1] === 'waiting/join' ? 'waitingJoin' : 'manageWaiting',waitingBooth:id} : null;
+      } catch { return null; }
     }
     const match = path.match(/^\/booth\/([^/]+)(\/reviews)?$/);
     if (!match) return null;
@@ -39,6 +51,11 @@
       return `/booth/${encodeURIComponent(snapshot.selectedBoothId)}${snapshot.route === 'boothReviews' ? '/reviews' : ''}`;
     }
     if (snapshot?.route === 'notice' && validId(snapshot.noticeId)) return `/notices/${encodeURIComponent(snapshot.noticeId)}`;
+    if (snapshot?.route === 'waiting') return validWaitingId(snapshot.waitingId) ? `/waiting/${snapshot.waitingId}` : paths.profile;
+    if (['waitingJoin','manageWaiting'].includes(snapshot?.route)) {
+      if (!validId(snapshot.waitingBooth)) return snapshot.route === 'waitingJoin' ? paths.home : paths.manage;
+      return `/${snapshot.route === 'waitingJoin' ? 'waiting/join' : 'manage/waiting'}/${encodeURIComponent(snapshot.waitingBooth)}`;
+    }
     if (snapshot?.route === 'gamesStockDetail') return validStockId(snapshot.gameStockId) ? `/games/stock/${snapshot.gameStockId}` : paths.gamesStock;
     return paths[snapshot?.route] || '/map';
   }

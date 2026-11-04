@@ -8,9 +8,12 @@ const output = path.join(root, '.vercel', 'output');
 const entries = [
   'index.html', 'app.js', 'festival-router.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css', 'ui-refinements.css',
   'nfc-cards/index.html', 'nfc-cards/cards.js', 'nfc-cards/cards.css', 'assets/stamps/catalog.json',
-  'web-experience.js', 'stamp-simulator.js', 'sun-nfc.js', 'sun-cards.js', 'festival-notices.js', 'booth-manager.js', 'voucher-manager.js', 'voucher-scan.js', 'programs.js', 'supabase-catalog.js',
+  'web-experience.js', 'stamp-simulator.js', 'sun-nfc.js', 'sun-cards.js', 'festival-notices.js', 'booth-manager.js', 'festival-waiting.js', 'waiting-manager.js', 'voucher-manager.js', 'voucher-scan.js', 'programs.js', 'supabase-catalog.js',
   'festival-account.js', 'nfc-manager.js', 'festival-operations.js', 'operations-ui.js', 'operations.css',
-  'festival-games.js', 'festival-games-admin.js', 'festival-games.css',
+  'festival-games.js', 'festival-games-admin.js', 'festival-games.css', 'festival-waiting.css',
+  // 1.59: the service worker for waiting notifications and the home-screen app (iPhone push needs it).
+  'sw.js', 'manifest.webmanifest', 'assets/app-icon-180.png', 'assets/app-icon-192.png', 'assets/app-icon-512.png',
+  'assets/app-icon-512-maskable.png', 'assets/app-badge-96.png',
   'assets/vendor/supabase-2.116.0.js', 'assets/vendor/SUPABASE-LICENSE.txt',
   'assets/vendor/ui-icons.js', 'assets/vendor/LUCIDE-LICENSE.txt',
   'assets/vendor/qrcode-1.4.4.js', 'assets/vendor/jsqr-1.4.0.js', 'assets/vendor/JSQR-LICENSE.txt',
@@ -80,7 +83,7 @@ function build() {
   }
   const sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
   const release = {
-    version: '1.51',
+    version: '1.63',
     commit: /^[a-f0-9]{40}$/.test(sha) ? sha : null,
     builtAt: new Date().toISOString(),
     files: hashes,
@@ -92,6 +95,7 @@ function build() {
       { src: '/(.*)', headers: securityHeaders(), continue: true },
       { src: pagePattern, headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/deployment-info\\.json', headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
+      { src: '/(?:sw\\.js|manifest\\.webmanifest)', headers: { 'Cache-Control': 'no-cache, max-age=0, must-revalidate' }, continue: true },
       { src: '/nfc/?', dest: '/index.html' },
       { src: '/nfc-cards/?', dest: '/nfc-cards/index.html' },
       { handle: 'filesystem' },

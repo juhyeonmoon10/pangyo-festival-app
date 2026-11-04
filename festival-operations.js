@@ -42,6 +42,13 @@
     ACCOUNT_DELETE_CONFIRM_REQUIRED: '확인 문구로 "삭제"를 정확히 입력해 주세요.', ACCOUNT_DELETE_SELF: '본인 계정은 삭제할 수 없어요.',
     ACCOUNT_DELETE_OPERATOR: '운영자 계정은 삭제할 수 없어요.',
     VOUCHER_MANAGER_NOT_VERIFIED: '소속 확인이 끝난 학생에게만 쿠폰 담당자를 맡길 수 있어요.',
+    // 1.59 웨이팅
+    WAITING_DISABLED: '이 부스는 지금 웨이팅을 받지 않아요.', WAITING_PAUSED: '지금은 웨이팅 접수를 잠시 멈췄어요. 잠시 후 다시 시도해 주세요.',
+    WAITING_ONLINE_DISABLED: '이 부스는 현장에서 QR로만 웨이팅을 등록할 수 있어요.', WAITING_QR_DISABLED: '이 부스는 지금 현장 QR 등록을 받지 않아요.',
+    WAITING_QR_INVALID: '만료되었거나 바뀐 QR이에요. 부스에 있는 QR을 다시 찍어 주세요.', WAITING_PARTY_LIMIT: '이 부스가 정한 한 팀 최대 인원을 넘었어요.',
+    WAITING_NOT_FOUND: '웨이팅 기록을 찾을 수 없어요.', WAITING_FINISHED: '이미 끝난 웨이팅이에요. 화면을 새로고침해 주세요.',
+    WAITING_POSTPONE_NOT_YET: '앞에 3팀 이내로 남았을 때만 순서를 미룰 수 있어요.', WAITING_POSTPONE_LAST: '뒤에 기다리는 팀이 없어 미룰 수 없어요.',
+    WAITING_POSTPONE_LIMIT: '이 부스에서 정한 미루기 횟수를 모두 썼어요.', BOOTH_IMAGE_NOT_FOUND: '사진을 올리지 못했어요. 다시 골라 주세요.',
   };
   const readKinds = new Set(['catalog', 'me', 'reviews', 'dashboard', 'participants', 'visits', 'ledger', 'rules', 'vouchers', 'audit', 'voucher_check']);
   const writeKinds = new Set(['event_save', 'booth_save', 'claim', 'visit_approve', 'review_save', 'points_adjust', 'rule_save', 'voucher_issue', 'voucher_claim', 'voucher_qr', 'voucher_redeem', 'voucher_void']);
@@ -171,6 +178,20 @@
     async function boothManagers(action, payload = {}) { return direct('festival_booth_manager_admin', action, payload); }
     // 쿠폰 담당자 grants (operators only): list, candidates, grant, revoke.
     async function voucherManagers(action, payload = {}) { return direct('festival_voucher_manager_admin', action, payload); }
+    // 1.59 웨이팅: festival_waiting (students) and festival_waiting_manage (booth managers, operators).
+    async function waiting(action, payload = {}) { return direct('festival_waiting', action, payload); }
+    async function waitingManage(action, payload = {}) { return direct('festival_waiting_manage', action, payload); }
+    // 관리 마법사 → 부스 포스터 원본 (operators).
+    async function boothPosters() {
+      const id = actor();
+      if (!id) return error(Error('AUTH_REQUIRED'));
+      try {
+        const result = await rpc('festival_booth_posters_admin', {});
+        if (actor() !== id) return error(Error('AUTH_REQUIRED'));
+        if (result.error) return error(result.error);
+        return { ok: true, data: validate(result.data) };
+      } catch (e) { return error(e); }
+    }
     async function direct(name, action, payload) {
       const id = actor();
       if (!id) return error(Error('AUTH_REQUIRED'));
@@ -181,7 +202,7 @@
         return { ok: true, data: validate(result.data) };
       } catch (e) { return error(e); }
     }
-    return Object.freeze({ read, write, sun, boothManagers, voucherManagers });
+    return Object.freeze({ read, write, sun, boothManagers, voucherManagers, waiting, waitingManage, boothPosters });
   }
   return { create, error };
 });

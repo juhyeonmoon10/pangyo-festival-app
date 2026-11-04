@@ -12,18 +12,23 @@
   const STUDENT_NUMBER = /^[1-3][0-9]{4}$/;
   // A @pangyo.hs.kr Google account is named "<학번 5자리><이름>", e.g. "21001홍길동" (the name has
   // two or more Hangul letters). Returns { studentNumber, name } or null for any other account.
+  // 1.48: the name may also come first ("홍길동21001"), with a space, "_", "-" or brackets between.
   function schoolIdentity(email, names) {
     if (typeof email !== "string" || !/@pangyo\.hs\.kr$/i.test(email.trim())) return null;
     for (const value of names) {
       if (typeof value !== "string") continue;
-      const match = value.normalize("NFC").trim().match(/^([1-3][0-9]{4})\s*([가-힣]{2,30})$/);
-      if (match) return { studentNumber: match[1], name: match[2] };
+      const text = value.normalize("NFC").replace(/[\s_\-.()[\]]+/g, " ").trim();
+      const front = text.match(/^([1-3][0-9]{4}) ?([가-힣]{2,30})$/);
+      if (front) return { studentNumber: front[1], name: front[2] };
+      const back = text.match(/^([가-힣]{2,30}) ?([1-3][0-9]{4})$/);
+      if (back) return { studentNumber: back[2], name: back[1] };
     }
     return null;
   }
   const MESSAGES = {
     AUTH_REQUIRED: "로그인이 필요해요.", GOOGLE_AUTH_REQUIRED: "Google 계정으로 다시 로그인해 주세요.",
-    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", PROFILE_CONFLICT: "계정 연결을 확인해야 해요. 운영자에게 문의해 주세요.",
+    PROFILE_REQUIRED: "학생 정보 등록을 완료해 주세요.", IDENTITY_REQUIRED: "소속 동아리 확인을 먼저 마쳐 주세요.",
+    OPS_NOT_READY: "축제 운영 정보가 아직 준비되지 않았어요.", PROFILE_CONFLICT: "계정 연결을 확인해야 해요. 운영자에게 문의해 주세요.",
     PROFILE_UNCONFIRMED: "등록 결과를 확인하지 못했어요. 다시 시도해 주세요.",
     INVALID_STUDENT_NUMBER: "학번을 1~3으로 시작하는 5자리 숫자로 입력해 주세요.",
     INVALID_NAME: "이름을 1~60자로 입력해 주세요.",
@@ -88,17 +93,21 @@
     return { version: 1, allowed: value.allowed, reason: value.reason, authorName: value.allowed ? name : null };
   }
 
-  const IDENTITY_RESULTS = [null, "CONFIRMED", "IDENTITY_MISMATCH", "ROSTER_NOT_FOUND", "ROSTER_ALREADY_LINKED", "OPERATOR_LOCKED", "TOO_MANY_ATTEMPTS"];
+  const IDENTITY_RESULTS = [null, "CONFIRMED", "IDENTITY_MISMATCH", "ROSTER_NOT_FOUND", "ROSTER_ALREADY_LINKED", "OPERATOR_LOCKED"];
   function validateIdentityState(value) {
     const strings = list => Array.isArray(list) && list.length <= 100 && list.every(item => typeof item === "string" && item && item.length <= 300);
     if (!value || value.version !== 1 || typeof value.eventId !== "string" || !IDENTITY_RESULTS.includes(value.result)
       || typeof value.verified !== "boolean" || typeof value.locked !== "boolean" || typeof value.eligible !== "boolean"
       || typeof value.selfRegistered !== "boolean" || !strings(value.clubs) || !strings(value.boothKeys)
       || (value.verified && (typeof value.realName !== "string" || !value.realName.trim() || value.realName.length > 60))
-      || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))) {
+      || (!value.verified && (value.realName !== null || value.clubs.length || value.boothKeys.length))
+      || (value.required !== undefined && typeof value.required !== "boolean")) {
       throw new Error("REVIEW_POLICY_REQUIRED");
     }
+    // 1.53: required = this account must confirm before taking part. Only the server knows whether a roster is
+    // ready, so an older server that leaves it out asks for nothing.
     return { eventId: value.eventId, result: value.result, verified: value.verified, locked: value.locked,
+      required: value.required ?? false,
       eligible: value.eligible, selfRegistered: value.selfRegistered, realName: value.realName,
       clubs: [...value.clubs], boothKeys: [...value.boothKeys],
       studentNumber: typeof value.studentNumber === "string" ? value.studentNumber : null };
@@ -109,7 +118,8 @@
     if (!value || typeof value.boothKey !== "string" || !Number.isInteger(value.count)
       || value.count < 0 || !Array.isArray(value.reviews) || value.reviews.length > 200
       || (value.average !== null && !(Number.isFinite(Number(value.average))))
-      || (value.myRating !== null && !rating(value.myRating))) throw new Error("INVALID_REVIEW_RESPONSE");
+      || (value.myRating !== null && !rating(value.myRating))
+      || (value.visible !== undefined && typeof value.visible !== "boolean")) throw new Error("INVALID_REVIEW_RESPONSE");
     value.reviews.forEach(review => {
       if (!review || !rating(review.rating) || typeof review.author !== "string" || review.author.length > 200
         || typeof review.mine !== "boolean" || typeof review.createdAt !== "string"
@@ -119,6 +129,8 @@
     });
     return {
       boothKey: value.boothKey, count: value.count,
+      // 1.54: false while other participants' reviews are private; the summary then holds only your own.
+      visible: value.visible !== false,
       average: value.average === null ? null : Number(value.average),
       myRating: value.myRating ?? null,
       // Exact 1-5 star counts over every review; older servers omit it.
@@ -225,12 +237,13 @@
       // School accounts are named "21001홍길동": the 학번 and the name are filled in for the student
       // to confirm. This is an onboarding default, not a completed profile or a role assertion.
       const school = schoolIdentity(data.user.email || current.email, names);
-      if (validName(current.name)) {
+      // A saved name that is the whole Google name ("21001홍길동") is replaced by the name part (1.48).
+      if (validName(current.name) && !(school && schoolIdentity(data.user.email || current.email, [current.name]))) {
         return school && !STUDENT_NUMBER.test(current.studentNumber) ? { ...current, studentNumber: school.studentNumber, studentNumberDetected: true } : current;
       }
       if (school) {
         const studentNumber = STUDENT_NUMBER.test(current.studentNumber) ? current.studentNumber : school.studentNumber;
-        return { ...current, name: school.name, studentNumber, ...(studentNumber === school.studentNumber ? { studentNumberDetected: true } : {}) };
+        return { ...current, name: school.name, nameDetected: true, studentNumber, ...(studentNumber === school.studentNumber ? { studentNumberDetected: true } : {}) };
       }
       const name = names.find(validName);
       return { ...current, name: name ? name.trim() : current.name };
@@ -291,16 +304,6 @@
       if (updated.needsProfile || updated.name !== name || updated.studentNumber !== studentNumber) {
         throw new Error("PROFILE_UNCONFIRMED");
       }
-      return updated;
-    }
-
-    async function updateName(value) {
-      const name = typeof value === "string" ? value.trim() : "";
-      if (!name || name.length > 60) throw new Error("INVALID_NAME");
-      const { error } = await client.auth.updateUser({ data: { festival_name: name } });
-      if (error) throw error;
-      const updated = await profile();
-      if (updated.name !== name || updated.needsProfile) throw new Error("PROFILE_NAME_UNCONFIRMED");
       return updated;
     }
 
@@ -467,8 +470,46 @@
     const noticeImages = publicImages("festival-notices", "notices");
     const boothImages = publicImages("festival-booths", "booths");
 
+    // 1.59: poster originals, stored exactly as uploaded (up to 20 MB) in the private 'festival-booth-posters'
+    // bucket. Only the uploader and operators read them back (관리 마법사 → 부스 포스터 원본); visitors see a
+    // reduced copy in 'festival-booths'.
+    const POSTER_TYPES = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic", heif: "image/heif" };
+    const posterPath = path => /^posters\/[0-9a-f]{32}\.(jpg|png|webp|heic|heif)$/.test(String(path));
+    const posterOriginals = {
+      MAX_BYTES: 20 * 1024 * 1024,
+      extension(file) {
+        const byType = Object.keys(POSTER_TYPES).find(ext => POSTER_TYPES[ext] === file?.type);
+        const byName = String(file?.name || "").split(".").pop().toLowerCase().replace("jpeg", "jpg");
+        return byType || (POSTER_TYPES[byName] ? byName : "");
+      },
+      async upload(file) {
+        const ext = this.extension(file);
+        if (!ext) return { ok: false, message: "JPG·PNG·WebP·HEIC 이미지만 올릴 수 있어요." };
+        if (file.size > this.MAX_BYTES) return { ok: false, message: "포스터 원본은 한 장에 20MB까지 올릴 수 있어요." };
+        const path = `posters/${Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("")}.${ext}`;
+        try {
+          const { error } = await client.storage.from("festival-booth-posters").upload(path, file, { contentType: POSTER_TYPES[ext], cacheControl: "31536000", upsert: false });
+          if (error) return { ok: false, ...normalizeError(error) };
+          return { ok: true, path };
+        } catch (error) { return { ok: false, ...normalizeError(error) }; }
+      },
+      async download(path) {
+        if (!posterPath(path)) return { ok: false, message: "포스터 원본을 찾을 수 없어요." };
+        try {
+          const { data, error } = await client.storage.from("festival-booth-posters").download(path);
+          if (error || !data) return { ok: false, message: "포스터 원본을 내려받지 못했어요. 다시 시도해 주세요." };
+          return { ok: true, blob: data };
+        } catch { return { ok: false, message: "포스터 원본을 내려받지 못했어요. 다시 시도해 주세요." }; }
+      },
+      async remove(paths) {
+        const listed = (paths || []).filter(posterPath);
+        if (!listed.length) return;
+        try { await client.storage.from("festival-booth-posters").remove(listed); } catch { /* A leftover file is harmless. */ }
+      },
+    };
+
     // Point minigames (가상주식, 블랙잭) run on ORBIT's own functions and tables in the same project.
-    // They move ORBIT virtual points (public.users.money), never the festival point or voucher ledgers.
+    // They move public.users.money, the one 보유 포인트 balance (1.52), never the voucher ledgers.
     // Errors keep the server's code (e.g. INSUFFICIENT_POINTS) so the games screen can word them.
     // 1.40: blackjack join and hit/stand go through festival copies that never stand automatically.
     // 1.41: festival_blackjack_state shows the opponent's whole name. 관리 마법사 → 미니게임 관리 calls the
@@ -517,8 +558,8 @@
       },
     };
 
-    return { initialize, signIn, profile, claim, updateProfile, updateName, receiveCallback, savePending, pending,
-      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, games,
+    return { initialize, signIn, profile, claim, updateProfile, receiveCallback, savePending, pending,
+      reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, posterOriginals, games,
       reviewIdentity: async (action, payload) => {
         try {
           const { data, error } = await client.rpc('festival_review_identity_student', { p_action: action, p_payload: payload });

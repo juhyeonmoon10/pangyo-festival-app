@@ -166,7 +166,7 @@ components:
 - 흰 바탕 위에 다섯 가지 역할 색을 쓴다.
   - 초록: 기록과 동작. 완료 스탬프, 주 버튼, 현재 탭.
   - 민트: 초록을 받쳐 주는 면. 활성 내비 아이콘 배경, 다음 스탬프, 완료 표시.
-  - 파랑: 안내와 정보. 공지 띠, 리뷰 이어 쓰기, 포토 바우처.
+  - 파랑: 안내와 정보. 리뷰 이어 쓰기, 포토 바우처.
   - 노랑: 지금 받을 수 있는 보상(확정된 바우처 받기)에만 쓴다.
   - 빨강: 삭제와 오류에만 쓴다.
 - 장식은 거의 없다. 카드보다 **구분선과 여백으로 나눈 평평한 목록**이 기본이다. 카드는 바우처 한 장, 집중해서 쓰는 도구에만 쓴다.
@@ -350,7 +350,7 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
 | 토큰 | 값 | 용도 |
 | --- | --- | --- |
 | `--festival-mint` | `#d9faea` | 활성 내비 아이콘 배경, 다음 스탬프, 지도 바로가기 카드, 아이콘 타일, 승인 완료 체크 원 |
-| `--festival-sky` | `#eaf4ff` | 공지 띠, 포토 바우처, 안내 면 |
+| `--festival-sky` | `#eaf4ff` | 포토 바우처, 안내 면 |
 | `--festival-blue` | `#285e92` | 안내 글자, 포토 바우처 상태 글자 |
 | `--festival-yellow` | `#ffeb9b` | 받을 수 있는 보상 강조 |
 | `--festival-red` | `#b93f3b` | 위험 버튼 글자 |
@@ -464,7 +464,7 @@ button { border: 0; cursor: pointer; touch-action: manipulation; }
 - 섹션 구분
   - **7px 두께의 `--surface-2` 띠**를 화면 끝까지 넣는다. 관리 섹션(`.ops-section`)은 위 7px 띠 + 아래 1px `--line`, 위아래 안쪽 24px, 위 바깥 24px이다.
   - 홈 바로가기 위는 8px 띠다.
-  - 홈 축제 소식 섹션은 위 1px `--line`, 안쪽 `24px 0 22px`, 위 바깥 24px이다.
+  - 홈 공지 섹션은 위 1px `--line`, 안쪽 `24px 0 22px`, 위 바깥 24px이다.
 - 목록 행은 위아래 10~14px, 행 사이 1px `--line`.
 - 폼 안 요소 간격 14px, 라벨과 입력 사이 6~8px.
 - 간격 단위는 2·4·6·7·8·10·12·14·16·18·20·22·24·28·30·36px 안에서 고른다.
@@ -490,7 +490,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 - 본문 15px, 줄 높이 1.5(22.5px), `letter-spacing: 0`(모든 요소).
 - 제목·문단은 `word-break: keep-all; overflow-wrap: anywhere;`. 한국어 단어를 가르지 않되, 긴 영문·주소·이메일은 아무 데서나 줄을 바꾼다.
 - 입력 글자는 **16px**. 이보다 작으면 iPhone이 입력할 때 화면을 확대한다.
-- 입력 글자 굵기는 감싸는 라벨을 물려받는다. 관리 폼 600, NFC 관리 700, 검색창·이름 변경 400, 가입 단계 500.
+- 입력 글자 굵기는 감싸는 라벨을 물려받는다. 관리 폼 600, NFC 관리 700, 검색창 400, 가입 단계 500.
 - 통계 숫자는 `font-variant-numeric: tabular-nums`.
 - 글자 크기를 화면 너비에 비례해 키우지 않는다(지도 방 이름만 예외, 7~11px).
 
@@ -509,7 +509,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | 일반 화면 제목(`.web-header`) | 19px / 750 | "바우처" |
 | 관리 마법사 본문 제목 | 19px / 700 | "운영 현황", "권한 관리" |
 | 승인 완료 제목 | 19px / 700 | "사용 승인이 완료되었어요" |
-| 하위 화면 제목(`.top-bar`) | 18px / 700 | "축제 소식", "부스 관리" |
+| 하위 화면 제목(`.top-bar`) | 18px / 700 | "공지", "부스 관리" |
 | 대화상자 제목 | 18px | "바우처 사용 승인" |
 | 브랜드 이름 | 18px / 700 | "판교고 축제" |
 | 관리 섹션 제목 | 17px / 700 / 1.4 | "바우처 사용 승인", "학생 계정 삭제" |
@@ -540,7 +540,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 | --- | --- | --- |
 | 홈 `.web-home` | 브랜드 줄 64px(로고 원 + "판교고 축제" + 알림·내 정보 아이콘) | 좌우 20px |
 | 일반 웹 화면 `.web-page`(바우처, 리뷰, 소속 확인) | `.web-header` 70px: `44px 1fr 44px`, 간격 10, 안쪽 `0 14px`, 아래 1px 선, 화면 끝까지 | 좌우 24px |
-| 탭 화면(부스 지도, 스탬프, 미니게임, MY) | `.tab-header` 64px(8.3) | 지도 좌우 16px, 나머지 24px |
+| 탭 화면(스탬프, 미니게임, MY) | `.tab-header` 64px(8.3) | 24px. 부스 지도는 머리가 없다(1.57), 좌우 16px |
 | 하위 화면 `.top-bar`(공지, 부스 관리, 상세) | 64px, `44px 1fr 44px`, 간격 10, 아래 선 없음 | 좌우 20~24px |
 | 관리 마법사 `.top-bar` | 64px, 안쪽 `0 14px`, 아래 1px 선, 화면 끝까지 | 좌우 24px |
 | 지도 `.map-screen` | 64px 탭 머리 + 검색 48px + 필터 줄 = 174px | 지도 + 아래 시트 |
@@ -549,7 +549,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 | 조건 | 바뀌는 것 |
 | --- | --- |
-| `max-width: 350px` | 화면 여백 24→20px(홈 20→16), 홈 인사 24px, 스탬프 70px, 바로가기 1열, 공지 띠 안쪽 16px, 브랜드 줄 간격 7px |
+| `max-width: 350px` | 화면 여백 24→20px(홈 20→16), 홈 인사 24px, 스탬프 70px, 바로가기 1열, 브랜드 줄 간격 7px |
 | `max-width: 359px` | 스탬프 68px, 리뷰 요약 1열, 로그인 제목 30px |
 | `max-width: 380px` | 스탬프 모의 발급 대화상자 스탬프 64px |
 | `max-height: 650px` | 지도 시트 기본 높이 182→148px, 로그인 간격 축소 |
@@ -607,7 +607,8 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
   - 빈 자리는 `span.icon-btn[aria-hidden]`을 두고 `visibility: hidden`으로 숨겨 제목을 가운데에 둔다.
 - `.web-header`: 70px, 3열 `44px 1fr 44px`, 간격 10, 안쪽 `0 14px`, 아래 1px `--line`, 화면 끝까지.
 - 탭 화면은 뒤로 버튼이 없다. 제목을 왼쪽에 크게 둔다.
-  - 홈은 브랜드 줄(아래)을 쓰고, 나머지 탭(부스 지도, 스탬프, 미니게임, MY)은 같은 **탭 머리** `.tab-header`를 쓴다.
+  - 홈은 브랜드 줄(아래)을 쓰고, 스탬프·미니게임·MY는 같은 **탭 머리** `.tab-header`를 쓴다.
+  - 부스 지도는 머리가 없다(1.57). 검색창이 화면 맨 위에서 시작하고, 지운 64px만큼 지도가 넓어진다(`--map-header-height` 174px → 110px). 제목 "부스 지도"는 화면 낭독기용 `h1.sr-only`로만 남는다. "일부 위치 임시 배치" 안내는 지도 위 안내 줄(`.map-context-bar .map-location-note`)에 뜬다.
   - `.tab-header`: 높이 64px, 화면 맨 위(본문 위 여백 0), 화면 끝까지, 안쪽 `0 20px`(350px 이하 `0 16px`, 홈 브랜드 줄과 같은 줄), 아래 1px `--line`, 흰 바탕.
   - 제목 24px/750 왼쪽. 오른쪽 자리는 화면마다 선택: 스탬프는 바우처 바로가기, 지도는 층 위치 글자(12px `--muted`), 미니게임·MY는 비운다.
   - 기존 클래스(`.stamp-board-header`, `.web-header.root`, 지도 `.top-bar`)에 `tab-header`를 함께 붙인다. 규칙은 `festival-bright.css`의 `.design-web .app-shell .tab-header`.
@@ -667,7 +668,6 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 | 종류 | 모양 | 쓰는 곳 |
 | --- | --- | --- |
-| 공지 띠 `.festival-notice-strip` | 화면 끝까지(`margin-inline: -20px`), 높이 48px, 안쪽 `10px 20px`, `--festival-sky` 바탕, 13px. 글자는 `#20382e`로 그려진다(17장). 아이콘 20px, 오른쪽 화살표 | 홈 맨 위 중요 공지 |
 | 소속 확인 요청 `.festival-identity-prompt` | `--reward-fill` 바탕, 테두리 `#f0d58a`, 모서리 8px, 아이콘 `#9a6a00` | 홈 |
 | 오류 상자 `.ops-alert` | `#fff0ed` 바탕, `#a43530` 13px, 모서리 4px, 안쪽 12px | 화면 불러오기 실패 |
 | 동기화 알림 `.visit-sync-notice` | `#fff4d8` 바탕, `#593d0d` 13px | 방문 반영 대기 |
@@ -723,7 +723,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
   - 보상 칸(3·6번째): 아래 4px 원형 점 `#80560c`, 흰 테두리 2px.
   - 아래 줄: "스탬프 3개·6개에서 바우처 지급"(왼쪽), "3개·6개 혜택"(오른쪽) 12px.
 - **지도 바로가기 카드**: 민트 면, 모서리 8px, "부스 찾아보기 →" 제목과 설명, 오른쪽 지도 일러스트 88×80(`contain`).
-- **축제 소식**(1.31): 11.1 참고.
+- **공지**(1.31, 1.48에 "축제 소식"에서 이름 바꿈): 11.1 참고.
 
 ### 9.2 스탬프 판
 
@@ -779,7 +779,7 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 ### 9.7 MY
 
-- 아바타 56px(민트 바탕, 초록 글자 18px/800, **모서리 8px**) + 이름 + 이메일 → 이름 변경(글자 링크 48px) → 통계 3칸 → 소속 확인·포인트 줄 → [띠] 바로가기 → [띠] 방문 기록 → 로그아웃(위험 버튼 50px).
+- 아바타 56px(민트 바탕, 초록 글자 18px/800, **모서리 8px**) + 이름 + 이메일 → 통계 3칸 → 소속 확인·포인트 줄 → [띠] 바로가기 → [띠] 방문 기록 → 로그아웃(위험 버튼 50px).
 - 바로가기(`.profile-shortcuts`)는 나의 스탬프 · 나의 바우처 · 나의 리뷰 세 행이다.
 - 역할이 있으면 바로가기 아래에 **전체 너비 보조 버튼**(44px)이 붙는다: 운영자 "관리 마법사 열기", 부스 담당자 "부스 관리 · 인벨릭스", 바우처 담당자 "바우처 사용 승인 · 푸드트럭"(11.2).
 
@@ -814,7 +814,10 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
 
 ## 11. 1.31~1.37에 추가된 화면
 
-### 11.1 홈 축제 소식 (1.31)
+### 11.1 홈 공지 (1.31, 1.48 통합)
+
+- 1.48: 위쪽 "중요 공지 띠"(`.festival-notice-strip`)와 아래쪽 "축제 소식" 섹션을 **"공지" 섹션 하나**로 합쳤다. 중요 공지는 이 섹션 맨 앞에 "중요" 꼬리표로 나온다. 브랜드 줄의 종 버튼(`aria-label="공지"`)은 공지 목록으로 간다.
+- 1.48: 브랜드 줄의 프로필 버튼을 없앴다. 내 정보는 하단 바 **MY**로만 들어간다.
 
 - `section.web-announcement`: `display: flex`, 간격 12px, 위 1px `--line`, 안쪽 `24px 0 22px`, 위 바깥 24px.
   - 왼쪽 확성기 아이콘, 오른쪽 공지 열.
@@ -863,12 +866,45 @@ font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
   - 승인 일시 형식: `2026년 11월 1일 오후 01:03`(한국 시간, `toLocaleString('ko-KR')` 연·월·일·시·분).
 - "확인" 주 버튼(전체 너비 48px, `[data-voucher-approved-ok]`). 누르면 창이 닫히고 버튼 옆 결과 줄에 "…사용 완료로 처리했어요."가 남는다.
 
-### 11.5 가입 단계 학번 자동 감지 (1.34)
+### 11.5 가입 단계 이름·학번 자동 감지 (1.34, 1.48)
 
 - 로그인 후 가입 단계(`.login-screen.login-profile`)에서, 학교 Google 이름(`00000이름`)에서 학번을 찾으면 학번 입력칸 아래에 안내를 둔다.
   - `p.subtitle[data-student-number-detected]`: 14px/1.6 `--muted`.
-  - 문구: "학교 Google 계정 이름에서 학번 **21001**을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요."
+  - 문구(1.48): "학교 Google 계정 이름에서 이름 **홍길동**, 학번 **21001**을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요."
+- 1.48: 제목은 늘 "학생 정보 등록", 이름 칸을 늘 보이고 Google 이름에서 찾은 이름으로 미리 채운다. 계정 줄은 "Google 계정" + 이메일.
+  - 이름이 앞에 오는 형태(`홍길동21001`), 사이의 공백·`_`·`-`·괄호도 읽는다.
 - 학번과 이름 칸은 미리 채워질 뿐 고칠 수 있다. 주 버튼 "등록하고 시작"(56px), 보조 버튼 "구글 계정 다시 선택"(48px).
+- 1.53: 서버 모드 가입 단계에 안내 `p.subtitle[data-identity-note]`를 둔다. "1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인해요. 이름은 명단과 같게 적어 주세요."
+
+### 11.5a 가입 때 소속 동아리 확인 (1.53, 건너뛸 수 없음)
+
+- "등록하고 시작"을 누르면 이름·학번을 저장하고, 같은 이름으로 소속 동아리 확인(`festival_review_identity_self` confirm)까지 한 번에 한다.
+- 서버가 `required: true`라고 하는 계정은 확인이 끝날 때까지 앱에 들어가지 못한다.
+  - 대상: 운영자가 아니고, 학번이 1·2학년(`[12]0000`)이며, 현재 축제에 확정된(ready) 동아리 명단이 있고, 아직 확인되지 않은 계정. 운영자가 확인을 취소한 계정도 여기에 든다.
+  - 3학년 학번, 운영자, 명단이 없거나 축제가 열리지 않은 경우(`OPS_NOT_READY`)는 바로 들어간다.
+- 로그인 화면의 "소속 동아리 확인" 단계(`.auth-card.identity-gate[data-identity-gate]`):
+  - 제목 "소속 동아리 확인", 계정 줄(Google 계정 + 이메일), 안내 "1·2학년은 창체 동아리 명단으로 소속 동아리를 확인해야 축제에 참여할 수 있어요. 이 단계는 건너뛸 수 없어요."
+  - 실패 사유는 `p.error-text[role=alert]`(명단 이름 다름, 명단에 없는 학번, 다른 계정에서 이미 확인, 운영자 취소). 확인 시도 횟수 제한은 없다(1.58)..
+  - 칸: "이름 (동아리 명단과 같게)" `#identityName`, "학번" `#identityStudentNumber`. 주 버튼 "소속 확인하고 시작" `#identitySubmit`, 보조 버튼 "구글 계정 다시 선택"뿐이다. 건너뛰기·나중에 하기 버튼은 없다.
+  - 학번을 고치면(가입 직후에는 이름도) 프로필에 먼저 저장한 뒤 다시 확인한다.
+  - 운영자가 취소한 계정은 칸과 주 버튼 없이 사유와 "구글 계정 다시 선택"만 보인다.
+  - 확인 정보를 읽지 못하면 "다시 시도"(`#identityRetry`)만 보인다. 실패해도 들여보내지 않는다.
+- 나중에 다시 로그인한 미확인 계정은 같은 단계를 본다. 이때는 자동으로 확인하지 않고 학생이 버튼을 누른다.
+- 서버도 막는다: 위 대상 계정의 NFC·보안 카드 스탬프 적립은 `IDENTITY_REQUIRED`("소속 동아리 확인을 먼저 마쳐 주세요.")로 거절된다. 리뷰는 원래부터 소속 확인이 있어야 남길 수 있다.
+
+### 11.5b 이름 고정과 별점·리뷰 비공개 (1.54)
+
+- 이름은 가입 단계(11.5, 11.5a)에서만 정한다. MY의 "이름 변경"과 `festivalAccount.updateName`을 없앴다.
+  - 다른 사람에게 보이는 이름은 이 값이 아니다. 리뷰 작성자는 동아리 명단의 실명, 운영 화면·바우처 확인은 `users.name`이다.
+- 다른 참여자가 남긴 별점·리뷰글·리뷰 수·평균·분포는 기본 비공개다. 전체 관리자(`users.admin`)만 본다.
+  - 참여자는 자기 별점과 리뷰만 본다. 서버가 처음부터 자기 것만 보낸다(`visible: false`).
+  - 관리 마법사 → 축제 운영 설정의 "별점·리뷰 공개"(`select[name=reviewsPublic]`)를 "공개 (모든 참여자가 보기)"로 저장하면 모든 참여자가 본다. 아래 안내 `.ops-field-note` 12px muted.
+- 비공개일 때 학생 화면:
+  - 부스 상세 지표: 별점·리뷰 칸이 "비공개". 리뷰 보기 버튼의 개수도 "비공개".
+  - 리뷰 칸과 리뷰 화면 맨 위: 안내 `.review-private-note` / `.booth-review-private p`(자물쇠 아이콘 16px, `--surface-2` 바탕, 모서리 8px, 13px muted) "다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요." 그 아래 내 리뷰만. 평균·분포 막대는 없다.
+  - 지도 목록·미리보기 카드의 별점 자리: "별점 비공개".
+  - 작성 칸 안내: "OOO 이름으로 남아요. 리뷰가 공개되면 다른 참여자도 볼 수 있어요." (공개일 때는 "OOO 이름으로 공개돼요.")
+- 공개 설정이 바뀌면 앱이 들고 있던 리뷰 요약을 버리고 다시 받는다.
 
 ### 11.6 학생 계정 삭제 (1.35, 1.36)
 
@@ -885,20 +921,23 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 
 - **데이터와 포인트**
   - ORBIT 함수(`orbit_stock_snapshot`, `orbit_trade_stock`, `orbit_blackjack_cancel`)와 공개 표(`stock_price_history`, `news`)를 로그인한 축제 계정으로 직접 부른다(`festival-account.js`의 `games`, 허용 목록 8개만). 1.37은 DB를 바꾸지 않았다. 1.38에서 축제 함수 2개(`festival_blackjack_lobby`, `festival_blackjack_rematch`)와 표 `festival_ops.blackjack_rematch`를 더했다(`operations-server/blackjack-lobby-and-rematch.sql`). 1.40에서 참가와 히트·스탠드를 축제 함수 `festival_blackjack_join`, `festival_blackjack_action`으로 바꿨다(`operations-server/blackjack-no-auto-stand.sql`, ORBIT 함수에서 자동 스탠드만 뺀 사본). 1.41에서 상태 조회를 `festival_blackjack_state`로 바꾸고 카드 제한 표 `festival_ops.blackjack_settings`와 관리 함수 `festival_blackjack_admin`을 더했다(`operations-server/minigames-admin.sql`). 1.42에서 차례당 카드 수(`festival_ops.blackjack_turn`)와 몰수패(`festival_blackjack_forfeit`, `festival_ops.blackjack_forfeit`)를 더했다(`operations-server/blackjack-turn-limit.sql`). 1.43에서 1분이 지난 대기 판을 축제 함수가 취소·환불한다(`festival_ops.blackjack_expire_waiting`, `operations-server/blackjack-match-timeout.sql`). ORBIT `orbit_*` 함수는 바꾸지 않는다.
-  - 쓰는 돈은 ORBIT의 **가상 포인트**(`public.users.money`)다. 축제 포인트·스탬프·바우처와 섞이지 않는다. 허브와 블랙잭 첫 화면에 "미니게임에서만 쓰는 포인트예요. 부스 스탬프·바우처와는 따로 계산돼요."를 둔다.
+  - 쓰는 돈은 **보유 포인트**(`public.users.money`)다. 1.52부터 MY의 보유 포인트와 같은 값이고, 글 후기 보상·운영자 조정도 여기에 더해진다(`festival_ops.ledger`는 기록으로 남고 트리거가 `money`를 바꾼다). 허브와 블랙잭 첫 화면에 "MY의 보유 포인트와 같은 포인트예요. 부스 후기 보상도 여기에 더해져요."를 둔다.
   - 체험(로컬) 모드에서는 서버를 부르지 않고 `.festival-empty`로 "실제 로그인에서 이용할 수 있어요"만 보여 준다.
-- **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root.tab-header`, 8.3 탭 머리) → 가상 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
+- **허브** `main.festival-games`(`/games`, 탭 화면이라 뒤로 없음): 머리 "미니게임"(`.web-header.root.tab-header`, 8.3 탭 머리) → 보유 포인트 줄(15px/750 고정폭) → 안내 13px → [띠] 게임 목록 2행(76px, 아이콘 타일 40px·모서리 8px: 가상주식 `trend` 민트, 블랙잭 `spade` 하늘, 이름 15px/700 + 상태 12px `--muted`, 오른쪽 `arrow`) → "새 미니게임이 열리면 이곳에 추가돼요." 13px 가운데.
   - **매칭 인원(1.38)**: "1대1 블랙잭" 이름 오른쪽에 `.status-badge.game-matching` "n명 매칭중"(높이 22px, 안쪽 `0 7px`, 12px/700, 숫자 고정폭). 1명 이상이면 success(초록), 0명이면 회색. 1분(1.43, 전에는 3분) 안에 무작위 상대를 기다리는 사람 수다. 허브가 보일 때 5초마다 그 상자의 글자만 바꾼다(다시 그리지 않음). 줄이 좁으면 이름 아래로 내려간다. 1.39부터 블랙잭 화면에도 같은 상자를 무작위 찾기 버튼("300P 걸고 상대 찾기", 상대가 거부한 뒤의 "한 판 더 하기") 바로 위 가운데에 둔다. 같은 상대에게 다시 하기를 요청하는 동안과 상대를 기다리는 동안에는 숨긴다. 상자가 화면에 있을 때만 5초마다 갱신한다.
-- **가상주식 목록** `.game-stock`(`/games/stock`): 머리(뒤로→`games`, "가상주식", 새로고침 아이콘 버튼) → 시장 줄(`.status-badge` 거래 중=success / 거래 준비·마감=neutral + 개장·마감 카운트다운 13px, 0.2초마다 그 글자만 바꾼다) → 자산 3줄(총 가상 자산, 투자할 수 있는 포인트, 주식 평가 손익) → 밑줄 탭 4개(종목·관심·보유·거래 내역, 개수 붙임, 줄바꿈 금지) → 검색(돋보기 왼쪽 14px, 입력 왼쪽 안쪽 44px) + 정렬 셀렉트(118px) → 종목 행 → [띠] 소식 → 이전 거래 결과 확인(보조 버튼 + 설명 13px).
-  - **종목 행**: 왼쪽 별 아이콘 버튼 44×44(관심 종목, 켜지면 `--primary` 채움) + 행 버튼(`36px 1fr auto`, 간격 10, 최소 64px, 아래 1px 선). 동아리 이미지 36px(8px 모서리, 9.8과 같은 이미지·대체 글자), 이름 15px/700 + `STOCK-n · n주 보유` 12px, 오른쪽 가격 15px/700 + 등락 12px/650.
+- **가상주식 목록** `.game-stock`(`/games/stock`): 머리(뒤로→`games`, "가상주식", 새로고침 아이콘 버튼) → 시장 줄(`.status-badge` 거래 중=success / 거래 준비·마감=neutral + 개장·마감 카운트다운 13px, 0.2초마다 그 글자만 바꾼다) → 자산 3줄(총 가상 자산, 투자할 수 있는 포인트, 주식 평가 손익) → 밑줄 탭 3개(종목·방문한 동아리·보유, 개수 붙임, 줄바꿈 금지. 1.51에서 관심·거래 내역을 빼고 방문한 동아리를 더했다) → 검색(돋보기 왼쪽 14px, 입력 왼쪽 안쪽 44px) + 정렬 셀렉트(118px) → 종목 행 → [띠] 소식 → 이전 거래 결과 확인(보조 버튼 + 설명 13px).
+  - **종목 행**: 행 버튼(`36px 1fr auto`, 간격 10, 최소 64px, 아래 1px 선). 1.51부터 앞의 관심 별 버튼은 없다(종목 상세 머리의 별도 없앴다).
+  - **방문한 동아리 탭(1.51)**: 내가 방문한 동아리 종목만 모은다. 없으면 빈 상태 `map` 아이콘 → "아직 방문한 동아리가 없어요" → "부스를 방문하면 그 동아리 주식을 사고팔 수 있어요." → "부스 지도 보기" 보조 버튼(지도로). 동아리 이미지 36px(8px 모서리, 9.8과 같은 이미지·대체 글자), 이름 15px/700 + `STOCK-n · n주 보유` 12px, 오른쪽 가격 15px/700 + 등락 12px/650.
   - 검색은 **화면을 다시 그리지 않고** 행에 `hidden`만 붙인다(한글 입력 중 포커스 유지, 9.5와 같은 원칙). 결과가 없으면 "검색 결과가 없어요."
-- **종목 상세** `/games/stock/{id}`: 머리(뒤로→`gamesStock`, 종목 이름, 오른쪽 관심 별) → 이미지 56px(16px) + "가상주식 · STOCK-n" 13px + 이름 23px/700 → 상태 배지(거래 가능 success / 거래 중지·가격 갱신 대기 warning / 거래 대기 neutral) + 카운트다운 → 가격 32px/750(+ "P" 18px) → 시작가 대비 등락 14px/650 → [띠] "행사 2시간 시세" 그래프 → 기준 시각 12px → 시작가·내 보유 수량·보유 평가액 3줄 → 결과 줄 → 매수(주 버튼)·매도(보조 버튼) 2열.
+  - **방문 규칙(1.51, `MINIGAME_RULES.md` 2.3·2.4)**: 시장 줄 아래 규칙 줄(13px `--muted`) "방문한 동아리만 사고팔 수 있어요. 가격은 1분마다 0.3%씩 내려가고, 방문 학생이 10명 늘 때마다 5% 올라요."(숫자는 서버 설정). 종목 행의 작은 줄은 `STOCK-n` 대신 "방문 n명"이고, 방문하지 않은 동아리는 끝에 "방문 전"(`--festival-red` 650)을 붙인다.
+- **종목 상세** `/games/stock/{id}`: 머리(뒤로→`gamesStock`, 종목 이름, 오른쪽 관심 별) → 이미지 56px(16px) + "가상주식 · STOCK-n" 13px + 이름 23px/700 → 상태 배지(거래 가능 success / 거래 중지·가격 갱신 대기 warning / 거래 대기 neutral) + 카운트다운 → 가격 32px/750(+ "P" 18px) → 시작가 대비 등락 14px/650 → [띠] "행사 2시간 시세" 그래프 → 기준 시각 12px → 시작가·내 보유 수량·보유 평가액·방문 학생 4줄 → 결과 줄 → 매수(주 버튼)·매도(보조 버튼) 2열.
+  - 방문 학생 줄(1.51): "방문 학생 · n명 더 오면 5% 상승"(작은 글자) + 오른쪽 "n명". 방문하지 않은 동아리는 상태 배지가 "방문 전"(neutral)이고, 매수·매도를 모두 끄고 아래에 "이 동아리 부스를 방문하면 사고팔 수 있어요." 13px를 둔다. 서버도 `STOCK_NOT_VISITED`로 거부한다.
   - 그래프: SVG 높이 168px, 가로 점선 4개(`--line`), 선 2.5px, 아래 면 불투명도 0.1, 아래 시각 눈금 5개 12px. 손가락·마우스를 대면 가까운 점의 "시각 · 가격"을 오른쪽 위 작은 상자(모서리 4px)에 보여 준다.
 - **가격 색(이 앱의 유일한 예외)**: 한국 시장 관례대로 오르면 `--festival-red #b93f3b`, 내리면 `--festival-blue #285e92`, 같으면 `--muted`. 색만 쓰지 않고 **반드시 ▲/▼와 +/− 부호를 함께** 쓴다. 이 빨강은 오류 뜻이 아니므로 가격·그래프·카드 무늬 밖에서는 쓰지 않는다.
 - **매수·매도 창** `dialog.ops-dialog.game-trade-dialog`(8.11과 같은 354px·20px·8px): 제목 "{종목} 매수" → 현재 확정 가격·주문 가능 2줄(`space-between`, 14px/15px 700) → 수량 조절(`44px 1fr 44px`, 버튼 바탕 `--surface-2`, 수량 20px/750) → 결과 줄 → "매수 확정 · 9,000P" 주 버튼 → "취소" 보조 버튼. 성공하면 창이 닫히고 매수 버튼 위 결과 줄에 "3주 매수가 3,000P에 확정됐어요."(success)가 남는다.
   - 거래마다 확인 키를 먼저 브라우저에 저장하고 보낸다. 저장할 수 없으면 보내지 않는다. 결과를 모르는 거래는 "이전 거래 결과 확인"이 같은 키로 다시 보내 **한 번만** 처리된다(ORBIT `develop`과 같은 규칙).
 - **블랙잭** `/games/blackjack`
-  - 첫 화면: 가상 포인트 줄 → 안내 → (지난 판 결과 상자) → 결과 줄 → "300P 걸고 상대 찾기"(지난 판이 있으면 "한 판 더 하기") 주 버튼 → [띠] 규칙(목록 14px/1.6) → 카드 점수·용어 표(`84px 1fr`, 아래 1px 선). 포인트가 300P보다 적으면 버튼을 끄고 이유를 13px로 쓴다.
+  - 첫 화면: 보유 포인트 줄 → 안내 → (지난 판 결과 상자) → 결과 줄 → "300P 걸고 상대 찾기"(지난 판이 있으면 "한 판 더 하기") 주 버튼 → [띠] 규칙(목록 14px/1.6) → 카드 점수·용어 표(`84px 1fr`, 아래 1px 선). 포인트가 300P보다 적으면 버튼을 끄고 이유를 13px로 쓴다.
   - 기다리는 중: `spade` 아이콘(초록) → "상대를 찾고 있어요" 17px/700 → "기다린 시간 0:12" 14px(1.43부터 안내 문구 없이 시간만, 매칭 안내는 규칙 목록에 둔다) → "대기 취소" 보조 버튼(1.49. 기다리는 동안 판돈을 빼지 않으므로 돌려받을 것이 없다. 1.48까지는 "취소하고 300P 돌려받기").
   - **자동 스탠드 없음(1.40)**: 처음 두 장이 21이어도, 히트해서 21이 되거나 버스트돼도 멈추지 않는다. 스탠드를 누르거나 10초가 지나야 멈춘다. 안내는 21점이면 "21점이에요. 히트나 스탠드를 골라 주세요.", 버스트면 "버스트예요. 히트나 스탠드를 골라 주세요." 덱 52장을 다 쓰면 히트는 스탠드로 처리한다.
   - **동시 선택(1.49, `MINIGAME_RULES.md` 3)**: 차례를 번갈아 고르지 않는다. 매 라운드 멈추지 않은 사람이 동시에 히트나 스탠드를 고르고, 둘 다 고르거나 10초가 지나면 서버가 두 사람의 선택을 한꺼번에 공개한다(히트마다 카드 한 장, 고르지 않으면 스탠드, 스탠드는 그 판에서 멈춤). 고른 것은 바꿀 수 없다. 상대가 무엇을 골랐는지는 공개 전까지 서버 밖으로 나오지 않고, 화면에는 "선택 완료"만 보인다.
@@ -993,7 +1032,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 - 버튼은 "명사 + 동사"("부스 정보 저장"). 확인 질문은 "~할까요?"로 끝낸다.
 - 화면 이름(바꾸지 않는다)
   - 학생 메뉴: "홈 / 부스 지도 / 스탬프 / 미니게임 / MY".
-  - 미니게임 화면: "미니게임", "가상주식"(목록 이름 "동아리 가상주식"), "블랙잭"(목록 이름 "1대1 블랙잭"). 포인트 이름은 **"가상 포인트"**다. 축제 "보유 포인트"와 섞어 부르지 않는다.
+  - 미니게임 화면: "미니게임", "가상주식"(목록 이름 "동아리 가상주식"), "블랙잭"(목록 이름 "1대1 블랙잭"). 포인트 이름은 MY와 같은 **"보유 포인트"** 하나다(1.52, 전에는 "가상 포인트").
   - 운영자 영역: "관리 마법사", 그 안의 "현황 / 관리 도구 / 기록". 권한 도구: "권한 관리".
   - 담당자 화면: "부스 관리", "바우처 사용 승인".
   - 역할: "부스 담당자", "푸드트럭 바우처 담당자", "포토부스 바우처 담당자".
@@ -1007,22 +1046,22 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | --- | --- |
 | 로그인 | 작은 브랜드 줄 → 제목 32px → 일러스트(최대 270px) → Google 버튼 54px → 안내 13px |
 | 가입 단계 | 브랜드 줄 → 제목 → (학번 감지 안내) → 이름·학번 입력 56px → "등록하고 시작" 56px → "구글 계정 다시 선택" 48px |
-| 홈 | 브랜드 줄 → (중요 공지 띠) → 인사 27px → (소속 확인 요청) → 내 스탬프(개수 + 내 바우처 + 펀치 6칸) → 지도 바로가기 민트 카드 → [띠] 이어서 남기기 → [띠] 축제 바로가기(바우처·리뷰) → 최근 내 기록 → 축제 소식(공지 열 전체 너비) → 바닥글 "PANGYO HIGH SCHOOL" |
-| 부스 지도 | 머리(뒤로·"부스 지도"·위치 안내) → 검색 → 필터 줄 → 지도(층 버튼·줌) → 아래 시트 |
+| 홈 | 브랜드 줄(공지 종) → 인사 27px → (소속 확인 요청) → 내 스탬프(개수 + 내 바우처 + 펀치 6칸) → 지도 바로가기 민트 카드 → [띠] 이어서 남기기 → [띠] 축제 바로가기(바우처·리뷰) → 최근 내 기록 → 축제 소식(공지 열 전체 너비) → 바닥글 "PANGYO HIGH SCHOOL" |
+| 부스 지도 | 검색 → 필터 줄 → 지도(안내 줄·층 버튼·줌) → 아래 시트. 머리 없음(1.57) |
 | 부스 상세 | 머리 → 상태 배지 + 운영 시간 → 이미지 + 이름 23px → 스탬프 여부 → 통계 3칸 → 리뷰 보기 → 지도에서 위치 보기 → [띠] 부스 소개 → 프로그램 안내 → [띠] 방문 인증 → [띠] 리뷰 쓰기 |
 | 스탬프 | 큰 제목 + 바우처 → 모은 스탬프 40px + 진행 막대 6px → 지그재그 스탬프 판 → 방문 기록(1.45부터 스탬프 판 아래. 1.46부터 완료한 방문과 한 목록: 평가할 부스 먼저(오른쪽 "평가하기"), 나머지는 최근 순이고 상태 문구 없음(1.47), 제목 오른쪽에 "후기 쓰기". 탭에서 부스별 후기 가능 여부를 서버에서 받아온다) |
 | 바우처 | 머리 → 탭(받기·보유·사용·종료) → 선택지 또는 티켓 |
-| 축제 소식 | 머리 → 공지 목록(중요 먼저) → 상세(사진 포함) |
-| MY | 머리 "MY" → 아바타 + 이름 + 이메일 → 이름 변경 → 통계 3칸 → 포인트 줄 → 바로가기 3행(스탬프·바우처·리뷰) → 역할 버튼(관리 마법사 열기·부스 관리·바우처 사용 승인) → 방문 기록 → 로그아웃 |
+| 공지 | 머리 → 공지 목록(중요 먼저) → 상세(사진 포함) |
+| MY | 머리 "MY" → 아바타 + 이름 + 이메일 → 통계 3칸 → 포인트 줄 → 바로가기 3행(스탬프·바우처·리뷰) → 역할 버튼(관리 마법사 열기·부스 관리·바우처 사용 승인) → 방문 기록 → 로그아웃 |
 | 관리 마법사 | 머리 → 탭(현황·관리 도구·기록) → (도구 화면은 "관리 도구 목록" 뒤로 링크) → 제목 19px → 섹션들 |
 | 권한 관리 | 지정된 부스 담당자(찾기·지정·목록) → 바우처 담당자(찾기·종류·지정·목록) |
 | 참여자 | 검색 → 참여자 표 → 페이지 → [띠] 리뷰 실명·소속 확인 → [띠] 학생 계정 삭제 |
 | 부스 관리 | 머리 → 부스 이름·메타 → 프로필 사진 → 운영 상태 → 운영 시간 → 위치 → 소개 → 프로그램 안내 → 결과 줄 → 저장 → [띠] 스탬프 수동 승인 → [띠] 바우처 사용 승인(바우처 담당자일 때) |
 | 바우처 사용 승인(바우처 담당자만) | 머리 "바우처 사용 승인" → 맡은 종류 → QR 스캔으로 승인 → 인증키 입력 → 인증키로 확인 |
-| 미니게임 | 머리 "미니게임" → 가상 포인트 줄 → 안내 → [띠] 게임 2행(동아리 가상주식, 1대1 블랙잭) → 추가 예정 안내 |
+| 미니게임 | 머리 "미니게임" → 보유 포인트 줄 → 안내 → [띠] 게임 2행(동아리 가상주식, 1대1 블랙잭) → 추가 예정 안내 |
 | 가상주식 | 머리(새로고침) → 시장 상태 + 카운트다운 → 자산 3줄 → 탭(종목·관심·보유·거래 내역) → 검색·정렬 → 종목 행 → [띠] 소식 → 이전 거래 결과 확인 |
 | 종목 상세 | 머리(관심 별) → 이미지 + 이름 23px → 상태 배지 → 가격 32px → 시작가 대비 → [띠] 2시간 시세 → 보유 3줄 → 결과 줄 → 매수·매도 |
-| 블랙잭 | 머리 → 가상 포인트 → 안내 → (지난 판 결과) → 상대 찾기 → [띠] 규칙·카드 점수·용어. 진행 중이면 상대 자리 → 차례·남은 시간 → 내 자리 → 히트·스탠드 |
+| 블랙잭 | 머리 → 보유 포인트 → 안내 → (지난 판 결과) → 상대 찾기 → [띠] 규칙·카드 점수·용어. 진행 중이면 상대 자리 → 차례·남은 시간 → 내 자리 → 히트·스탠드 |
 
 ---
 
@@ -1040,7 +1079,6 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | 입력 테두리·바탕 | `#bdcec4` / 흰색 | **`#d5e1da` / `#fbfdfc`** | 앞 파일 규칙 |
 | 입력 글자 굵기 | 400 | **라벨을 물려받아 600** | `font: inherit` |
 | 바우처 QR 창·메뉴 창 모서리 | 20px | **8px** | `festival-bright.css` 177행이 뒤에 온다 |
-| 공지 띠 글자색 | `--festival-blue` | **`#20382e`** | 버튼 공통 색 규칙이 덮어쓴다 |
 | 지도 시트 그림자 | `0 -6px 24px #183e2c12` | `rgba(23,32,51,.12) 0 -8px 24px` | `styles.css` 값이 남았다 |
 | 바우처 티켓 모서리 | 12px(frontmatter) | **8px** | `festival-bright.css` |
 | 동아리 목록 이미지 바탕 | `--primary` | `#2563eb`(사진에 가려 보통 안 보임) | `.kind-poster` 옛 규칙 |
@@ -1105,7 +1143,6 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | 하위 화면 머리 | `.top-bar` | 높이 64, `44px 1fr 44px` |
 | 홈 인사 | `.web-welcome h1` | 27px/750 (320px: 24px) |
 | 홈 공지 열 | `.web-announcement .web-news-list` | 너비 319px (320px 화면 257, 1024px 화면 409) |
-| 공지 띠 | `.festival-notice-strip` | 높이 48, 바탕 `#eaf4ff`, 13px |
 | 밑줄 탭 | `.festival-view-tabs button` | 높이 52, 14px, 활성 750 + 아래 2px `#087652` |
 | 바우처 티켓 | `.festival-ticket` | 안쪽 20, 모서리 8, 음식 `#fff9e5`/포토 `#eaf4ff` |
 | 스탬프 도장 | `.stamp-path-node` (아직) | 76×76 |
@@ -1174,7 +1211,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 | `profile` | `/my` | MY | MY | (뒤로 없음) |
 | `reviews` | `/reviews` | 내 리뷰 | MY | `home` |
 | `identity` | `/identity` | 본인 소속 확인 | MY | `home` |
-| `notices` | `/notices` | 축제 소식 목록 | 홈 | `home` |
+| `notices` | `/notices` | 공지 목록 | 홈 | `home` |
 | `notice` | `/notices/{id}` | 공지 상세 | 홈 | `notices` |
 | `manage` | `/manage` | 부스 관리 / 바우처 사용 승인 | MY | `profile` |
 | `admin` | `/admin` | 관리 마법사 | MY | 홈 아이콘 버튼 |
@@ -1261,12 +1298,10 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
   <header class="web-brand">
     <span class="brand-symbol" aria-hidden="true">P.</span><strong>판교고 축제</strong>
     <div class="web-brand-actions">
-      <button class="icon-btn" data-route="notices" aria-label="축제 소식" title="축제 소식">{icon:bell}</button>
-      <button class="icon-btn web-profile-button" data-route="profile" aria-label="내 정보" title="내 정보">{icon:user}</button>
+      <button class="icon-btn" data-route="notices" aria-label="공지" title="공지">{icon:bell}</button>
     </div>
   </header>
   <!-- 중요 공지가 있을 때만 -->
-  <button class="festival-notice-strip" data-notice-open="{id}">{icon:notice}<span>부스 운영 시간 안내</span>{icon:arrow}</button>
   <section class="web-welcome"><h1>가상방문님, 오늘의 축제를 모아봐요.</h1></section>
   <section class="home-stamp-card" aria-labelledby="homeStampTitle">
     <div class="festival-pass-heading">
@@ -1301,7 +1336,7 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
   <section class="web-section web-announcement" id="homeNews">
     {icon:notice}
     <div>
-      <div class="section-heading"><h2>축제 소식</h2><button class="text-link" data-route="notices">전체 보기 {icon:arrow}</button></div>
+      <div class="section-heading"><h2>공지</h2><button class="text-link" data-route="notices">전체 보기 {icon:arrow}</button></div>
       <ul class="web-news-list">
         <li class="important"><button class="web-news-open" data-notice-open="{id}">
           <strong><span class="web-news-flag">중요</span>부스 운영 시간 안내</strong>
@@ -1393,9 +1428,6 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
   <header class="web-header root tab-header"><div><h1>MY</h1></div></header>
   <section class="profile-card"><div class="profile-avatar">가</div>
     <div><strong>가상방문</strong><span>student@pangyo.hs.kr</span></div></section>
-  <section class="profile-name-section" aria-label="이름 변경">
-    <button class="text-link" id="editProfileName">이름 변경 {icon:arrow}</button>
-    <p class="profile-name-feedback" role="status"></p></section>
   <dl class="festival-profile-stats">
     <div><dt>스탬프</dt><dd>1<small>개</small></dd></div>
     <div><dt>바우처</dt><dd>2<small>장</small></dd></div>
@@ -1416,14 +1448,14 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 - 프로필 카드: `48px 1fr` 그리드, 위아래 12px, 간격 12px.
 - 통계: 3열(390px에서 114px씩), 위아래 18px, 위 1px 선.
 - 포인트 줄: 최소 52px, 위아래 16px, 13px.
-- 이름 변경을 누르면 같은 자리가 폼으로 바뀐다: 라벨 "앱에서 사용할 이름" → 입력 → 안내 "Google 계정 이름과 학번은 바뀌지 않아요." → 오류 줄 → [취소(보조)][저장(주)] 두 칸(각 48px).
+- 이름은 가입할 때 한 번 정한다. MY에는 이름을 바꾸는 버튼이나 폼이 없다(1.54).
 
-### 20.6 축제 소식
+### 20.6 공지
 
 ```html
 <main class="screen festival-notices-screen">
   <header class="top-bar"><button class="icon-btn" data-history-back="home" aria-label="뒤로">{icon:back}</button>
-    <h1>축제 소식</h1><span class="icon-btn" aria-hidden="true"></span></header>
+    <h1>공지</h1><span class="icon-btn" aria-hidden="true"></span></header>
   <ul class="festival-notice-list">
     <li><button class="festival-notice-row important" data-notice-open="{id}">
       <span><strong><span class="web-news-flag">중요</span>부스 운영 시간 안내</strong>
@@ -1636,11 +1668,12 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
   </div>
 </main>
 <!-- 가입 단계 auth-card 내용 -->
-<h2>학번 확인</h2>
+<h2>학생 정보 등록</h2>
 <div class="login-account"><span class="login-account-avatar" aria-hidden="true">{icon:user}</span>
-  <div><strong>가상방문</strong><span>s@pangyo.hs.kr</span></div></div>
+  <div><strong>Google 계정</strong><span>s@pangyo.hs.kr</span></div></div>
 <div class="input-stack">
-  <p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 학번 <strong>21001</strong>을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>
+  <p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 이름 <strong>홍길동</strong>, 학번 <strong>21001</strong>을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>
+  <label class="field">이름<input class="input" id="name" maxlength="60" autocomplete="name" value="홍길동"></label>
   <label class="field">학번<input class="input" id="studentNumber" placeholder="예: 21001" inputmode="numeric" maxlength="5"></label>
   <button class="primary-btn" id="profileSubmit" type="button">등록하고 시작</button>
   <button class="ghost-btn" id="backToGoogle" type="button">구글 계정 다시 선택</button>
@@ -1843,8 +1876,6 @@ ORBIT `develop` 브랜치의 `/games`(동아리 가상주식, 1대1 블랙잭)�
 .pf .web-news-open { width: 100%; text-align: left; }
 .pf .web-news-open strong { display: block; font-size: 14px; font-weight: 700; }
 .pf .web-news-open :is(p, small) { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
-.pf .festival-notice-strip { display: flex; align-items: center; gap: 10px; width: calc(100% + 40px); min-height: 48px;
-  margin-inline: -20px; padding: 10px 20px; background: var(--sky); font-size: 13px; text-align: left; }
 
 /* 9. 스탬프 */
 .pf .punch-row { display: grid; grid-template-columns: repeat(6, minmax(0, 44px)); gap: 7px; }

@@ -74,10 +74,10 @@ const state = {
   stampTrailExpanded: false,
   authStep: "google",
   pendingGoogle: null,
+  identityGate: null,
   authIntent: "student",
   loginBusy: false,
   loginError: "",
-  nameEdit: { open: false, draft: "", busy: false, error: "", message: "" },
   adminMessage: "",
   scanResult: null,
   nfcTestMessage: "",
@@ -103,6 +103,8 @@ function navigationSnapshot() {
     reviewPickerOpen: state.reviewPickerOpen,
     noticeId: state.noticeId || null,
     gameStockId: state.gameStockId || null,
+    waitingId: state.waitingId || null,
+    waitingBooth: state.waitingBooth || null,
     mapSelection: state.route === "map" && Boolean(state.selectedBoothId && state.mapSelectionEntry),
   };
 }
@@ -122,7 +124,8 @@ function navigateTo(route, { replace = false } = {}) {
   // Leaving a blackjack game in progress asks first and forfeits it (1.42).
   if (typeof festivalGames !== "undefined" && !festivalGames.allowLeave(route)) return;
   const changed = state.route !== route || (window.FestivalRouter?.isWeb(location)
-    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId,gameStockId:state.gameStockId}) !== location.pathname);
+    && window.FestivalRouter.pathname({route,selectedBoothId:state.selectedBoothId,noticeId:state.noticeId,gameStockId:state.gameStockId,
+      waitingId:state.waitingId,waitingBooth:state.waitingBooth}) !== location.pathname);
   if (window.FestivalRouter && !state.user && route !== "login") {
     pendingNavigation = { ...navigationSnapshot(), route };
     route = "login";
@@ -141,6 +144,8 @@ function applyNavigationSnapshot(snapshot) {
   state.mapSelectionEntry = Boolean(snapshot.mapSelection);
   state.noticeId = snapshot.noticeId || null;
   state.gameStockId = snapshot.gameStockId || null;
+  state.waitingId = snapshot.waitingId || null;
+  state.waitingBooth = snapshot.waitingBooth || null;
   state.sheetLevel = snapshot.sheetLevel || "peek";
   state.sheetOpen = state.sheetLevel !== "peek";
   state.searchOpen = Boolean(snapshot.searchOpen);
@@ -388,6 +393,19 @@ function serverReviewState(boothId) {
   return key ? serverReviews.get(key) || null : null;
 }
 
+// 1.54: other participants' ratings and reviews are private until an operator opens them in
+// 관리 마법사. The server sends only your own review while private; operators always see everything.
+function reviewsPublic(boothId) {
+  if (!isServerMode() || isAdminUser()) return true;
+  const visible = boothId ? serverReviewState(boothId)?.visible : undefined;
+  return visible ?? (typeof festivalOpsUI !== "undefined" && festivalOpsUI.snapshot()?.event?.reviews_public === true);
+}
+
+function reviewAuthorText(policy) {
+  return reviewsPublic(state.selectedBoothId) ? `${policy.authorName} 이름으로 공개돼요.`
+    : `${policy.authorName} 이름으로 남아요. 리뷰가 공개되면 다른 참여자도 볼 수 있어요.`;
+}
+
 function isAdminOnlyNfcSource(source) {
   return ADMIN_ONLY_NFC_SOURCES.has(String(source || ""));
 }
@@ -430,6 +448,8 @@ function readInitialSunClaim() {
   return createNfcClaim(token, "sun-url");
 }
 
+// 1.59: an on-site waiting QR (/waiting/join/<booth>#q=…) keeps its token for this tab, out of the address.
+if (typeof festivalWaiting !== "undefined") festivalWaiting.readQrFromUrl();
 state.pendingNfcClaim = readInitialNfcClaim() || readInitialSunClaim();
 
 // Public club profiles imported from Chatdong. Classroom assignments are temporary
@@ -1229,12 +1249,6 @@ function formatTime(value) {
   return new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" }).format(new Date(value));
 }
 
-function formatOperatingHours(booth) {
-  // Booth managers enter the hours (program.hours). Plain text: escape before putting it in HTML.
-  if (isServerMode()) return booth.opsRecord?.program?.hours || "운영 시간 미등록";
-  return `${formatTime(booth.opensAt)}–${formatTime(booth.closesAt)}`;
-}
-
 // One place for a booth on every screen: the manager's location, else the chosen map room, else
 // the bundled classroom marked as temporary. Plain text: escape before putting it in HTML.
 function boothPlace(booth) {
@@ -1258,6 +1272,7 @@ function ratingInfo(boothId) {
   return {
     reviews,
     count,
+    hidden: !reviewsPublic(boothId),
     status: isServerMode() ? serverReviewState(boothId)?.status || "idle" : "ready",
     message: isServerMode() ? serverReviewState(boothId)?.message || "" : "",
     average: count && average ? Number(average).toFixed(1) : null,
@@ -1347,7 +1362,7 @@ function updateReviewSection(boothId) {
     compose.querySelector("#submitReview").textContent = !policy.allowed ? "리뷰 작성 제한" : !enabled ? "방문 후 작성 가능" : own ? "글 후기 등록" : "별점 등록하고 날인 완료";
     compose.querySelector(".review-guidance").textContent = !policy.allowed ? reviewEligibilityMessage(policy) : enabled ? "별점은 필수, 글 후기는 선택이에요." : "방문 인증 후 작성할 수 있어요.";
     const identity = compose.querySelector(".review-identity");
-    identity.textContent = policy.allowed ? `${policy.authorName} 이름으로 공개돼요.` : "";
+    identity.textContent = policy.allowed ? reviewAuthorText(policy) : "";
     identity.hidden = !policy.allowed;
     compose.querySelector(".review-identity-link").hidden = !(isServerMode() && policy.reason === "REVIEW_IDENTITY_REQUIRED");
     compose.querySelector("#saveReviewDraft").hidden = !enabled;
@@ -1368,12 +1383,14 @@ function updateReviewSection(boothId) {
 }
 
 function reviewAverageText(info) {
+  if (info.hidden && info.status !== "error") return "비공개";
   if (info.status === "loading") return "불러오는 중";
   if (info.status === "error") return "확인 실패";
   return info.average || "평가 전";
 }
 
 function reviewCountText(info) {
+  if (info.hidden && info.status !== "error") return "비공개";
   if (info.status === "loading") return "…";
   if (info.status === "error") return "확인 실패";
   return `${info.count}개`;
@@ -1382,6 +1399,7 @@ function reviewCountText(info) {
 function reviewListMarkup(info) {
   if (info.status === "loading") return `<div class="review-empty"><strong>후기를 불러오는 중이에요</strong></div>`;
   if (info.status === "error") return `<div class="review-empty"><strong>후기를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p></div>`;
+  if (info.hidden) return `<p class="review-private-note">${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요.</p>${info.reviews.filter(review => review.mine).map(reviewView).join("")}`;
   if (!info.reviews.length) return `<div class="review-empty"><strong>아직 등록된 후기가 없어요</strong></div>`;
   return info.reviews.map(reviewView).join("");
 }
@@ -1401,6 +1419,7 @@ function catalogName(booth) {
 
 function catalogRatingText(booth) {
   if (!booth.officialClubId) return "";
+  if (!reviewsPublic()) return "별점 비공개";
   const remote = catalogBooth(booth);
   if (!remote) return "별점 정보 없음";
   const cached = publicCatalog.getSnapshot().status !== "ready" ? " · 이전 정보" : "";
@@ -1473,6 +1492,9 @@ function render() {
     if (state.route === "notices") app.innerHTML = festivalNotices.listView();
     if (state.route === "notice") app.innerHTML = festivalNotices.detailView();
     if (state.route === "manage") app.innerHTML = festivalBoothManager.view();
+    if (state.route === "waiting") app.innerHTML = festivalWaiting.entryView();
+    if (state.route === "waitingJoin") app.innerHTML = festivalWaiting.joinView();
+    if (state.route === "manageWaiting") app.innerHTML = festivalWaitingManager.view();
     if (state.route === "boothReviews") app.innerHTML = boothReviewsView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
@@ -1491,7 +1513,8 @@ function render() {
 }
 
 function loginView() {
-  const profileStep = state.authStep === "profile" && state.pendingGoogle;
+  const identityStep = state.authStep === "identity" && state.identityGate;
+  const profileStep = (state.authStep === "profile" && state.pendingGoogle) || identityStep;
   return `
     <main class="screen login-screen${profileStep ? " login-profile" : ""}">
       <header class="login-brand"><span class="brand-symbol" aria-hidden="true">P.</span><span>PANGYO FESTIVAL</span></header>
@@ -1501,7 +1524,7 @@ function loginView() {
           ${profileStep ? "" : `<img class="login-art" src="./assets/festival-school-1.4.webp" width="1536" height="1024" alt="" fetchpriority="high" />`}
         </div>
         <section class="login-panel" aria-label="${profileStep ? "참가자 정보 확인" : "축제 로그인"}">
-          ${profileStep ? profileForm() : googleForm()}
+          ${identityStep ? identityGateForm() : profileStep ? profileForm() : googleForm()}
         </section>
       </div>
     </main>
@@ -1526,20 +1549,48 @@ function googleForm() {
 
 function profileForm() {
   const google = state.pendingGoogle;
-  const needsName = !isServerMode() || !google.displayName?.trim() || google.displayName.trim().length > 60;
+  const missingName = isServerMode() && (!google.displayName?.trim() || google.displayName.trim().length > 60);
+  const detected = [google.detectedName && `이름 <strong>${escapeHtml(google.detectedName)}</strong>`, google.detectedStudentNumber && `학번 <strong>${escapeHtml(google.detectedStudentNumber)}</strong>`].filter(Boolean);
+  // 1.48: the name is always an input, filled in from the Google account when it can be read.
   return `
     <div class="auth-card">
-      <h2>${needsName ? "학생 정보 등록" : "학번 확인"}</h2>
-      <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>${needsName ? "Google 계정" : escapeHtml(google.displayName)}</strong><span>${escapeHtml(google.email)}</span></div></div>
+      <h2>학생 정보 등록</h2>
+      <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>Google 계정</strong><span>${escapeHtml(google.email)}</span></div></div>
       ${state.loginError ? `<p class="error-text" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
       <div class="input-stack">
-        ${needsName ? `${isServerMode() ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}<label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? google.displayName ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>` : ""}
-        ${google.detectedStudentNumber ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 학번 <strong>${escapeHtml(google.detectedStudentNumber)}</strong>을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>` : ""}
+        ${missingName ? `<p class="subtitle">Google 계정에서 사용할 이름을 가져오지 못했어요. 이름을 한 번만 입력해 주세요.</p>` : ""}
+        ${isServerMode() ? `<p class="subtitle" data-identity-note>1·2학년은 등록할 때 창체 동아리 명단으로 소속 동아리도 함께 확인해요. 이름은 명단과 같게 적어 주세요.</p>` : ""}
+        ${detected.length ? `<p class="subtitle" data-student-number-detected>학교 Google 계정 이름에서 ${detected.join(", ")}을(를) 찾았어요. 맞으면 '등록하고 시작'을 눌러 주세요.</p>` : ""}
+        <label class="field">이름<input id="name" class="input" maxlength="60" autocomplete="name" value="${escapeHtml(google.nameDraft ?? (missingName ? "" : google.displayName) ?? "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         <label class="field">학번<input id="studentNumber" class="input" placeholder="예: 21001" inputmode="numeric" maxlength="5" value="${escapeHtml(google.studentNumber || "")}" ${state.loginBusy ? "disabled" : ""} /></label>
         ${isServerMode() ? "" : `<label class="field">아이디<input id="schoolId" class="input" placeholder="예: pango-student" /></label>`}
         <button id="profileSubmit" type="button" class="primary-btn" aria-busy="${Boolean(state.loginBusy)}" ${state.loginBusy ? "disabled" : ""}>${state.loginBusy ? "저장 중..." : "등록하고 시작"}</button>
         <button id="backToGoogle" type="button" class="ghost-btn" ${state.loginBusy ? "disabled" : ""}>구글 계정 다시 선택</button>
       </div>
+    </div>
+  `;
+}
+
+// 1.53: the club membership step after sign-up. There is no way past it except confirming.
+function identityGateForm() {
+  const gate = state.identityGate, google = state.pendingGoogle, locked = gate.identity?.locked;
+  const off = gate.busy ? "disabled" : "";
+  return `
+    <div class="auth-card identity-gate" data-identity-gate>
+      <h2>소속 동아리 확인</h2>
+      <div class="login-account"><span class="login-account-avatar" aria-hidden="true">${icon("user")}</span><div><strong>Google 계정</strong><span>${escapeHtml(google?.email || "")}</span></div></div>
+      <p class="subtitle">1·2학년은 창체 동아리 명단으로 소속 동아리를 확인해야 축제에 참여할 수 있어요. 이 단계는 건너뛸 수 없어요.</p>
+      ${gate.note ? `<p class="error-text" role="alert">${escapeHtml(gate.note)}</p>` : ""}
+      <div class="input-stack">
+        ${gate.status === "loading" ? `<p class="subtitle" role="status">소속 동아리를 확인하는 중이에요...</p>`
+          : gate.status === "error" ? `<button id="identityRetry" type="button" class="primary-btn">${icon("refresh")} 다시 시도</button>`
+          : locked ? ""
+          : `<label class="field">이름 (동아리 명단과 같게)<input id="identityName" class="input" maxlength="60" autocomplete="name" spellcheck="false" value="${escapeHtml(gate.nameDraft || "")}" ${off} /></label>
+        <label class="field">학번<input id="identityStudentNumber" class="input" inputmode="numeric" maxlength="5" value="${escapeHtml(gate.studentNumber || "")}" ${off} /></label>
+        <button id="identitySubmit" type="button" class="primary-btn" aria-busy="${Boolean(gate.busy)}" ${off}>${gate.busy ? "확인 중..." : "소속 확인하고 시작"}</button>`}
+        <button id="backToGoogle" type="button" class="ghost-btn" ${off}>구글 계정 다시 선택</button>
+      </div>
+      <p class="login-note">학번이 틀렸거나 명단의 이름과 다르면 고쳐서 다시 확인해 주세요. 그래도 안 되면 운영 부스에 문의해 주세요.</p>
     </div>
   `;
 }
@@ -1697,30 +1748,17 @@ function profileView() {
         <div><strong>${escapeHtml(state.user.name)}</strong><span>${escapeHtml(state.user.googleEmail || "학교 계정 미연결")}</span></div>
         ${state.user.role === "admin" ? "<em>관리자</em>" : ""}
       </section>
-      <section class="profile-name-section" aria-label="이름 변경">
-        ${state.nameEdit.open ? `
-          <form id="profileNameForm" class="profile-name-form" novalidate aria-busy="${state.nameEdit.busy}">
-            <label for="profileName">앱에서 사용할 이름</label>
-            <input id="profileName" class="input" autocomplete="name" maxlength="60" value="${escapeHtml(state.nameEdit.draft)}" aria-describedby="profileNameHint profileNameError" aria-invalid="${Boolean(state.nameEdit.error)}" ${state.nameEdit.busy ? "disabled" : ""} />
-            <p id="profileNameHint">Google 계정 이름과 학번은 바뀌지 않아요.</p>
-            <p id="profileNameError" class="error-text" role="alert">${escapeHtml(state.nameEdit.error)}</p>
-            <div class="profile-name-actions">
-              <button id="cancelNameEdit" type="button" class="ghost-btn" ${state.nameEdit.busy ? "disabled" : ""}>${icon("close")} 취소</button>
-              <button type="submit" class="primary-btn" ${state.nameEdit.busy ? "disabled" : ""}>${icon("save")} ${state.nameEdit.busy ? "저장 중..." : "저장"}</button>
-            </div>
-          </form>` : `<button id="editProfileName" type="button" class="text-link">${icon("user")} 이름 변경</button>`}
-        <p class="profile-name-feedback" role="status">${escapeHtml(state.nameEdit.message)}</p>
-      </section>
       <dl class="festival-profile-stats"><div><dt>스탬프</dt><dd>${festivalWeb.completed().length}<small>개</small></dd></div><div><dt>쿠폰</dt><dd>${festivalWeb.walletSummary().available}<small>장</small></dd></div></dl>
       <section class="profile-list">
         ${isServerMode() ? festivalOpsUI.identityRow() : ""}
-        <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points() ?? "—"} P</strong></div>
+        <div><span>${isServerMode() ? "보유 포인트" : "체험 포인트"}</span><strong>${festivalWeb.points()?.toLocaleString("ko-KR") ?? "—"} P</strong></div>
       </section>
       <nav class="profile-shortcuts" aria-label="내 축제 메뉴">
         ${[["vouchers", "ticket", "나의 쿠폰"], ["reviews", "message", "나의 리뷰"]].map(([route, symbol, label]) => `<button type="button" data-route="${route}"><span class="shortcut-symbol ${route}">${icon(symbol)}</span><strong>${label}</strong>${icon("arrow")}</button>`).join("")}
       </nav>
       ${state.user.role === "admin" ? `<button type="button" class="ghost-btn full-action" data-route="admin">${isServerMode() ? "관리 마법사 열기" : "관리 마법사 열기"}</button>` : ""}
       ${typeof festivalBoothManager !== "undefined" ? festivalBoothManager.profileButton() : ""}
+      ${typeof festivalWaiting !== "undefined" ? festivalWaiting.profileList() : ""}
       <section class="festival-profile-history"><div class="section-heading"><h2>방문 기록</h2><span>${stampCount}개</span></div>${stampCount ? repo.stampsForUser(state.user.id).slice().reverse().map(v => festivalWeb.visitRow(v)).join('') : '<p class="web-muted">아직 방문 기록이 없어요.</p>'}</section>
       ${state.loginError ? `<p class="error-text" role="status">${escapeHtml(state.loginError)}</p>` : ""}
       <button type="button" class="danger-btn full-action" data-route="login">로그아웃</button>
@@ -1984,18 +2022,17 @@ function mapView() {
   const plan = mapPlanForFloor(state.floor);
   const stampedCount = booths.filter((booth) => repo.hasStamp(state.user.id, booth.id)).length;
   const sheetHandleLabel = state.sheetLevel === "full" ? "부스 목록 접기" : state.sheetLevel === "mid" ? "부스 목록 더 펼치기" : "부스 목록 펼치기";
+  // 1.57: no visible banner; the title stays for screen readers and the temporary-placement warning moves onto the map.
+  const placeNote = floorPlaceNote(state.floor);
   return `
     <main class="map-screen ${state.sheetLevel === "full" ? "sheet-full" : ""}">
-      <header class="top-bar tab-header">
-        <h1>부스 지도</h1>
-        <span class="map-location-note">${floorPlaceNote(state.floor)}</span>
-      </header>
+      <h1 class="sr-only">부스 지도</h1>
       <div class="festival-map-tools"><label class="map-search-bar search-screen-input ${state.search ? 'has-clear' : ''}">
         ${icon('search')}<input id="searchScreenInput" aria-label="부스 이름이나 위치 검색" placeholder="부스, 동아리, 교실 검색" value="${escapeHtml(state.search)}" autocomplete="off" enterkeyhint="search" /><button id="clearSearchScreen" class="icon-btn" type="button" aria-label="검색어 지우기" ${state.search ? '' : 'hidden'}>${icon('close')}</button>
       </label><div class="festival-map-filter"><span>${floorInfo.label} · ${floorInfo.caption}</span><span>${icon('check')} 방문 완료</span></div></div>
       <section class="map-stage">
         ${floorTabsView()}
-        <div class="map-context-bar"><span>${plan.subtitle}</span></div>
+        <div class="map-context-bar"><span>${plan.subtitle}</span>${placeNote === "판교고" ? "" : `<span class="map-location-note">${placeNote}</span>`}</div>
         ${mapCanvasView(booths, plan)}
       </section>
       <section class="sheet ${sheetClass()}" id="sheet">
@@ -2132,9 +2169,8 @@ function boothItem(booth) {
   const rating = ratingInfo(booth.id);
   const officialClub = Boolean(booth.officialClubId);
   const facility = booth.category === "facility";
-  const metaText = escapeHtml(officialClub
-    ? `${boothPlaceText(booth)} · ${formatOperatingHours(booth)}`
-    : facility ? `${booth.clubName} · ${booth.location}` : `${booth.clubName} · ${booth.location} · ${formatOperatingHours(booth)}`);
+  // 1.59: operating hours are gone; the line is where the booth is.
+  const metaText = escapeHtml(officialClub ? boothPlaceText(booth) : `${booth.clubName} · ${booth.location}`);
   return `
     <button class="booth-item ${booth.category || "class"} ${officialClub || booth.image ? "has-club-visual" : ""} ${stamped ? "visited" : ""} ${selected ? "selected" : ""}" data-list-select="${booth.id}">
       ${officialClub || booth.image ? clubVisual(booth) : ""}
@@ -2165,6 +2201,40 @@ function mapPreviewCard(booth) {
   `;
 }
 
+// 1.59: posters under 부스 소개 (reduced copies; the originals are only for operators). A poster opens
+// full size in a viewer with previous and next.
+function boothPosterPaths(booth) {
+  const list = isServerMode() && Array.isArray(booth.opsRecord?.posters) ? booth.opsRecord.posters : [];
+  return list.map(path => festivalAccount?.boothImages?.url(path)).filter(Boolean);
+}
+function boothPostersMarkup(booth) {
+  const urls = boothPosterPaths(booth);
+  if (!urls.length) return "";
+  return `<section class="panel section booth-posters"><div class="section-heading"><h2>포스터</h2><span>${urls.length}장</span></div>
+    <div class="booth-poster-strip">${urls.map((url, i) => `<button type="button" class="booth-poster" data-poster-open="${i}" aria-label="포스터 ${i + 1} 크게 보기"><img src="${escapeHtml(url)}" alt="${escapeHtml(catalogBooth(booth)?.name || booth.name)} 포스터 ${i + 1}" loading="lazy"></button>`).join("")}</div></section>`;
+}
+function openPosterViewer(booth, start) {
+  const urls = boothPosterPaths(booth);
+  if (!urls.length) return;
+  document.querySelector(".poster-viewer")?.remove();
+  let at = Math.min(Math.max(0, start), urls.length - 1);
+  const dialog = document.createElement("dialog");
+  dialog.className = "poster-viewer";
+  dialog.setAttribute("aria-label", "포스터 보기");
+  const draw = () => {
+    dialog.innerHTML = `<header><span>${at + 1} / ${urls.length}</span><button type="button" class="icon-btn" data-poster-close aria-label="닫기">${icon("close")}</button></header>
+      <img src="${escapeHtml(urls[at])}" alt="${escapeHtml(catalogBooth(booth)?.name || booth.name)} 포스터 ${at + 1}">
+      ${urls.length > 1 ? `<nav><button type="button" class="icon-btn" data-poster-step="-1" aria-label="이전 포스터" ${at === 0 ? "disabled" : ""}>${icon("back")}</button><button type="button" class="icon-btn" data-poster-step="1" aria-label="다음 포스터" ${at === urls.length - 1 ? "disabled" : ""}>${icon("arrow")}</button></nav>` : ""}`;
+    dialog.querySelector("[data-poster-close]").onclick = () => dialog.close();
+    dialog.querySelectorAll("[data-poster-step]").forEach(b => { b.onclick = () => { at = Math.min(urls.length - 1, Math.max(0, at + Number(b.dataset.posterStep))); draw(); }; });
+  };
+  draw();
+  document.body.appendChild(dialog);
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+  dialog.showModal();
+}
+
 function detailView() {
   const booth = state.db.booths.find((item) => item.id === state.selectedBoothId);
   if (!booth) return missingBoothView();
@@ -2182,7 +2252,7 @@ function detailView() {
           : `<button type="button" class="icon-btn" data-route="home" aria-label="홈">${icon("home")}</button>`}
       </header>
       <section class="detail-hero">
-        <div class="detail-status-row">${statusBadge(booth.status)}<span>${escapeHtml(formatOperatingHours(booth))}</span></div>
+        <div class="detail-status-row">${statusBadge(booth.status)}</div>
         <div class="detail-club-heading${booth.officialClubId || booth.image ? '' : ' is-text-only'}">
           ${booth.officialClubId || booth.image ? clubVisual(booth, "detail") : ""}
           <div>
@@ -2200,11 +2270,13 @@ function detailView() {
         <button type="button" class="ghost-btn full-action detail-review-link" data-open-booth-reviews="${escapeHtml(booth.id)}">${icon("message")}<span>리뷰 보기</span><b data-review-count-link>${escapeHtml(reviewCountText(rating))}</b>${icon("arrow")}</button>
         <button type="button" class="text-link festival-locate" data-locate-booth="${escapeHtml(booth.id)}">${icon('map')} 지도에서 위치 보기</button>
       </section>
+      ${typeof festivalWaiting !== "undefined" ? festivalWaiting.boothSection(booth) : ""}
       <p class="detail-data-note">${isServerMode() ? (booth.placed ? "부스 위치는 부스 담당자가 등록했어요." : "지도 위치는 임시 배치예요. 실제 부스 위치는 운영 안내를 확인해 주세요.") : "데모 화면 · 방문과 평가는 앱을 닫으면 사라집니다."}</p>
       <section class="panel section">
         <h2>부스 소개</h2>
         <p class="subtitle">${escapeHtml(booth.description)}</p>
       </section>
+      ${boothPostersMarkup(booth)}
       ${festivalWeb.program(booth)}
       <section class="panel section">
         <h2>방문 인증</h2>
@@ -2251,7 +2323,7 @@ function reviewForm({ enabled, message }) {
     <div class="review-compose ${enabled ? "" : "locked"}">
       <p class="review-guidance">${message}</p>
       <button type="button" class="text-link review-identity-link" data-route="identity" ${isServerMode() && policy.reason === "REVIEW_IDENTITY_REQUIRED" ? "" : "hidden"}>${icon("user")} 본인 소속 확인하기</button>
-      <p class="review-identity" ${policy.allowed ? "" : "hidden"}>${policy.allowed ? `${escapeHtml(policy.authorName)} 이름으로 공개돼요.` : ""}</p>
+      <p class="review-identity" ${policy.allowed ? "" : "hidden"}>${policy.allowed ? escapeHtml(reviewAuthorText(policy)) : ""}</p>
       <div class="star-picker" aria-label="별점 선택">
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star ${value >= n ? "on" : ""}" data-rating="${n}" aria-label="${n}점" aria-pressed="${value === n}" ${enabled && !own ? "" : "disabled"}>${icon("star")}</button>`).join("")}
       </div>
@@ -2336,6 +2408,11 @@ function boothReviewsBody(boothId) {
   const info = ratingInfo(boothId);
   if (info.status === "error") return `<div class="review-empty"><strong>리뷰를 불러오지 못했어요</strong><p>${escapeHtml(info.message || "연결을 확인하고 다시 시도해 주세요.")}</p><button type="button" class="ghost-btn" data-reload-booth-reviews>${icon("refresh")} 다시 불러오기</button></div>`;
   if (info.status !== "ready" && !info.reviews.length) return `<div class="review-empty"><strong>리뷰를 불러오는 중이에요</strong></div>`;
+  if (info.hidden) {
+    const own = info.reviews.filter(review => review.mine);
+    return `<section class="booth-review-summary booth-review-private" aria-label="리뷰 공개 상태"><p>${icon("lock")} 다른 참여자의 별점과 리뷰는 아직 비공개예요. 운영진이 공개하면 볼 수 있어요.</p></section>
+    <section class="booth-review-list" aria-label="내 리뷰">${own.length ? own.map(boothReviewItem).join("") : '<div class="review-empty"><strong>아직 남긴 리뷰가 없어요</strong><p>방문한 부스에 별점을 남기면 여기에서 내 리뷰를 볼 수 있어요.</p></div>'}</section>`;
+  }
   const reviews = info.reviews;
   const total = info.count;
   // Exact counts from the server; a list-only fallback is used only when it holds every review.
@@ -2896,21 +2973,16 @@ function bindEvents() {
   });
   document.querySelector("#googleLogin")?.addEventListener("click", () => runActionOnce("google-login", () => startGoogleLogin("student")));
   document.querySelector("#profileSubmit")?.addEventListener("click", () => runActionOnce("profile-save", completeProfile));
-  document.querySelector("#editProfileName")?.addEventListener("click", openNameEditor);
-  document.querySelector("#cancelNameEdit")?.addEventListener("click", cancelNameEditor);
-  document.querySelector("#profileName")?.addEventListener("input", event => {
-    state.nameEdit.draft = event.target.value;
-    state.nameEdit.error = "";
-    event.target.setAttribute("aria-invalid", "false");
-    const error = document.querySelector("#profileNameError");
-    if (error) error.textContent = "";
-  });
-  document.querySelector("#profileName")?.addEventListener("keydown", event => {
-    if (event.key === "Enter" && (event.isComposing || event.keyCode === 229)) event.preventDefault();
-  });
-  document.querySelector("#profileNameForm")?.addEventListener("submit", event => {
-    event.preventDefault();
-    runActionOnce("profile-name", saveDisplayName);
+  document.querySelector("#identitySubmit")?.addEventListener("click", () => runActionOnce("identity-gate", submitIdentityGate));
+  document.querySelectorAll("#identityName, #identityStudentNumber").forEach(input => input.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) runActionOnce("identity-gate", submitIdentityGate);
+  }));
+  document.querySelector("#identityRetry")?.addEventListener("click", () => {
+    const gate = state.identityGate;
+    if (!gate) return;
+    gate.status = "loading"; gate.note = "";
+    render();
+    checkIdentityGate(gate);
   });
   document.querySelector("#backToGoogle")?.addEventListener("click", async () => {
     await resetLogin();
@@ -3104,6 +3176,12 @@ function bindEvents() {
   if (typeof festivalBoothManager !== "undefined") festivalBoothManager.bind();
   if (typeof festivalVoucherManager !== "undefined") festivalVoucherManager.bind();
   if (typeof festivalGames !== "undefined") festivalGames.bind();
+  if (typeof festivalWaiting !== "undefined") festivalWaiting.bind();
+  if (typeof festivalWaitingManager !== "undefined") festivalWaitingManager.bind();
+  document.querySelectorAll("[data-poster-open]").forEach((button) => button.addEventListener("click", () => {
+    const booth = state.db.booths.find((item) => item.id === state.selectedBoothId);
+    if (booth) openPosterViewer(booth, Number(button.dataset.posterOpen));
+  }));
 }
 
 function closeMenus() {
@@ -3386,6 +3464,8 @@ async function resetLogin() {
     if (state.loginBusy) return false;
     state.loginBusy = true;
     try {
+      // This phone stops getting the account's waiting notifications.
+      if (typeof festivalWaiting !== "undefined") await festivalWaiting.signOut();
       const response = await festivalAccount?.signOut();
       if (response?.error) throw response.error;
     } catch {
@@ -3403,7 +3483,6 @@ async function resetLogin() {
   }
   state.user = null;
   if (window.FestivalRouter) pendingNavigation = null;
-  state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
   nfcManagement.clear();
   state.reviewPickerOpen = false;
   state.reviewDraft = "";
@@ -3411,6 +3490,8 @@ async function resetLogin() {
   dismissNfcFeedback();
   state.authStep = "google";
   state.pendingGoogle = null;
+  state.identityGate = null;
+  identityPassedFor = null;
   state.authIntent = "student";
   state.loginBusy = false;
   state.loginError = "";
@@ -3429,7 +3510,7 @@ function reportUnfinishedSignIn() {
   if (!isServerMode() || state.user) return;
   // The native callback arrives moments after the app returns to the front; wait for it first.
   setTimeout(() => {
-    if (state.user || state.authStep === "profile" || state.loginBusy) return;
+    if (state.user || state.authStep === "profile" || state.authStep === "identity" || state.loginBusy) return;
     state.loginError = "로그인 결과를 확인하지 못했어요. 다시 시도하거나 운영자에게 이 웹사이트의 로그인 복귀 주소 등록을 확인해 주세요.";
     state.route = "login";
     render();
@@ -3490,67 +3571,6 @@ async function startGoogleLogin(intent = "student") {
   }
 }
 
-function openNameEditor() {
-  if (!state.user || state.nameEdit.busy) return;
-  state.nameEdit = { open: true, draft: state.user.name || "", busy: false, error: "", message: "" };
-  render();
-  document.querySelector("#profileName")?.focus();
-}
-
-function cancelNameEditor() {
-  if (state.nameEdit.busy) return;
-  state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
-  render();
-  document.querySelector("#editProfileName")?.focus();
-}
-
-async function saveDisplayName() {
-  const edit = state.nameEdit;
-  if (!state.user || !edit.open || edit.busy) return;
-  const name = edit.draft.trim();
-  edit.error = "";
-  edit.message = "";
-  if (!name || name.length > 60) {
-    edit.error = "이름을 1~60자로 입력해 주세요.";
-    render();
-    document.querySelector("#profileName")?.focus();
-    return;
-  }
-  if (name === state.user.name) { cancelNameEditor(); return; }
-  const actorId = state.user.id;
-  edit.busy = true;
-  render();
-  try {
-    if (isServerMode()) {
-      const updated = await festivalAccount.updateName(name);
-      if (state.nameEdit !== edit || state.user?.id !== actorId) return;
-      if (updated.authUserId !== actorId) throw new Error("PROFILE_CONFLICT");
-      state.user = { ...state.user, name: updated.name };
-    } else {
-      const users = state.db.users.map(user => user.id === actorId ? { ...user, name } : user);
-      const nextDb = { ...state.db, users };
-      const progress = Object.fromEntries(SESSION_FIELDS.map(field => [field, nextDb[field] || []]));
-      if (!writeSessionStorage(SESSION_KEY, JSON.stringify(progress))) throw new Error("NAME_STORAGE_FAILED");
-      state.db = nextDb;
-      state.user = { ...state.user, name };
-    }
-    edit.open = false;
-    edit.draft = "";
-    edit.message = "이름을 변경했어요.";
-  } catch (error) {
-    if (state.nameEdit !== edit || state.user?.id !== actorId) return;
-    edit.error = isServerMode()
-      ? window.FestivalAccount.normalizeError(error).message
-      : "이름을 저장하지 못했어요. 기기의 저장 공간을 확인해 주세요.";
-  } finally {
-    edit.busy = false;
-    if (state.nameEdit === edit && state.user?.id === actorId && ["profile", "home"].includes(state.route)) {
-      render();
-      if (state.route === "profile") document.querySelector(edit.open ? "#profileName" : "#editProfileName")?.focus();
-    }
-  }
-}
-
 async function completeProfile() {
   const google = state.pendingGoogle;
   if (!google || state.loginBusy) return;
@@ -3565,7 +3585,8 @@ async function completeProfile() {
     render();
     try {
       const updated = await festivalAccount.updateProfile(name, studentNumber);
-      if (state.pendingGoogle === google && updated.authUserId === google.uid) applyServerProfile(updated);
+      // The name typed here also confirms the club membership in the same step (1.53).
+      if (state.pendingGoogle === google && updated.authUserId === google.uid) applyServerProfile(updated, { confirmName: name });
     }
     catch (error) {
       if (state.pendingGoogle === google) state.loginError = window.FestivalAccount.normalizeError(error).message;
@@ -4075,13 +4096,16 @@ function watchStatusLines() {
   }).observe(document.body, { childList: true, characterData: true, subtree: true });
 }
 
-function applyServerProfile(profile) {
+// 1.53: a 1st/2nd-grade participant confirms their club membership before entering the app. The
+// server says who must ("required"); this gate cannot be skipped, and the server also refuses their
+// stamp claims until it is done. Operators and accounts that need no confirmation pass straight in.
+
+function applyServerProfile(profile, { confirmName = "" } = {}) {
   if (!profile || profile.needsProfile || !profile.isAdmin || state.user?.id !== profile.authUserId) stopServerTagReading();
-  if (!profile || state.user?.id !== profile.authUserId) {
-    state.nameEdit = { open: false, draft: "", busy: false, error: "", message: "" };
-  }
   if (profile) signInStartedAt = 0; // the login came back; no need to warn about a lost callback
   serverCompletedBooths = profile?.completedBooths || [];
+  if (!profile || profile.authUserId !== identityPassedFor) identityPassedFor = null;
+  if (!profile || profile.needsProfile) state.identityGate = null;
   if (!profile) {
     state.user = null;
     state.authStep = "google";
@@ -4092,10 +4116,23 @@ function applyServerProfile(profile) {
   } else if (profile.needsProfile) {
     state.user = null;
     state.pendingGoogle = { uid: profile.authUserId, email: profile.email, displayName: profile.name, studentNumber: profile.studentNumber,
-      detectedStudentNumber: profile.studentNumberDetected === true ? profile.studentNumber : "" };
+      detectedStudentNumber: profile.studentNumberDetected === true ? profile.studentNumber : "", detectedName: profile.nameDetected === true ? profile.name : "" };
     state.authStep = "profile";
     state.route = "login";
+  } else if (!profile.isAdmin && state.user?.id !== profile.authUserId && identityPassedFor !== profile.authUserId) {
+    state.user = null;
+    state.pendingGoogle = { uid: profile.authUserId, email: profile.email, displayName: profile.name, studentNumber: profile.studentNumber };
+    state.authStep = "identity";
+    state.route = "login";
+    const gate = { status: "loading", profile, identity: null, note: "", busy: false, fromSignup: Boolean(confirmName),
+      nameDraft: confirmName || profile.name, studentNumber: profile.studentNumber };
+    state.identityGate = gate;
+    render();
+    checkIdentityGate(gate, confirmName);
+    return;
   } else {
+    identityPassedFor = profile.authUserId;
+    state.identityGate = null;
     // The operator flag comes from the caller's own users row. Every privileged call is
     // re-checked on the server, so this only decides which screens are offered.
     state.user = { id: profile.authUserId, name: profile.name, studentNumber: profile.studentNumber,
@@ -4112,6 +4149,60 @@ function applyServerProfile(profile) {
     consumePendingNfc();
     loadMyReviews();
     if (window.FestivalRouter) loadNavigationContent();
+  }
+}
+
+// The account that passed the club membership step in this session.
+let identityPassedFor = null;
+
+// Reads whether this account must confirm and, with a typed name, confirms it in the same step.
+async function checkIdentityGate(gate, confirmName = "") {
+  const current = () => state.identityGate === gate && state.authStep === "identity";
+  if (typeof festivalAccount?.reviewIdentitySelf !== "function") { identityPassedFor = gate.profile.authUserId; applyServerProfile(gate.profile); return; }
+  let response = await festivalAccount.reviewIdentitySelf("status");
+  if (!current()) return;
+  if (response.ok && response.data.required && !response.data.locked && confirmName) {
+    response = await festivalAccount.reviewIdentitySelf("confirm", { eventId: response.data.eventId, realName: confirmName });
+    if (!current()) return;
+  }
+  // No festival is running, or the server has no membership check yet: there is nothing to confirm.
+  if ((!response.ok && ["OPS_NOT_READY", "SERVER_NOT_READY"].includes(response.code)) || (response.ok && !response.data.required)) {
+    identityPassedFor = gate.profile.authUserId;
+    applyServerProfile(gate.profile);
+    return;
+  }
+  gate.busy = false;
+  if (!response.ok) { gate.status = "error"; gate.note = response.message; render(); return; }
+  gate.status = "ready";
+  gate.identity = response.data;
+  gate.note = response.data.locked ? festivalOpsUI.identityMessage("OPERATOR_LOCKED")
+    : response.data.result && response.data.result !== "CONFIRMED" ? festivalOpsUI.identityMessage(response.data.result) : "";
+  render();
+}
+
+async function submitIdentityGate() {
+  const gate = state.identityGate;
+  if (!gate || gate.busy || gate.status !== "ready") return;
+  const name = document.querySelector("#identityName")?.value.trim() || "";
+  const studentNumber = document.querySelector("#identityStudentNumber")?.value.trim() || "";
+  gate.nameDraft = name;
+  gate.studentNumber = studentNumber;
+  if (!name) { gate.note = "이름을 동아리 명단과 같게 입력해 주세요."; render(); return; }
+  gate.busy = true;
+  gate.note = "";
+  render();
+  try {
+    // A corrected 학번 (or, right after sign-up, a corrected name) is saved to the profile first.
+    if (studentNumber !== gate.profile.studentNumber || (gate.fromSignup && name !== gate.profile.name)) {
+      gate.profile = await festivalAccount.updateProfile(gate.fromSignup ? name : gate.profile.name, studentNumber);
+      if (state.identityGate !== gate) return;
+    }
+    await checkIdentityGate(gate, name);
+  } catch (error) {
+    if (state.identityGate !== gate) return;
+    gate.busy = false;
+    gate.note = window.FestivalAccount.normalizeError(error).message;
+    render();
   }
 }
 
@@ -4164,7 +4255,7 @@ document.addEventListener("keydown", event => {
 });
 // A page left open keeps running the scripts it loaded. When another release is deployed, offer a
 // reload so nobody keeps working on a replaced screen. Must match the version in tools/build-web.cjs.
-const APP_RELEASE = "1.51";
+const APP_RELEASE = "1.63";
 function watchDeployment() {
   if (!["http:", "https:"].includes(location.protocol) || location.origin === "https://appassets.androidplatform.net"
     || typeof fetch !== "function" || typeof setInterval !== "function") return;

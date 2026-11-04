@@ -288,7 +288,10 @@ try {
     await s.page.evaluate(()=>navigateTo('home'));
     const news=s.page.locator('#homeNews .web-news-list li').first(); await news.waitFor();
     assert.match(await news.innerText(),/중요\s*우천 시 실내 진행[\s\S]*본관으로 옮겨요/);
-    assert.match(await s.page.locator('.festival-notice-strip').innerText(),/우천 시 실내 진행/);
+    // 1.48: 공지 and 축제 소식 are one 공지 section; no separate strip, no profile button in the brand row.
+    assert.equal(await s.page.locator('.festival-notice-strip').count(),0);
+    assert.equal(await s.page.locator('#homeNews h2').innerText(),'공지');
+    assert.equal(await s.page.locator('.web-brand [data-route=profile]').count(),0);
     await screenshot(s.page,width,'notice-home');
 
     // Edit: hide it, and it disappears from the participant's home on the next load.

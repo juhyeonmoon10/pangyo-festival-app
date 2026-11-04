@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
-const { normalizeError } = require('../festival-account.js');
+const { normalizeError, validateReviewPolicy } = require('../festival-account.js');
 
 const root = path.resolve(__dirname, '..');
 const profile = { id: 1, authUserId: 'fixture', name: 'Student', email: 'fixture@example.invalid',
@@ -30,7 +30,7 @@ async function setup(server = true) {
       forClub: () => catalog.row, subscribe: callback => { catalog.subscriber = callback; },
       refresh: () => { catalog.refreshes++; },
     }) },
-    FestivalAccount: { normalizeError, createAccount: () => ({ initialize: async () => profile,
+    FestivalAccount: { normalizeError, validateReviewPolicy, createAccount: () => ({ initialize: async () => profile,
       pending: () => null, myReviews: async () => ({ ok: false }) }) },
     fetch: () => { throw Error('No network in copy tests'); },
   });
@@ -39,7 +39,7 @@ async function setup(server = true) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
   await new Promise(setImmediate);
-  const api = vm.runInContext('({state, profileView, loginView, mapView, detailView, scanView, reviewForm, catalogRatingText, catalogPositionText, festivalWeb})', context);
+  const api = vm.runInContext('({state, profileView, loginView, mapView, detailView, scanView, reviewForm, catalogRatingText, catalogPositionText, festivalWeb, serverReviews, boothKeyFor, boothReviewsBody})', context);
   if (!server) api.state.user = api.state.db.users[0];
   api.state.selectedBoothId = api.state.db.booths[0].id;
   return { ...api, catalog, slots };
@@ -51,8 +51,9 @@ test('profile and login omit storage and connection diagnostics in both modes', 
     for (const html of [api.profileView(), api.loginView()]) {
       assert.doesNotMatch(html, /저장 위치|Supabase|catalog-connection|data-catalog-status|마지막 조회|부스 DB/);
     }
-    assert.match(api.profileView(), /방문 기록/);
-    assert.match(api.profileView(), /이름 변경/);
+    assert.match(api.profileView(), /스탬프/);
+    // 1.54: the name is set at sign-up and cannot be changed afterwards.
+    assert.doesNotMatch(api.profileView(), /이름 변경/);
   }
 });
 
@@ -93,7 +94,9 @@ test('first-login profile stays compact and preserves the student-number action'
   api.state.pendingGoogle = { displayName: 'Student', email: 'fixture@example.invalid' };
   const html = api.loginView();
   assert.match(html, /login-profile/);
-  assert.doesNotMatch(html, /class="login-art"|id="name"|auth-step/);
+  assert.doesNotMatch(html, /class="login-art"|auth-step/);
+  // 1.48: the name is an input filled in from the Google account.
+  assert.match(html, /id="name"[^>]*value="Student"/);
   assert.match(html, /id="studentNumber"/);
   assert.match(html, /id="profileSubmit"/);
   assert.match(html, /id="backToGoogle"/);
@@ -133,11 +136,41 @@ test('removing diagnostics does not stop catalog refresh or in-place updates', a
   api.catalog.row = { name: 'Updated booth', rating: 4.5, position: '2층' };
   api.catalog.subscriber();
   assert.equal(nameSlot.textContent, 'Updated booth');
+  // 1.54: other participants' ratings are private to students until an operator opens them.
+  assert.equal(ratingSlot.textContent, '별점 비공개');
+  api.state.user.role = 'admin';
+  api.catalog.subscriber();
   assert.equal(ratingSlot.textContent, '4.5점');
   assert.equal(api.catalogPositionText(booth), '위치: 2층');
   api.catalog.status = 'offline';
   api.catalog.subscriber();
   assert.equal(ratingSlot.textContent, '4.5점 · 이전 정보');
+});
+
+test("1.54: other participants' ratings and reviews stay private for students until opened", async () => {
+  const api = await setup();
+  const booth = api.state.db.booths.find(item => item.officialClubId);
+  booth.opsKey = 'fixture-booth';
+  const key = api.boothKeyFor(booth);
+  const own = { rating: 4, content: '내 후기', author: '홍길동', mine: true, createdAt: '2026-11-04T01:00:00Z' };
+  api.state.selectedBoothId = booth.id;
+  const reviewPolicy = { version: 1, allowed: true, reason: null, authorName: '홍길동' };
+  api.serverReviews.set(key, { status: 'ready', reviewPolicy, visible: false, count: 1, average: 4, myRating: 4, distribution: null, reviews: [own] });
+  const detail = api.detailView();
+  assert.match(detail, /data-review-average>비공개</);
+  assert.match(detail, /data-review-count>비공개</);
+  assert.match(detail, /아직 비공개예요/);
+  assert.match(detail, /내 후기/);
+  const list = api.boothReviewsBody(booth.id);
+  assert.match(list, /아직 비공개예요/);
+  assert.match(list, /내 후기/);
+  assert.doesNotMatch(list, /booth-review-bars|평균/);
+  // Opened in 관리 마법사: the summary carries everyone's reviews again.
+  const other = { ...own, rating: 5, content: '다른 후기', author: '김○○', mine: false };
+  api.serverReviews.set(key, { status: 'ready', reviewPolicy, visible: true, count: 2, average: 4.5, myRating: 4, distribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 1 }, reviews: [other, own] });
+  assert.match(api.detailView(), /data-review-average>4.5</);
+  assert.match(api.boothReviewsBody(booth.id), /다른 후기/);
+  assert.match(api.boothReviewsBody(booth.id), /booth-review-bars/);
 });
 
 test('unavailable services, provisional locations, and review rules remain explicit', async () => {

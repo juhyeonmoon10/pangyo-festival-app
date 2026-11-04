@@ -38,7 +38,10 @@ function setup() {
 test('map keeps one search action, one reset and no extra instructional copy', () => {
   const api = setup();
   const html = api.mapView();
-  assert.equal((html.match(/<h1>/g) || []).length, 1);
+  assert.equal((html.match(/<h1[ >]/g) || []).length, 1);
+  // 1.57: no visible banner; the title is for screen readers only and the search starts at the top.
+  assert.ok(html.includes('<h1 class="sr-only">부스 지도</h1>'));
+  assert.doesNotMatch(html, /tab-header|map-location-note/);
   assert.equal((html.match(/id="searchScreenInput"/g) || []).length, 1);
   assert.equal((html.match(/id="resetMapView"/g) || []).length, 1);
   assert.match(html, /class="map-search-bar search-screen-input/);

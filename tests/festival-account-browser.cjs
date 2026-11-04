@@ -38,6 +38,8 @@ const token = n => `nf1.${n}.${'a'.repeat(64)}`;
         if (pathname === '/rest/v1/booths') return route.fulfill({ json: Object.values(CLUB_IDS).map(id => ({ id, name: id, rating: 0, position: '' })) });
         assert.equal(req.headers().authorization, `Bearer ${jwt}`);
         if (pathname === '/rest/v1/rpc/festival_nfc_profile') return route.fulfill({ json: profile() });
+        // 1.53: no festival is running in this flow, so the sign-in club check has nothing to ask.
+        if (pathname === '/rest/v1/rpc/festival_review_identity_self') return route.fulfill({ status: 400, json: { message: 'OPS_NOT_READY' } });
         if (pathname === '/rest/v1/rpc/festival_nfc_claim') {
           if (fail) return route.fulfill({ status: 503, json: { message: 'fixture unavailable' } });
           const booth = req.postDataJSON().p_token === token('b') ? '매커니즘' : '글빛누리';
