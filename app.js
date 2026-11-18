@@ -1498,6 +1498,7 @@ function render() {
     if (state.route === "boothReviews") app.innerHTML = boothReviewsView();
     if (state.route === "profile") app.innerHTML = profileView();
     if (state.route === "admin") app.innerHTML = adminView();
+    if (state.route === "admin" && (isServerMode() ? isAdminUser() : canUseMockNfcTools())) app.querySelector('main')?.insertAdjacentHTML('beforeend','<festival-playbill manage></festival-playbill>');
     if (["games", "gamesStock", "gamesStockDetail", "gamesBlackjack"].includes(state.route)) app.innerHTML = festivalGames.view();
     if (state.reviewPickerOpen && state.user) app.insertAdjacentHTML("beforeend", reviewPickerView());
     if (app.querySelector("main")) app.querySelector("main").inert = state.reviewPickerOpen;

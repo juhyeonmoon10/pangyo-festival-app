@@ -559,6 +559,13 @@
     };
 
     return { initialize, signIn, profile, claim, updateProfile, receiveCallback, savePending, pending,
+      stage: {
+        list: () => client.from('festival_2026_performances').select('*').order('starts_at').order('id'),
+        ballot: () => client.from('festival_2026_ballots').select('first,second,third').maybeSingle(),
+        vote: ([first,second,third]) => client.from('festival_2026_ballots').insert({first,second,third}),
+        save: (id,row) => id ? client.from('festival_2026_performances').update(row).eq('id',id).select('id').single() : client.from('festival_2026_performances').insert(row).select('id').single(),
+        remove: id => client.from('festival_2026_performances').delete().eq('id',id).select('id').single()
+      },
       reviews, myReviews, submitReview, issueTag, nfcTags, operations, noticeImages, boothImages, posterOriginals, games,
       reviewIdentity: async (action, payload) => {
         try {

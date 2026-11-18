@@ -230,6 +230,7 @@ const festivalWeb = (() => {
       <section class="web-welcome"><h1>${escapeHtml(state.user.name)}님의 축제</h1></section>
       ${state.db.event.emergencyMode ? emergencyBanner() : ""}
       ${stampCard(count)}
+      <festival-playbill></festival-playbill>
       <button type="button" class="web-map-action" data-route="map">
         <span class="map-action-copy"><strong>부스 지도 ${icon("arrow")}</strong></span>
         <img class="map-action-art" src="./assets/festival-map-1.4.webp" width="1536" height="1024" alt="" />

@@ -6,6 +6,7 @@ const {pagePattern} = require('../festival-router.js');
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, '.vercel', 'output');
 const entries = [
+  'playbill.js', 'playbill.css',
   'index.html', 'app.js', 'festival-router.js', 'styles.css', 'ui-ver2.css', 'web-redesign.css', 'festival-bright.css', 'ui-refinements.css',
   'nfc-cards/index.html', 'nfc-cards/cards.js', 'nfc-cards/cards.css', 'assets/stamps/catalog.json',
   'web-experience.js', 'stamp-simulator.js', 'sun-nfc.js', 'sun-cards.js', 'festival-notices.js', 'booth-manager.js', 'festival-waiting.js', 'waiting-manager.js', 'voucher-manager.js', 'voucher-scan.js', 'programs.js', 'supabase-catalog.js',
