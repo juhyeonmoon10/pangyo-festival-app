@@ -7,16 +7,30 @@
   const kst = date => new Date(+new Date(date) + 9 * 3600000).toISOString().slice(0,16);
   const ended = row => Date.parse(row.ends_at) <= Date.now();
   const esc = s => escapeHtml(String(s));
+  const dayLabel = new Intl.DateTimeFormat('ko-KR', {timeZone:'Asia/Seoul', month:'long',day:'numeric',weekday:'short'});
+  function sheet(manage, content, count) {
+    return `<section class="stage-paper"><header class="stage-heading"><span class="stage-symbol">${icon('list')}</span><h2>${manage?'공연 관리':'공연 순서지'}</h2>${count ? `<small>공연 ${count}개</small>` : ''}</header>${content}</section>`;
+  }
+  function program(rows) {
+    if (!rows.length) return '<p class="stage-note">아직 등록된 공연이 없어요.</p>';
+    const days = new Map();
+    for (const row of rows) {
+      const date = kst(row.starts_at).slice(0,10);
+      if (!days.has(date)) days.set(date,[]);
+      days.get(date).push(row);
+    }
+    return [...days.values()].map(group => `<div class="stage-day"><h3>${dayLabel.format(new Date(group[0].starts_at))}</h3><ol>${group.map(s=>`<li><time datetime="${esc(s.starts_at)}">${kst(s.starts_at).slice(11)}</time><strong>${esc(s.title)}</strong></li>`).join('')}</ol></div>`).join('');
+  }
   customElements.define('festival-playbill', class extends HTMLElement {
     async connectedCallback() {
       this.manage = this.hasAttribute('manage');
       this.actor = String(state.user?.id || '');
-      this.innerHTML = '<section class="stage-paper"><h2>공연 순서지</h2><p>일정을 불러오는 중…</p></section>';
+      this.innerHTML = sheet(this.manage,'<p class="stage-note" role="status">일정을 불러오는 중…</p>');
       try {
         if (isServerMode()) {
           const [s,b] = await Promise.all([festivalAccount.stage.list(), festivalAccount.stage.ballot()]);
           if ([s.error,b.error].some(err=>['PGRST205','42P01'].includes(err?.code))) {
-            this.innerHTML = `<section class="stage-paper"><header><h2>공연 순서지</h2><small>판교고 축제</small></header><p>${this.manage?'공연 관리와 투표는 서버 연결 후 열립니다.':'공연 일정 준비 중'}</p></section>`;
+            this.innerHTML = sheet(this.manage,`<p class="stage-note">${this.manage?'공연 관리와 투표는 서버 연결 후 열립니다.':'공연 일정 준비 중'}</p>`);
             return;
           }
           if (s.error || b.error) throw Error();
@@ -26,7 +40,7 @@
         }
         if (this.isConnected) this.draw();
       } catch {
-        this.innerHTML = '<section class="stage-paper"><h2>공연 순서지</h2><p>공연 일정을 불러올 수 없어요.</p><button type="button">다시 시도</button></section>';
+        this.innerHTML = sheet(this.manage,'<p class="stage-note">공연 일정을 불러올 수 없어요.</p><button class="ghost-btn" type="button">다시 시도</button>');
         this.querySelector('button').onclick = () => this.connectedCallback();
       }
     }
@@ -34,10 +48,10 @@
       this.shows.sort((a,b) => Date.parse(a.starts_at)-Date.parse(b.starts_at) || a.id.localeCompare(b.id));
       const options = rows => rows.map(s=>`<option value="${esc(s.id)}">${esc(s.title)}</option>`).join('');
       const eligible = this.shows.filter(ended);
-      const editor = `<form><label>공연 선택<select name="id"><option value="">새 공연</option>${options(this.shows)}</select></label><label>공연명<input name="title" maxlength="120" required></label><label>시작 (한국 시간)<input type="datetime-local" name="start" required></label><label>종료 (한국 시간)<input type="datetime-local" name="end" required></label><button>저장</button><button type="button" data-remove hidden>삭제</button></form>`;
-      const receipt = this.ballot?.map((id,i)=>`<p>${i+1}순위 · ${esc(this.shows.find(x=>x.id===id)?.title || '공연')}</p>`).join('');
-      const voter = this.ballot ? `<strong>투표 완료</strong>${receipt}` : eligible.length < 3 ? '<p>세 공연 이상 종료되면 투표할 수 있어요.</p>' : `<form>${[1,2,3].map(i=>`<label>${i}순위<select required name="rank${i}"><option value="">공연 선택</option>${options(eligible)}</select></label>`).join('')}<button disabled>최종 투표</button></form>`;
-      this.innerHTML = `<section class="stage-paper"><header><h2>${this.manage?'공연 관리':'공연 순서지'}</h2><small>판교고 축제</small></header>${this.shows.length?`<ol>${this.shows.map(s=>`<li><time>${kst(s.starts_at).slice(5,10).replace('-','/')} · ${kst(s.starts_at).slice(11)}</time><strong>${esc(s.title)}</strong></li>`).join('')}</ol>`:'<p>아직 등록된 공연이 없어요.</p>'}<details ${this.manage||this.reopen?'open':''}><summary>${this.manage?'공연 등록·수정':this.ballot?'내 투표':'공연 투표'}</summary>${this.manage?editor:voter}</details><p role="status"></p></section>`;
+      const editor = `<form><label>공연 선택<select class="select" name="id"><option value="">새 공연</option>${options(this.shows)}</select></label><label>공연명<input class="input" name="title" maxlength="120" required></label><label>시작 (한국 시간)<input class="input" type="datetime-local" name="start" required></label><label>종료 (한국 시간)<input class="input" type="datetime-local" name="end" required></label><div class="stage-actions"><button class="primary-btn">저장</button><button type="button" class="danger-btn" data-remove hidden>삭제</button></div></form>`;
+      const receipt = this.ballot?.map((id,i)=>`<li><span>${i+1}순위</span><strong>${esc(this.shows.find(x=>x.id===id)?.title || '공연')}</strong></li>`).join('');
+      const voter = this.ballot ? `<p class="stage-confirmed">${icon('check')} 투표 완료</p><ol class="stage-receipt">${receipt}</ol>` : eligible.length < 3 ? '<p class="stage-note">세 공연 이상 종료되면 투표할 수 있어요.</p>' : `<form>${[1,2,3].map(i=>`<label class="stage-rank"><span>${i}순위</span><select class="select" required name="rank${i}"><option value="">공연 선택</option>${options(eligible)}</select></label>`).join('')}<button class="primary-btn" disabled>최종 투표</button></form>`;
+      this.innerHTML = sheet(this.manage,`${program(this.shows)}<details ${this.manage||this.reopen?'open':''}><summary>${this.manage?'공연 등록·수정':this.ballot?'내 투표':'공연 투표'}${icon('plus')}${icon('minus')}</summary>${this.manage?editor:voter}</details><p class="stage-note" role="status"></p>`,this.shows.length);
       const form = this.querySelector('form');
       if (!form) return;
       const fields = form.elements;

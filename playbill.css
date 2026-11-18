@@ -1,6 +1,38 @@
-festival-playbill{display:block;margin:18px 0;color:#183c30}
-.stage-paper{background:#fffdf5;border:1px solid #d3d6c9;border-top:5px solid #28694e;border-radius:3px;padding:20px;box-shadow:2px 3px 0 #e0e6dc;text-align:left}
-.stage-paper header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid #344a3e;padding-bottom:12px;gap:10px}
-.stage-paper h2{font:700 24px/1.25 Georgia,Batang,serif;margin:0}.stage-paper header small{color:#4b6455;font-weight:700}
-.stage-paper ol{list-style:none;padding:0;margin:0}.stage-paper li{display:grid;grid-template-columns:6.8em minmax(0,1fr);gap:10px;align-items:baseline;padding:12px 0;border-bottom:1px dashed #bdc6b9;overflow-wrap:anywhere}.stage-paper time{font-variant-numeric:tabular-nums;font-size:13px;color:#425a4f}
-.stage-paper details{margin-top:12px}.stage-paper summary{cursor:pointer;font-weight:700;padding:10px 0}.stage-paper label{display:block;margin:10px 0;font-weight:600}.stage-paper select,.stage-paper input{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:44px;background:#fff;color:#19372d;border:1px solid #899e92;border-radius:4px;padding:6px}.stage-paper button{cursor:pointer;background:#215d47;color:white;border:0;border-radius:4px;min-height:40px;padding:8px 14px;margin:4px 4px 0 0}.stage-paper button:disabled{opacity:.55}.stage-paper p{margin:12px 0 0}
+festival-playbill { display: block; min-width: 0; margin-block: 16px; }
+.stage-paper {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  text-align: start;
+}
+.stage-heading { display: flex; align-items: center; gap: 10px; }
+.stage-heading h2 { margin: 0; font: inherit; font-size: 18px; font-weight: 750; line-height: 1.35; }
+.stage-heading small { margin-inline-start: auto; color: var(--muted); font-size: 13px; }
+.stage-symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: var(--primary); background: var(--festival-mint); }
+.stage-symbol .ui-icon { width: 19px; height: 19px; }
+.stage-day { margin-top: 16px; }
+.stage-day h3 { margin: 0; padding-bottom: 6px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--muted); }
+.stage-paper ol { padding: 0; margin: 0; list-style: none; }
+.stage-paper li { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 11px 0; }
+.stage-paper li + li { border-top: 1px solid var(--line); }
+.stage-paper li strong { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.stage-paper time, .stage-receipt li > span { color: var(--primary); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
+.stage-paper details { margin-top: 8px; border-top: 1px dashed var(--line); }
+.stage-paper summary { display: flex; align-items: center; justify-content: space-between; min-height: 48px; cursor: pointer; font-weight: 700; color: var(--primary); list-style: none; }
+.stage-paper summary::-webkit-details-marker { display: none; }
+.stage-paper summary .ui-icon { height: 18px; width: 18px; }
+.stage-paper summary .ui-icon:last-child, .stage-paper details[open] summary .ui-icon:first-of-type { display: none; }
+.stage-paper details[open] summary .ui-icon:last-child { display: block; }
+.stage-paper form { display: grid; gap: 12px; }
+.stage-paper label { display: grid; min-width: 0; gap: 4px; font-size: 13px; font-weight: 650; }
+.stage-paper .stage-rank { grid-template-columns: 3em minmax(0,1fr); align-items: center; }
+.stage-paper :is(select,input) { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px 10px; }
+.stage-paper .stage-actions { display: flex; gap: 8px; }
+.stage-actions .primary-btn { flex: 1; }
+.stage-paper [hidden], .stage-paper .stage-note:empty { display: none; }
+.stage-paper .stage-note { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.stage-paper .stage-confirmed { display: flex; align-items: center; gap: 6px; margin: 2px 0; font-weight: 700; color: var(--primary); }
+.stage-confirmed .ui-icon { width: 18px; height: 18px; }
+.stage-paper button:disabled { opacity: .55; }
